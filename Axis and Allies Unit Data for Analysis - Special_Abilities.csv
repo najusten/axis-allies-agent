@@ -1,0 +1,213 @@
+Ability Name,Description
+Ace,"This unit ignores the -1 penalty on each attack die when attacking Aircraft. If an enemy Aircraft is placed within four hexes of this unit, this unit may make a defensive-fire attack against it."
+Additional Hull-Mounted Cannon,"In your assault phase, this unit can make an extra attack at 12/10/8. The target must be a Vehicle in front of this unit."
+Aggression 1,"In your assault phase, this unit can move at speed 1 before attacking."
+Aggression 2,"In your assault phase, this unit can move at speed 2 before attacking."
+Agility,This unit’s short range against aircraft is 0-2 hexes and its medium range against aircraft is 3-5 hexes.
+Aircraft,Aircraft are placed during the flight phase and attack during the airstrike phase. Units attacking Aircraft use their anti-Soldier attacks and get –1 on each attack die.
+All Guns Blazing,"After this unit attacks in your assault phase, it can make one extra attack against a Soldier."
+Amphibious,This unit can cross streams without making a movement roll. This unit can enter water hexes as though they were double-cost terrain hexes.
+Angriff,"In your assault phase, friendly non-disrupted non-Artillery Soldiers adjacent to this unit can move into an adjacent hex and attack an enemy Soldier or Vehicle in that hex. They get +1 on each attack die for that attack."
+Antiair,"This unit ignores the -1 penalty on each attack die when attacking Aircraft. If an enemy Aircraft is placed in a hex adjacent to this unit, this unit may make a defensive-fire attack against it."
+Antiair Support,While in the same hex as a friendly unit with the Antiair ability this unit gains the Antiair Ability.
+Armor-Piercing Rounds,"Once per game, before you roll this unit’s attack against a Vehicle, you can declare you are using these rounds. If you score two hits against that Vehicle with this attack, score an additional hit."
+AVRE,This unit ignores Obstacles. This unit destroys each Obstacle it crosses. This unit destroys each Obstacle in hexes it enters.
+Awareness,This unit can make defensive-fire attacks against Soldiers that enter its hex.
+Backblast,"If this unit attacks, it fails all cover rolls for the rest of the turn."
+Banzai Charge,"In your assault phase, friendly non-Artillery Soldiers adjacent to this unit can move into an enemy unit's hex and then attack that unit. They get +1 on each attack die for that attack."
+Barbed Wire,This Obstacle is placed along the boundary between hexes. A Soldier must make a successful movement roll to cross this Obstacle.
+Battlefield Awareness,This unit can make defensive-fire attacks against Vehicles that move out of hexes adjacent to this unit. (The defensive-fire attack must be made while the target is still in an adjacent hex).
+Blast,"When this unit attacks, make a separate attack roll against each unit in the target hex. (This includes friendly units, but not Aircraft.)"
+Bombardment,This unit's attacks ignore cover. This unit can't attack Aircraft.
+Bombs,"Once per game, instead of rolling this unit's attack against an enemy Soldier or Vehicle in the same hex, you can declare you are using bombs. If you do, roll 12 attack dice against enemy that unit if it's a Soldier or 8 attack dice if it's a vehicle."
+Bravery Enforcement,Friendly disrupted Soldiers adjacent to this unit do not suffer the -1 penalty to their attack dice.
+Bridge Demolition,"This unit may attempt to destroy a bridge or Obstacle in its hex instead of moving or attacking in your assault phase. Roll a die. If you roll a 4 or higher, destroy the bridge or Obstacle. (Units now need to make a movement roll to cross the stream, and the road is broken at that point.)"
+Brushcutters,This unit can enter forest hexes without making a movement roll.
+Camouflaged,"Until this unit attacks or moves, enemy units can't attack this unit at medium or long range."
+Canadian Hero,"This unit doesn’t get placed on the battle map during deployment. At the beginning of any of your movement phases, you may deploy this unit in any hex that contains a friendly Canadian Soldier. This unit ignores face-up Disrupted counters."
+Charge,This unit can move while disrupted if it moves closer to an enemy Soldier.
+Chatting on the Radio,This unit only counts as a Spotter if it doesn't move in the assault phase.
+Close Assault (4–16),This unit has an attack value of (X) against Vehicles in its hex. This attack ignores cover.
+Collapsible Screen,"While this unit is in a water hex, it can’t attack."
+Command Awareness,Friendly Vehicles within two hexes of this unit get Awareness: This unit can make defensive-fire attacks against Soldiers that enter its hex.
+Command Demolition,"Each friendly soldier adjacent to this unit may attempt to destroy an obstacle in its hex instead of moving or attacking in your assault phase. Roll a die. If you roll a 4 or higher, destroy the obstacle."
+Command Dependent,"In your movement phase, this unit can't move unless it starts its move adjacent to a friendly Commander."
+Command Leadership,Friendly Vehicles within two hexes of this unit get Well Led: This unit rolls one extra attack die when attacking during your assault phase.
+Command Quick Reactions,Each friendly vehicle within 2 hexes of this unit can change facing after making an attack.
+Command Ruthless,Friendly Vehicles within two hexes of this unit get “Ruthless — This unit gets +1 on each attack die against disrupted and damaged units.”
+COMMANDER ABILITIES: 1,Initiative +1
+COMMANDER ABILITIES: 2,Initiative +2
+COMMANDER ABILITIES: 3,Initiative +3
+Commander Hunter,This unit rolls two extra attack dice when attacking a Commander.
+Concealed,While this unit has cover enemy units can’t attack this unit at long range.
+Coordinated Fire,This unit rolls one extra attack die while adjacent to a friendly Commander.
+Coordinated Fire (C. A.),Friendly Soldiers adjacent to this unit roll one extra attack die when attacking units that this unit has attacked this turn.
+Courage,This unit can move while disrupted if it moves closer to the nearest enemy unit.
+Covering Fire,Soldiers attacked by this unit can’t make defensive fire attacks this turn.
+Crack Shot,This unit gets +1 on each attack die.
+Defensive Preparation,Friendly Artillery adjacent to this unit gets +1/+1 defense.
+Demolitions,"At the end of your movement phase or assault phase, if this unit is in a hex that contains an Obstacle or in a hex with an Obstacle along one of its hex edges, you may roll a die. On a 4 or higher, destroy that Obstacle."
+Determined Charge,This unit doesn’t immediately end its movement when hit and disrupted by a defensive-fire attack.
+Dismounted Attack,"While there are no enemy Soldiers adjacent to this unit, this unit’s short range against Vehicles is 0–2 hexes."
+Dispersal,Friendly soldiers adjacent to this unit get +1/+1 defense against attacks from units with the Blast ability
+Double Shot,"This unit can make two attacks in your assault phase. When making a defensive-fire attack, this unit makes two attack rolls against the unit that provoked the attack."
+Dug In,This unit can’t move and can’t be carried by a unit with the Transport ability.
+Elan,Friendly Soldiers adjacent to this unit get +1/+1 defense against defensive-fire attacks.
+Elusive,"While this unit is in a forest hex or a marsh hex, it gets +1/+1 defense."
+Endurance,"Whenever this unit receives a face-up Destroyed counter, roll a die. On a 5 or higher, ignore the destroyed counter."
+Enhanced Range 10,This unit’s long range is 5–10 hexes.
+Enhanced Range 12,This unit’s long range is 5–12 hexes.
+Enhanced Range 16,This unit’s long range is 5-16 hexes.
+Entrenched,"Until this unit moves, it gets +1/+1 defense."
+Excellent Suspension,This unit can enter hill hexes as though they were clear hexes
+Exert Will,"At the beginning of your movement phase, remove all Disrupted counters from friendly Soldiers adjacent to this unit."
+Experienced Recon,This unit can attack units with the Camouflaged ability or the Superior Camouflage ability at medium range.
+Exposed Transport,This unit can carry one Soldier. That Soldier can be attacked while it’s boarded on this transport. (A friendly Soldier can board or dismount this unit instead of moving during your movement phase.)
+Extended Range 10,This unit’s long range against Vehicles is 5–10 hexes.
+Extended Range 12,This unit’s long range against Vehicles is 5–12 hexes.
+Extended Range 16,This unit’s long range against Vehicles is 5–16 hexes.
+Extended Range 20,This unit’s long range against Vehicles is 5–20 hexes.
+Extra Fuel,Friendly Vehicles with a base speed of 3 or higher get +1 speed. (Multiple abilities of the same name aren’t cumulative.)
+Extra Hull-Mounted Cannon,"In your assault phase, this unit can make an extra attack at 8/7/5. The target must be a Vehicle or Soldier in front of this unit."
+Extra Machine Guns,"In your assault phase, this unit can make an extra attack against a Soldier."
+Fanatic,This unit ignores face-up Disrupted counters.
+Fearless,Friendly soldiers adjacent to this unit get +1/+1 defense against defensive-fire attacks.
+Fighting Platform,A non-artillery Soldier carried by this unit can attack during your assault phase if this unit doesn't move during that phase. A Soldier carried by this unit can make defensive-fire attacks.
+Fire Hazard,"When this unit receives a Damaged counter, roll a die. On a 5 or higher, destroy it immediately."
+Firepower,"After this unit moves or attacks in your assault phase, it may make an extra attack. The target must be in the same hex as this unit."
+Fixed Gun,This unit can attack Vehicles only if they are in front of this unit.
+Fixed Howitzer,This unit can attack only units in front of it.
+Fixed Rear Gun,This unit can attack Vehicles only if they are behind this unit.
+Flamethrower,"This unit's short-range attack ignores cover. If this unit rolls three or more 6's on a short-range attack against a soldier or vehicle, the target is destroyed immediately. Aircraft and Obstacles are unaffected by this special ability."
+Flammable,"Whenever this unit is attacked, roll a die. On a 5 or higher, destroy it immediately."
+Flanking Attack,This unit rolls one extra attack die when attacking a Vehicle’s rear.
+Forest Camouflage,"While this unit is in a forest hex, it automatically succeeds at cover rolls against long range attacks."
+Fortification,"During deployment, Fortifications are placed by each player in turn before all other units. Fortifications can be placed on the battle map in any hex that isn't adjacent to the objective. Fortifications don't count against stacking limits."
+Fury 2,This unit rolls two extra attack dice when attacking if one or more of your opponent’s units was destroyed last turn.
+German Hero,"This unit doesn’t get placed on the battle map during deployment. At the beginning of any of your movement phases, you may deploy this unit in any hex that contains a friendly German Soldier. This unit ignores face-up Disrupted counters."
+Gliderborne,"During deployment, deploy this unit in any unoccupied hex not in your opponent’s starting area."
+Green,This unit must roll a 4+ to remove a Disrupted counter.
+Guard Crew,"After rolling attack dice for this unit, you may reroll a single die result of 1."
+Gun Crew Hunter,This unit rolls two extra attack dice when attacking Artillery.
+Gun Shield,This unit gets +1/+1 defense against Soldiers at long range
+Gun Transport,This unit has the transport ability. It can carry non-large Artillery.
+Gung Ho,This unit gets +1 on each attack die when making defensive-fire attacks.
+Hand to Hand 9,This unit has an attack value of 9 against Soldiers in its hex. This attack ignores cover.
+Hand to Hand 10,This unit has an attack value of 10 against Soldiers in its hex. This attack ignores cover.
+Hand to Hand 12,This unit has an attack value of 12 against Soldiers in its hex. This attack ignores cover.
+Hard Charger,"At the end of your movement phase, remove any face-up Disrupted counters from this unit."
+Hard to Spot,This unit gets +1 on cover rolls.
+Hardened Veteran,This unit can move while disrupted and rerolls one attack die during its turn.
+HE round,"Once per game, instead of rolling this unit’s attack against an enemy Soldier at medium or long range, you can declare you are using these rounds. If you do, roll 15 attack dice against that Soldier."
+Headshot,"Once per game, instead of attacking a Vehicle, you may roll six attack dice. If you roll three or more successes, put a face-up Disrupted counter on that Vehicle."
+Heavy Armor,Ignore the first Damaged counter this unit receives each game.
+Heavy Rifle,"While this unit is adjacent to a friendly Soldier with a base speed of 1, it gets speed 1."
+Heavy Transport,This unit has the transport ability but can carry 2 soldiers and doesn't have the restriction against carrying Artillery. (A friendly Soldier can board or dismount this unit instead of moving during your movement phase.
+Hero,"This unit doesn't get placed on the battle map during deployment. At the beginning of any of your movement phases, you may deploy this unit in any hex that contains a friendly (nationality) Soldier. This unit ignores face-up Disrupted counters."
+High Gear 1,"If this unit makes its entire move along a road, it gets +1 speed."
+High Gear 2,"If this unit makes its entire move along a road, it gets +2 speed."
+High Gear 3,"If this unit makes its entire move along a road, it gets +3 speed."
+Highly Flammable,"When this unit receives a Damaged counter, roll a die. On a 3 or higher, destroy it immediately."
+Hull-Mounted Flamethrower,"This unit’s short-range attack ignores cover. If this unit rolls three or more 6s on a short-range attack, the target is destroyed immediately. This ability doesn’t work against enemy units that are behind this unit. Aircraft and Obstacles are unaffected by this special ability."
+Improved Accuracy,Friendly Soldiers adjacent to this unit have a medium range of 2–6 hexes.
+Improved Indirect Fire,"If a friendly U.S. commander is within 4 hexes or a friendly spotter is within eight hexes of an enemy soldier and has line of sight to it, this unit's attack against that Soldier ignores line of sight."
+Improvisation,"If a Soldier or Vehicle is destroyed in the same hex as this unit, this unit can use the attack values of the destroyed unit as long as it remains in the destroyed unit's hex."
+Inaccurate 1,This unit gets –1 on each attack die.
+Indirect Fire,"If a friendly Spotter is within eight hexes of an enemy Soldier and has line of sight to it, this unit’s attack against that Soldier ignores line of sight."
+Intimidation,Enemy Soldiers adjacent to this unit get –1 on each attack die.
+Italian Hero,"This unit doesn’t get placed on the battle map during deployment. At the beginning of any of your movement phases, you may deploy this unit in any hex that contains a friendly Italian Soldier. This unit ignores face-up Disrupted counters."
+Japanese Hero,"This unit doesn’t get placed on the battle map during deployment. At the beginning of any of your movement phases, you may deploy this unit in any hex that contains a friendly Japanese Soldier. This unit ignores face-up Disrupted counters."
+Jet,"This unit can’t attack Soldiers in forest, town, or marsh hexes. Each 6 this unit rolls against an Aircraft counts as two successes."
+Lack of Determination,"If this unit gets a face-up Disrupted counter, destroy it immediately."
+Large,This unit is treated as a Vehicle for stacking purposes.
+Large Silhouette,This unit gets –1 on cover rolls.
+Large Transport,"This unit has the transport ability but can carry two Soldiers, one of which can be Artillery. (A friendly Soldier can board or dismount this unit instead of moving during your movement phase.)"
+Lead the Way,"Once per turn, this unit can reroll a single attack die or movement roll."
+Light Artillery,This unit can be carried by units with the transport ability.
+Light Towing,This unit can transport units that have the light artillery ability.
+Limited Ammo,This unit can’t make defensive fire attacks.
+Limited Covering Fire,Soldiers attacked by this unit at short range can’t make defensive fire attacks this turn.
+Limited Range 2,This unit can attack only at ranges of 2 or less.
+Limited Range 6,This unit can attack only at ranges of 6 or less.
+Low Silhouette,This unit gets cover rolls in clear hexes and succeeds on a roll of 6.
+Mechanized Tactics,"At the end of your movement phase, this unit can dismount from a unit that has the Transport ability."
+Minefield,"Whenever a unit ends it move or leaves a hex containing this Obstacle, the unit's controller rolls a die. On a 3 or less, put a face-up Disrupted counter on that unit."
+Mobility,This unit gets +1/+1 defense against defensive-fire attacks.
+Mountaineering,This unit gets +1 on movement rolls.
+Multiturreted,This unit can attack twice during your assault phase. One target must be a unit in front of this unit. The other target must be a unit not in front of this unit.
+No Turret,This unit can attack Vehicles only if they are in front of this unit.
+Open Back,Enemy units can use their anti-Soldier attack values when attacking the rear defense of this unit.
+Open Crew,"If this unit is within two hexes of an enemy Soldier, this unit gets –1 on each attack die."
+Open-exposed Crew,Enemy units can use their anti-soldier attack values when attacking this unit.
+Organization,"Once per turn, after both players roll initiative dice during the initiative phase, you may reroll both of your initiative dice."
+Overheat,"If this unit rolls three or more 1s on a single attack, put a face-up Disrupted counter on it. This counter isn’t removed at the beginning of the next casualty phase."
+Overlapping Fire,This unit can make defensive-fire attacks against Soldiers.
+Overrun,"Once per phase, when this unit moves into a hex, you may disrupt one Soldier in that hex."
+Paratrooper,"This unit doesn’t get placed on the map during deployment. At the end of any of your movement phases, you may deploy this unit on the map in any hex that isn’t adjacent to an enemy unit. It can’t move that phase."
+Paratrooper Commander,Friendly Paratroopers adjacent to this unit roll one extra attack die when attacking
+Partisan,"During deployment, deploy this unit in any unoccupied hex on the edge of the battle map."
+Pillbox,This Obstacle can hold one Soldier. A Soldier in this Obstacle has cover and gets +1 on cover rolls.
+Pinpointer,Units attacked by friendly Soldiers adjacent to this unit get -1 on cover rolls.
+Plentiful Ammo,"After each friendly Soldier or Vehicle attacks, you may reroll any 1s from its attack dice roll. (You may only reroll an attack die once with this ability.)"
+Poor Suspension,This Vehicle can't enter hill hexes except along a road.
+Prone to Breakdown,This unit can’t move while damaged.
+Quick Swivel,"When making a defensive-fire attack, this unit rolls one extra attack die."
+Rapid Fire,"In your assault phase, this unit can make an additional attack. If this unit rolls any 1's during the additional attack, put a face-up Disrupted counter on it. This counter isn't removed at beginning of next casualty phase."
+Recon,"While this unit has line of sight to an enemy unit, add +1 to your initiative rolls."
+Relocate 1,This unit has speed 1 during your assault phase.
+Relocate 2,This unit has speed 2 during your assault phase.
+Remote Control,"Instead of attacking during your assault phase, choose an enemy Soldier or Vehicle and then roll 2 dice. If both die rolls are greater than the range to the target, roll 12 attack dice against that target if it's a Vehicle or 8 attack dice if it's a Soldier."
+Robust,"This unit gets +1 on movement rolls. While disrupted, this unit has speed 1."
+Rocket Salvo,"Once per game, instead of rolling this unit's attack against an enemy Soldier or Vehicle, you can declare you are using a rocket salvo. If you do, roll ten attack dice against each Soldier adjacent to the target and five attack dice against each Vehicle adjacent to the target. (This includes the target unit and friendly units.)"
+Rockets 8,"Once per game, instead of rolling this unit’s attack against an enemy Soldier or Vehicle within four hexes, you can declare you are using rockets. If you do, roll eight attack dice against that unit. (This includes the target unit and friendly units.)"
+Ruthless,This unit gets +1 on each attack die against disrupted and damaged units.
+Seasoned Crew,Units attacked by this unit get –1 on cover rolls against this unit’s attacks.
+Shock Troop,"For this unit's first attack of the game against a Soldier or Vehicle, it gets +1 on each attack die."
+Shrapnel / Shrapnel 2,Each success this unit rolls against a Soldier counts as two successes.
+Sideskirts,This unit gets +1/+1 defense against units that have the close assault ability.
+Sirens,This unit gets 1 extra success when attacking soldiers. This extra success only counts towards disruptions
+Slow,Enemy Aircraft get +1 on each attack die when attacking this unit.
+Smoke Screen,"Once per game at the end of your movement phase, you may put a smoke screen in this unit's hex. A smoke screen blocks line of sight into, out of and through its hex. Remove the smoke screen at the end of the turn."
+Soviet Hero,"This unit doesn’t get placed on the battle map during deployment. At the beginning of any of your movement phases, you may deploy this unit in any hex that contains a friendly Soviet Soldier. This unit ignores face-up Disrupted counters."
+Speed Boost,"Once per game, before you roll this unit’s attack against an Aircraft, you can declare you are using a speed boost. If you do, the results of that attack are resolved immediately."
+Spotter,"If this unit is within eight hexes of an enemy unit and has line of sight to it, friendly Aircraft roll one extra attack die when attacking that unit."
+SS Determination,This unit can move while disrupted.
+SS Hunter,This unit rolls two extra attack dice when attacking an SS unit.
+Stalwart,Friendly Soldiers adjacent to this unit get +1 on each attack die when making defensive-fire attacks.
+Steady Firing,This unit rolls two extra attack dice when attacking a Soldier.
+Steely Resolve 2,An attack must beat this unit’s defense by 2 or more in order to score two hits against it.
+Strafe,This unit can attack another enemy soldier unit that is adjacent to the original target hex.
+Strike and Fade 1,"In your assault phase, this unit can move at speed 1 after attacking."
+Strike and Fade 2,"In your assault phase, this unit can move at speed 2 after attacking."
+Subtle,This unit gets +1 on cover rolls against long-range attacks
+Superior Armor 2,An attack must beat this unit’s defense by 2 or more in order to score two hits against it.
+Superior Armor 3,An attack must beat this unit’s defense by 3 or more in order to score two hits against it.
+Superior Camouflage,"While this unit has cover, enemy units can’t attack this unit at medium or long range."
+Superior Frontal Armor 2,An attack against this unit’s front defense must beat it by 2 or more in order to score two hits against it.
+Superior Optics,"While this unit is in a hill hex, it can ignore the terrain in any one hex when determining line of sight."
+Suppressive Fire,This unit can make any number of defensive-fire attacks each phase.
+Surprise Fire,This unit rolls one extra attack die when attacking from a forest hex.
+Tall Silhouette,This unit fails cover rolls.
+Tally-Ho!,"In your movement phase, friendly non-Artillery Soldiers that start their move adjacent to this unit get +1 speed."
+Tank Hunter,This unit gets +1 on each attack die against vehicles.
+Tank Obstacle,A Vehicle must make a successful movement roll to enter the hex that contains this Obstacle.
+Tenacity,Friendly Soldiers adjacent to this unit roll one extra attack die when attacking targets in their hex.
+Terrain Expert,Friendly soldiers adjacent to this unit get +1/+1 defense against long-range attacks
+Thin Wheels,This unit can’t cross streams or enter marshes except along a road.
+Tides of War,Friendly Soldiers adjacent to this unit roll one extra attack die when attacking if an enemy unit was destroyed last turn.
+Top-Mounted Rockets,"This unit can’t attack aircraft. This unit’s attacks ignore cover. Once per game, instead of rolling this unit’s attack against an enemy Soldier or Vehicle, you can declare you are using top-mounted rockets. If you do, roll 8 attack dice against each Soldier adjacent to the target and 4 attack dice against each Vehicle adjacent to the target. (This includes the target unit and friendly units.)"
+Transport,This unit can carry one soldier. (A friendly soldier can board or dismount this unit instead of moving during your movement phase.)
+Trench Crossing,This unit can cross streams without making a movement roll.
+Turret Lock,This unit can't attack while in a hill hex.
+U.K. Hero,"This unit doesn’t get placed on the battle map during deployment. At the beginning of any of your movement phases, you may deploy this unit in any hex that contains a friendly U.K. Soldier. This unit ignores face-up Disrupted counters."
+U.S. Hero,"This unit doesn’t get placed on the battle map during deployment. At the beginning of any of your movement phases, you may deploy this unit in any hex that contains a friendly U.S. Soldier. This unit ignores face-up Disrupted counters."
+Undermanned,This unit can’t attack while disrupted.
+Unreliable,Face-up Disrupted counters aren’t removed from this unit at the beginning of the casualty phase.
+Urban Combat,"While this unit is in a town hex, it gets +1 on cover rolls."
+Vanguard,"After both armies are deployed, this unit can move at speed 4 before the first turn begins."
+Vast Experience,Each 6 this unit rolls against an enemy unit counts as two successes.
+Veteran Crew,"While disrupted, this unit can still move and not suffer -1 penalty to each attack die. (It still suffers the -1 penalty to defense and can't make defensive fire attacks)."
+Veteran Guard,"After rolling attack dice for this unit, you may reroll up to two die results of 1. While disrupted, this unit can still move and doesn’t suffer the –1 penalty to each attack die. (It still suffers the –1 penalty to defense and can’t make defensive-fire attacks)."
+Water Craft,This unit can enter only water hexes. This unit can enter water hexes as though they were clear hexes.
+Weak Suspension,This unit must make a successful movement roll to enter a hill hex except along a road
+Well Led,This unit rolls one extra attack die when attacking during your assault phase.

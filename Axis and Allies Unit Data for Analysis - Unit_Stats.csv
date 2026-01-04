@@ -1,0 +1,479 @@
+Unit Name,Nation,Type,Year,Cost,Def,Speed,Veh S,Veh M,Veh L,Per S,Per M,Per L,Abilities
+Barbed Wire,-,Obstacle,1939,0.5,-,-,-,-,-,-,-,-,"Fortification, Barbed Wire, MineField"
+Fortification,-,Obstacle,1939,2,-,-,-,-,-,-,-,-,"Fortification, Minefield, Pillbox"
+Pillbox,-,Obstacle,1939,2,-,-,-,-,-,-,-,-,"Fortification, Pillbox, Tank Obstacle"
+Tank Obstacle,-,Obstacle,1939,1,-,-,-,-,-,-,-,-,"Fortification, Tank Obstacle, Ammo Dump"
+Ammo Dump,-,Soldier Support,1939,10,3/3,0,2,-,-,5,-,-,"Dug In, Plentiful Ammo, Flammable, Fuel Depot"
+Fuel Depot,-,Soldier Support,1939,6,3/3,0,2,-,-,5,-,-,"Dug In, Extra Fuel, Flammable, Headquarters"
+Headquarters,-,Soldier Support,1939,7,3/3,0,2,-,-,6,-,-,"Dug In, Organization"
+Buffalo Mk I Rookie,Australia,Aircraft,1942,7,3/3,A,2,1,-,7,4,-,"Aircraft, Antiair, Inaccurate 1"
+Australian Officer,Australia,Soldier Commander,1940,7,4/4,1,2,-,-,10,8,-,"Limited Range 2, COMMANDER ABILITIES:2, Pinpointer"
+Owen SMG,Australia,Soldier,1942,3,4/4,1,2,-,-,9,6,-,"Limited Range 2, Close Assault 5"
+Veteran SMLE Rifleman,Australia,Soldier,1940,5,4/4,1,2,-,-,9,7,-,"Close Assault 7, Steely Resolve 2"
+Carro Armato M11/39,Australia,Vehicle Tank,1941,10,3/2,3,9,7,5,8,7,6,Fixed Gun
+Lend-Lease Stuart,Australia,Vehicle Tank,1942,15,4/3,5,9,7,5,8,8,6,All Guns Blazing
+Belgian Bicycle Troop,Belgium,Soldier,1940,4,4/4,1,2,-,-,8,6,-,"Close Assault 6, High Gear 2"
+Belgian Infantry,Belgium,Soldier,1940,3,4/4,1,2,-,-,8,6,-,Close Assault 6
+Belgian Officer,Belgium,Soldier Commander,1940,6,4/4,1,2,-,-,6,-,-,"Close Assault 6, COMMANDER ABILITIES:2, Pinpointer"
+T-13B3,Belgium,Vehicle Tank Destroyer,1940,10,2/2,4,10,8,7,6,6,4,-
+D.520 Interceptor,Bulgaria,Aircraft,1943,14,4/4,A,4,3,-,8,6,-,"Aircraft, Antiair"
+Typhoon Mk IB Raider,Canada,Aircraft,1944,19,4/4,A,5,4,-,8,6,-,"Aircraft, Antiair, Rockets 8"
+Canadian Infantrymen,Canada,Soldier,1941,3,4/4,1,2,-,-,8,6,-,Close Assault 6
+Eagle-Eyed NCO,Canada,Soldier Commander,1941,7,4/4,1,2,-,-,8,6,-,"Close Assault 7, COMMANDER ABILITIES:2, Improved Accuracy"
+Entrenched Anti-Tank Gun,Canada,Soldier Artillery,1943,7,3/3,0,11,9,8,3,3,3,"Relocate 2, Entrenched"
+Intrepid Hero,Canada,Soldier Hero,1941,8,5/5,1,2,-,-,8,6,-,"Canadian Hero, Hand to Hand 9, Close Assault 8, Firepower"
+Churchill III,Canada,Vehicle Tank,1942,28,7/6,2,11,9,8,7,7,6,Superior Armor 2
+Ram Kangaroo,Canada,Vehicle Tank,1944,10,5/4,4,2,2,2,6,6,4,"Transport, Fighting Platform"
+Sherman DD,Canada,Vehicle Tank,1944,24,5/4,4,13,11,9,9,9,7,"Amphibious, Collapsible Screen"
+Sherman VC 17-Pounder,Canada,Vehicle Tank,1944,27,5/4,4,15,13,11,7,7,6,Armor-Piercing Rounds
+"I-16 ""Abu""",China,Aircraft,1939,10,4/4,A,3,2,-,7,5,-,"Aircraft, Antiair, Inaccurate 1"
+P-40 C Flying Tiger,China,Aircraft,1941,15,4/4,A,3,2,-,8,6,-,"Aircraft, Antiair, Superior Armor 2"
+Kuomintang MG Team,China,Soldier,1939,6,4/4,1,2,2,2,8,7,6,"Double Shot, Overheat"
+Kuomintang Officer,China,Soldier Commander,1939,5,4/4,1,2,-,-,6,-,-,COMMANDER ABILITIES:1
+Kuomintang Rifleman,China,Soldier,1939,2,4/4,1,2,-,-,7,5,-,Lack of Determination
+T-26 Series 1933,China,Vehicle Tank,1939,11,2/2,3,9,8,6,7,7,6,Unreliable
+Croatian Infantry,Croatia,Soldier,1941,3,4/4,1,2,-,-,8,6,-,Close Assault 6
+B239 Brewster Ace,Finland,Aircraft,1941,13,3/3,A,3,2,-,8,5,-,"Ace, Aircraft, Steely Resolve 2"
+"MS.406 ""Matimaha""",Finland,Aircraft,1940,12,4/4,A,3,2,-,7,5,-,"Aircraft, Antiair"
+Finnish Infantry,Finland,Soldier,1939,3,4/4,1,2,-,-,8,6,-,Close Assault 6
+Finnish MG Team,Finland,Soldier,1939,9,4/4,1,3,3,2,9,8,7,Double Shot
+Finnish Officer,Finland,Soldier Commander,1939,6,4/4,1,2,-,-,7,5,-,"Hand to Hand 9, COMMANDER ABILITIES:2, Terrain Expert"
+Finnish Ski Troop,Finland,Soldier,1939,4,4/4,1,2,-,-,9,7,-,"Limited Range 2, Close Assault 7, Steely Resolve 2"
+StuG III Ausf. G,Finland,Vehicle Tank Destroyer,1944,19,5/3,3,15,13,11,7,7,6,"No Turret, Sideskirts"
+T-26E,Finland,Vehicle Tank,1941,11,2/2,3,9,8,6,7,7,6,-
+D.520 Ace,France,Aircraft,1940,17,4/4,A,4,3,-,9,7,-,"Ace, Aircraft, Agility"
+Morane-Saulnier MS.406,France,Aircraft,1940,12,4/4,A,4,3,-,7,5,-,"Aircraft, Antiair"
+MS.406 Rookie,France,Aircraft,1939,9,4/4,A,3,2,-,7,5,-,"Aircraft, Antiair, Aircraft, Antiair, Inaccurate 1"
+MS.406 Veteran,France,Aircraft,1940,11,4/4,A,3,2,-,7,5,-,"Aircraft, Antiair"
+Bold Captain,France,Soldier Commander,1940,7,4/4,1,2,-,-,6,-,-,"COMMANDER ABILITIES:2, Elan"
+Canon de 75 Modele 1897,France,Soldier Artillery,1940,6,3/3,0,5,4,4,9,8,7,"Relocate 2, Indirect Fire, Enhanced Range 12, Light Artillery"
+Free French Infantryman,France,Soldier,1941,3,4/4,1,2,-,-,8,6,-,Close Assault 6
+French Alpine Troop,France,Soldier,1940,6,5/5,1,2,-,-,9,6,-,"Mountaineering, Close Assault 6"
+French Resistance Fighter,France,Soldier,1941,4,4/4,1,2,-,-,8,6,-,"Partisan, Close Assault 5"
+Hotchkiss MG Team,France,Soldier,1940,7,4/4,1,3,3,2,8,7,6,Double Shot
+Lebel 86M93 Grenadier,France,Soldier,1940,3,4/4,1,4,4,-,6,4,-,"Limited Range 2, Inaccurate 1, Shrapnel 2"
+MAS 7.5mm Rifle,France,Soldier,1940,3,4/4,1,2,-,-,8,6,-,Close Assault 6
+Char B1-Bis,France,Vehicle Tank,1940,21,5/5,3,9,8,7,7,7,6,"Extra Hull-Mounted Cannon, Prone to Breakdown"
+FCM 36,France,Vehicle Tank,1940,11,4/4,3,8,7,5,6,6,5,Superior Frontal Armor 2
+Hotchkiss H-39,France,Vehicle Tank,1940,11,4/4,3,9,7,6,6,6,4,-
+P107 Half-Track,France,Vehicle Half-Track,1940,6,2/2,4,2,-,-,5,5,4,"Gun Transport, High Gear 2, Fighting Platform"
+Panhard et Levassor P 178,France,Vehicle Armored Car,1940,10,2/2,4,6,5,4,9,8,7,"High Gear 2, Strike and Fade 2"
+Renault R-35,France,Vehicle Tank,1940,9,4/4,2,8,7,5,6,6,4,Trench Crossing
+Somua S-35,France,Vehicle Tank,1940,14,4/4,4,10,8,7,6,6,4,Undermanned
+Bf 109 E Ace,Germany,Aircraft,1939,17,4/4,A,4,3,-,9,7,-,"Aircraft, Ace, Steely Resolve 2"
+Bf 109 E Wingman,Germany,Aircraft,1939,14,4/4,A,4,3,-,8,6,-,"Aircraft, Antiair"
+"Bf 109 F ""Friedrich""",Germany,Aircraft,1940,13,4/4,A,3,2,-,7,5,-,"Aircraft, Antiair, Agility"
+"Bf 109G ""Gustav"" Ace",Germany,Aircraft,1942,17,4/4,A,3,2,-,8,6,-,"Aircraft, Ace, Ruthless"
+Bf 110 C,Germany,Aircraft,1939,17,4/4,A,5,4,-,9,7,-,Aircraft
+Channel Front FW 190 A,Germany,Aircraft,1942,15,4/4,A,4,3,-,9,6,-,"Aircraft, Antiair, Agility"
+Dornier Do 335,Germany,Aircraft,1945,15,4/4,A,4,3,-,8,6,-,"Aircraft, Antiair, Speed Boost"
+Focke-Wulf Fw190a,Germany,Aircraft,1941,14,4/4,A,4,3,-,9,6,-,"Aircraft, Antiair"
+FW 190 A Wurger,Germany,Aircraft,1941,14,4/4,A,4,3,-,9,6,-,"Aircraft, Antiair"
+Fw109A Africa Korps Ace,Germany,Aircraft,1942,20,4/4,A,4,3,-,9,7,-,"Ace, Aircraft, Vast Experience"
+"Fw190D ""Dora""",Germany,Aircraft,1944,15,4/4,A,4,3,-,8,6,-,"Aircraft, Antiair"
+Fw190D Rookie,Germany,Aircraft,1944,13,4/4,A,4,3,-,8,6,-,"Aircraft, Antiair, Inaccurate 1"
+JU-87 Stuka,Germany,Aircraft,1939,16,4/4,A,6,4,-,8,6,-,"Aircraft, Sirens, Slow"
+Junkers JU-87B Stuka,Germany,Aircraft,1939,16,4 4,A,6,4,-,8,6,-,"Aircraft, Slow, Sirens"
+Junkers JU-87G Stuka,Germany,Aircraft,1943,21,4/4,A,10,8,-,5,3,-,"Aircraft, Slow"
+Messerschmitt Ace,Germany,Aircraft,1939,16,4/4,A,4,3,-,9,7,-,"Aircraft, Ace"
+Messerschmitt Bf109E,Germany,Aircraft,1939,14,4/4,A,4,3,-,8,6,-,"Aircraft, Antiair"
+Messerschmitt Me 110,Germany,Aircraft,1939,17,4/4,A,5,4,-,9,7,-,Aircraft
+Messerschmitt Me110,Germany,Aircraft,1939,17,4/4,A,5,4,-,9,7,-,Aircraft
+Messerschmitt Me262,Germany,- Jet,1944,19,5/5,A,5,4,-,10,7,-,"Jet, Aircraft, Antiair"
+20mm FlaK 38,Germany,Soldier Artillery,1939,7,3/3,0,4,4,3,9,8,7,"Antiair, Relocate 2, Light Artillery"
+7.5cm lelG18,Germany,Soldier Artillery,1939,7,3/3,0,6,5,4,10,9,8,"Relocate 2, Indirect Fire, Enhanced Range 12, Light Artillery"
+88 w/Gun Shield,Germany,Soldier Artillery,1939,20,3/3,0,18,15,13,7,7,6,"Large, Antiair, Gun Shield, Large Silhouette, Extended Range 20"
+88mm Flak 36,Germany,Soldier Artillery,1939,19,3/3,0,18,15,13,7,7,6,"Large, Antiair, Extended Range 20, Large Silhouette"
+BMW R75,Germany,Soldier Motorcycle,1941,5,3/3,5,2,-,-,8,6,-,"High Gear 2, Thin Wheels, Close Assault 4"
+DAK Infantry,Germany,Soldier,1941,4,4/4,1,2,-,-,9,6,-,"Close Assault 6, Steely Resolve 2"
+Disciplined Spotter,Germany,Soldier Spotter,1939,6,3/3,1,2,-,-,7,5,-,"Spotter, Chatting on the Radio, Concealed"
+Fallschirmjager,Germany,Soldier Paratrooper,1939,8,5/5,1,2,-,-,9,7,-,"Paratrooper, Close Assault 7"
+Flammenwerfer 35,Germany,Soldier,1939,5,4/4,1,7,-,-,10,-,-,Flamethrower
+Fortress Defender,Germany,Soldier,1942,2,3/3,1,2,-,-,7,5,-,"Entrenched, Close Assault 5"
+Grizzled Veteran,Germany,Soldier Hero,1940,8,5/5,1,2,-,-,9,6,3,"German Hero, Close Assault 8, Vast Experience"
+Light Mortar,Germany,Soldier,1939,5,3/3,1,-,4,3,3,6,5,"Inaccurate 1, Limited Range 6, Shrapnel 2"
+Luftwaffe Infantrymen,Germany,Soldier,1942,3,4/4,1,2,-,-,7,4,-,"Close Assault 5, Antiair Support"
+Mauser Kar 98k,Germany,Soldier,1939,3,4/4,1,2,-,-,8,6,-,Close Assault 6
+MG 34 Machine Gun Team,Germany,Soldier,1939,8,4/4,1,3,3,2,9,8,6,Double Shot
+MG 42 Machine Gun Team,Germany,Soldier,1942,10,4/4,1,3,3,2,10,8,7,"Double Shot, Suppressive Fire"
+Motorized Schutzen,Germany,Soldier,1939,4,4/4,1,2,-,-,8,6,-,"Mechanized Tactics, Close Assault 7"
+Nebelwerfer 41,Germany,Soldier Artillery,1941,11,3/3,0,7,7,7,7,13,10,"Enhanced Range 16, Inaccurate 1, Relocate 2, Bombardment, Blast, Rocket Salvo"
+PaK 35/36 Anti-Tank Gun,Germany,Soldier Artillery,1939,5,3/3,0,9,7,5,3,3,3,"Relocate 2, Light Artillery"
+PaK 38 Anti-Tank Gun,Germany,Soldier Artillery,1941,8,3/3,0,11,9,7,3,3,3,"Relocate 2, Seasoned Crew"
+PaK 40 Anti-Tank Gun,Germany,Soldier Artillery,1942,11,3/3,0,15,13,12,3,3,3,"Relocate 1, Extended Range 10, Large"
+Panzerfaust 30,Germany,Soldier,1943,4,4/4,1,10,6,-,4,-,-,"Close Assault 11, Limited Range 2"
+Panzergrenadier,Germany,Soldier,1939,4,4/4,1,2,-,-,8,6,-,"Mechanized Tactics, Close Assault 8"
+Panzerschreck,Germany,Soldier,1943,7,4/4,1,12,5,-,5,-,-,Close Assault 14
+Pioneers,Germany,Soldier,1939,7,4/4,1,2,-,-,7,5,-,"Close Assault 12, Bridge Demolition"
+Recon BMW R75,Germany,Soldier Motorcycle,1941,6,3/3,5,2,-,-,7,5,-,"High Gear 2, Thin Wheels, Close Assault 4, Recon"
+Sandbagged Machine Gun Team,Germany,Soldier,1939,12,4/4,1,3,3,2,10,8,7,"Entrenched, Double Shot, Suppressive Fire"
+"Sd Kfz 303 ""Goliath""",Germany,Soldier Artillery,1943,7,3/3,1,2,-,-,5,-,-,Remote Control
+sGrW 34 81mm mortar,Germany,Soldier Artillery,1939,11,3/3,0,-,6,5,3,8,8,"Indirect Fire, Enhanced Range 16, Inaccurate 1, Shrapnel 2, Relocate 2"
+SS Haupsturmfuhrer,Germany,Soldier Commander,1939,7,4/4,1,2,-,-,6,-,-,"Fanatic, COMMANDER ABILITIES:3, Exert Will"
+SS Panzergrenadier,Germany,Soldier,1940,7,5/5,1,2,-,-,10,8,-,"Close Assault 7, Ruthless"
+SS-Stormtrooper,Germany,Soldier,1940,7,5/5,1,2,-,-,11,6,-,"Limited Range 2, Close Assault 8, , Ruthless"
+Veteran Fallshirmjager,Germany,Soldier Paratrooper,1940,10,5/5,1,2,-,-,10,7,-,"Paratrooper, Close Assault 8, Hardened Veteran"
+Volkssturm Infantrymen,Germany,Soldier,1944,2,3/3,1,1,-,-,7,5,-,Close Assault 5
+Wehrmacht Expert Sniper,Germany,Soldier Sniper,1939,11,3/3,1,1,1,1,6,6,6,"Crack Shot, Headshot, Superior Camouflage"
+Wehrmacht Oberleutnant,Germany,Soldier Commander,1943,12,4/4,1,10,6,-,6,-,-,"Close Assault 11, Limited Range 2, COMMANDER ABILITIES:2, Angriff"
+Wehrmacht Veteran Infantrymen,Germany,Soldier,1940,5,4/4,1,2,-,-,9,7,-,"Close Assault 7, Steely Resolve 2, Suppressive Fire"
+Werwolf Partisans,Germany,Soldier,1944,4,4/4,1,2,-,-,9,5,-,"Partisan, Limited Range 2"
+Elephant,Germany,Vehicle Tank Destroyer,1943,58,8/6,2,18,15,13,5,5,-,"No Turret, Extended Range 16, Tall Silhouette, Heavy Armor"
+Elite Panzer IV Ausf. D,Germany,Vehicle Tank,1940,18,3/3,3,10,9,8,7,7,6,Crack Shot
+Elite StuG III Ausf. G,Germany,Vehicle Tank Destroyer,1943,27,5/3,3,15,13,11,7,7,6,"No Turret, Sideskirts, Tank Hunter"
+FlakPanzer IV Wirbelwind,Germany,Vehicle Tank,1944,19,3/3,3,6,6,5,11,10,8,"Antiair, Tall Silhouette"
+Hummel,Germany,Vehicle Artillery,1943,30,3/3,3,12,10,9,10,10,9,"Fixed Howitzer, Enhanced Range 16, Bombardment, Blast, Indirect Fire"
+JagdPanther,Germany,Vehicle Tank Destroyer,1944,39,6/4,4,18,15,13,6,6,4,"No Turret, Extended Range 12, Superior Armor 2"
+Jagdpanzer 38(t) Hetzer,Germany,Vehicle Tank Destroyer,1944,20,5/3,4,15,13,11,6,6,4,"No Turret, Hard to Spot"
+Jagdpanzer IV/48,Germany,Vehicle Tank Destroyer,1944,22,5/3,3,15,13,11,5,5,4,"No Turret, Superior Frontal Armor 2, Hard to Spot"
+Jagdpanzer IV/70 (V),Germany,Vehicle Tank Destroyer,1944,25,5/3,3,16,14,12,5,5,4,"No Turret, Hard to Spot, Sideskirts, Superior Frontal Armor 2"
+JagdTiger,Germany,Vehicle Tank Destroyer,1944,54,8/6,2,20,17,15,7,7,6,"No Turret, Extended Range 16, Superior Armor 2, Prone to Breakdown"
+King Tiger,Germany,Vehicle Tank,1944,62,8/6,3,18,15,13,7,7,6,"Extended Range 12, Superior Armor 2"
+Kubelwagon V,Germany,Vehicle Car,1939,3,1/1,5,-,-,-,-,-,-,"High Gear 2, Transport"
+Marder II,Germany,Vehicle Tank Destroyer,1942,17,3/2,4,15,13,11,6,5,4,"No Turret, Open Back, Extended Range 10"
+Marder III Ausf. M,Germany,Vehicle Tank Destroyer,1943,17,3/2,4,15,13,11,6,5,4,"No Turret, Robust, Extended Range 10"
+Nashorn,Germany,Vehicle Tank Destroyer,1943,40,3/2,4,18,16,14,5,5,-,"Superior Optics, No Turret, Extended Range 20, Tall Silhouette"
+Opel Blitz 3 ton,Germany,Vehicle,1939,4,1/1,3,-,-,-,-,-,-,"High Gear 2, Large Transport"
+Panther Ausf. A,Germany,Vehicle Tank,1943,37,6/4,4,16,14,11,7,7,6,"Extended Range 12, Superior Armor 2"
+Panther Ausf. D,Germany,Vehicle Tank,1943,35,6/4,4,15,13,11,7,7,6,"Extended Range 12, Superior Armor 2"
+Panzer IB,Germany,Vehicle Tank,1939,6,2/2,4,2,2,2,7,7,6,Double Shot
+"Panzer II (F) ""Flamingo""",Germany,Vehicle Tank,1941,14,3/2,4,11,2,2,8,5,4,Flamethrower
+Panzer II Ausf. C,Germany,Vehicle Tank,1939,7,2/2,3,4,3,2,6,6,4,"Excellent Suspension, Double Shot"
+Panzer II Ausf. F,Germany,Vehicle Tank,1941,8,3/2,3,4,3,2,6,6,4,"Double Shot, Excellent Suspension"
+Panzer III Ausf. F,Germany,Vehicle Tank,1940,13,3/3,3,10,8,6,7,7,6,Smoke Screen
+Panzer III Ausf. N Commander,Germany,Vehicle Tank Commander,1942,22,5/3,3,10,9,8,7,7,6,"COMMANDER ABILITIES:2, Command Quick Reactions"
+Panzer IV Ausf G (Early),Germany,Vehicle Tank,1942,22,5/3,3,15,13,11,7,7,6,Extended Range 10
+Panzer IV Ausf. E,Germany,Vehicle Tank,1941,14,4/3,3,10,9,8,7,7,6,-
+Panzer IV Ausf. G,Germany,Vehicle Tank,1942,23,5/3,3,15,13,11,7,7,6,"Extended Range 10, Sideskirts"
+Panzer IV Ausf. G (Early),Germany,Vehicle Tank,1942,22,5/3,3,15,13,11,7,7,6,Extended Range 10
+Panzer IV Ausf. H Commander,Germany,Vehicle Tank Commander,1943,45,5/3,3,15,13,11,7,7,6,"Extended Range 10, Sideskirts, Overrun, COMMANDER ABILITIES:3, Command Ruthless"
+Panzer IV Ausf.F2,Germany,Vehicle Tank,1942,22,5/3,3,15,13,11,7,7,6,Extended Range 10
+Panzerjager Bren 731(e),Germany,Vehicle,1944,12,2/2,4,12,5,-,6,4,-,Dismounted Attack
+Panzerjager I,Germany,Vehicle Tank Destroyer,1940,8,2/2,4,10,8,7,5,2,-,"No Turret, Open Back"
+Panzerspahwagon p204(f),Germany,Vehicle Armored Car,1941,10,2/2,4,6,5,4,9,8,7,"High Gear 2, Strike and Fade 2"
+PzKpfw 38(t),Germany,Vehicle Tank,1939,10,3/2,4,8,7,5,7,7,6,Robust
+PzKpfw IV Ausf A,Germany,Vehicle Tank,1939,12,3/3,3,10,9,8,7,7,6,-
+Sd Kfz 2 Motorcycle Half-Track,Germany,Vehicle,1941,4,1/1,4,-,-,-,5,-,-,Light Towing
+Sd Kfz 222,Germany,Vehicle Armored Car,1939,6,2/2,5,4,3,2,7,6,4,"High Gear 2, Strike and Fade 2"
+Sd Kfz 231,Germany,Vehicle Armored Car,1939,6,3/2,4,4,3,2,7,6,4,"High Gear 2, Strike and Fade 2"
+"Sd Kfz 234/2 ""Puma""",Germany,Vehicle Armored Car,1943,17,3/2,5,12,10,8,7,7,6,"High Gear 2, Strike and Fade 1"
+Sd Kfz 234/4,Germany,Vehicle Armored Car,1945,24,3/2,5,15,13,11,7,6,4,"High Gear 2, Strike and Fade 1, Extended Range 10, No Turret"
+Sd Kfz 250,Germany,Vehicle Half-Track,1941,6,2/2,4,2,2,2,6,5,4,"Transport, High Gear 2, Fighting Platform"
+Sd Kfz 251,Germany,Vehicle Half-Track,1939,7,2/2,4,2,2,2,8,7,6,"Gun Transport, High Gear 2, Fighting Platform"
+Sd Kfz 7/1,Germany,Vehicle Half-Track,1940,16,2/2,4,6,5,4,11,10,8,"Antiair, Open Crew"
+SdKfz 2 Motorcycle Half-Track,Germany,Vehicle,1941,4,1/1,1,-,-,-,5,-,-,Light Towing
+sIG 33,Germany,Vehicle Assault Gun,1940,15,2/2,3,8,6,4,9,9,7,"Fixed Howitzer, Enhanced Range 16, Blast, Bombardment, Open Back"
+SS Jagdpanther,Germany,Vehicle Tank Destroyer,1944,42,6/4,4,18,15,13,6,6,4,"No Turret, SS Determination, Extended Range 12, Superior Armor 2"
+SS Panther Ausf. G,Germany,Vehicle Tank,1944,42,6/4,4,16,14,11,7,7,6,"SS Determination, Extended Range 12, Superior Armor 2"
+SS Panzer IV Ausf. F2,Germany,Vehicle Tank,1942,27,5/3,3,15,13,11,7,7,6,"SS Determination, Extended Range 10, Battlefield Awareness"
+StuG III Ausf. D,Germany,Vehicle Assault Gun,1941,15,4/3,3,10,9,8,8,8,7,"Fixed Howitzer, Seasoned Crew"
+StuG III Ausf. G,Germany,Vehicle Tank Destroyer,1943,19,5/3,3,15,13,11,7,7,6,"No Turret, Sideskirts"
+"Sturmpanzer IV ""Brummbar""",Germany,Vehicle Assault Gun,1943,23,7/4,3,8,6,4,9,9,7,"Sideskirts, Fixed Howitzer, Bombardment, Blast"
+Tiger I,Germany,Vehicle Tank,1942,56,7/6,3,17,15,12,7,7,6,"Overrun, Extended Range 10, Heavy Armor"
+Veteran Panzer III Ausf. L,Germany,Vehicle Tank,1942,19,5/3,3,13,11,8,7,7,6,"Smoke Screen, Veteran Crew"
+Veteran Tiger,Germany,Vehicle Tank,1942,68,7/6,3,17,15,12,7,7,6,"Extended Range 12, Heavy Armor, Crack Shot"
+Wespe,Germany,Vehicle Artillery,1943,26,3/3,3,11,9,8,10,9,8,"Fixed Howitzer, Indirect Fire, Enhanced Range 16, Bombardment"
+Greek Cavalry,Greece,Soldier Cavalry,1940,4,3/3,3,2,-,-,7,5,-,"Hand to Hand 9, Charge"
+Greek Mountain Infantry,Greece,Soldier,1940,4,4/4,1,2,-,-,8,6,1,"Mountaineering, Close Assault 5, Steely Resolve 2"
+Greek Officer,Greece,Soldier Commander,1940,9,4/4,1,2,-,-,6,-,-,"Close Assault 5, COMMANDER ABILITIES:2, Tides of War"
+Greek Soldier,Greece,Soldier,1940,3,4/4,1,1,-,-,7,5,-,"Close Assault 5, Fury 2"
+37mm Light Anti-Tank Gun,Hungary,Soldier Artillery,1941,5,3/3,0,9,7,5,3,3,3,"Relocate 2, Light Artillery"
+8mm Huzagol 35M,Hungary,Soldier,1941,3,4/4,1,2,-,-,8,5,-,Close Assault 6
+8mm huzagol 35m,Hungary,Soldier,1941,3,4/4,1,2,-,-,8,5,-,Close Assault 6
+Solothurn 31M MG Team,Hungary,Soldier,1941,7,4/4,1,3,3,2,8,7,6,Double Shot
+Tenacious Officer,Hungary,Soldier Commander,1941,6,4/4,1,2,-,-,5,-,-,"COMMANDER ABILITIES:1, Tenacity"
+38M Toldi IIA,Hungary,Vehicle Tank,1942,8,3/2,4,8,7,6,6,6,5,Mobility
+40/43M Zrinyi Assault Howitzer,Hungary,Vehicle Assault Gun,1944,17,5/3,3,8,8,7,9,8,7,"Fixed Howitzer, Bombardment"
+PzKpfw 38(t),Hungary,Vehicle Tank,1942,10,3/2,4,8,7,5,7,7,6,Robust
+Turan 1,Hungary,Vehicle Tank,1944,11,4/2,4,8,7,6,7,6,5,-
+C.200 Saetta Rookie,Italy,Aircraft,1940,9,4/4,A,3,2,-,7,5,-,"Aircraft, Antiair, Inaccurate 1"
+C.202 Folgore,Italy,Aircraft,1941,12,4/4,A,3,2,-,7,5,-,"Aircraft, Antiair"
+C.202 Folgore Ace,Italy,Aircraft,1941,15,4/4,A,3,2,-,8,6,-,"Aircraft, Agility, Ace"
+Expeditionary C.200 Saetta,Italy,Aircraft,1940,13,4/4,A,3,2,-,7,5,-,"Aircraft, Antiair, Agility"
+Macchi c.202 Folgore,Italy,Aircraft,1941,14,4/4,A,4,3,-,8,6,-,"Aircraft, Antiair"
+Re.2001 CB Fighter Bomber,Italy,Aircraft,1942,14,4/4,A,3,2,-,7,5,-,"Aircraft, Antiair, Bombs"
+Re.2001 Falco II,Italy,Aircraft,1941,11,4/4,A,3,2,-,7,5,-,"Aircraft, Antiair"
+47/32 Antitank Gun,Italy,Soldier Artillery,1940,7,3/3,0,10,8,7,6,5,4,Relocate 2
+Blackshirts,Italy,Soldier,1940,4,4/4,1,2,-,-,8,6,-,"Ruthless, Close Assault 6"
+Breda Modello 30 LMG,Italy,Soldier,1940,3,4/4,1,2,1,-,6,4,-,Limited Covering Fire
+Breda Modello 37,Italy,Soldier,1940,8,4/4,1,3,3,2,9,8,6,Double Shot
+Brixia M35 45mm Mortar,Italy,Soldier,1939,4,3/3,1,-,4,-,3,5,-,"Inaccurate 1, Shrapnel 2, Rapid Fire"
+Cannone da 75/27 Modello 11,Italy,Soldier Artillery,1940,6,3/3,0,6,5,4,9,8,7,"Relocate 2, Indirect Fire, Enhanced Range 12, Light Artillery"
+Fucile Modello 1891,Italy,Soldier,1940,3,4/4,1,2,-,-,8,6,-,Close Assault 6
+Italian alpine troop,Italy,Soldier,1940,4,4/4,1,2,-,-,9,5,-,"Mountaineering, Close Assault 5, Steely Resolve 2"
+Italian Conscript,Italy,Soldier,1940,2,4/4,1,2,-,-,7,5,-,"Lack of Determination, Close Assault 5"
+Stalwart Hero,Italy,Soldier Hero,1940,7,5/5,1,2,-,-,8,7,-,"Italian Hero, Close Assault 7, Covering Fire"
+Stalwart Lieutenant,Italy,Soldier Commander,1940,6,4/4,1,-,-,-,5,-,-,"COMMANDER ABILITIES:1, Stalwart"
+Autoblinda AB 41,Italy,Vehicle Armored Car,1940,8,2/2,4,4,3,2,8,8,7,"High Gear 2, Strike and Fade 2, Awareness"
+Carro Armato M11/39,Italy,Vehicle Tank,1940,10,3/2,3,9,7,5,8,7,6,Fixed Gun
+Carro Armato M13/40,Italy,Vehicle Tank,1940,12,4/3,3,10,8,6,8,8,6,"Overlapping Fire, Highly Flammable"
+L3/35,Italy,Vehicle Tank,1940,7,2/2,4,2,2,2,6,5,4,"Excellent Suspension, Double Shot"
+L6/40,Italy,Vehicle Tank,1940,8,3/2,4,4,3,2,6,5,4,Double Shot
+Semovente 75/18,Italy,Vehicle Tank Destroyer,1942,14,4/3,3,12,11,10,7,6,6,"No Turret, Fire Hazard"
+Semovente 90/53,Italy,Vehicle Tank Destroyer,1943,26,4/3,3,17,15,12,5,4,-,"No Turret, Open Back, Extended Range 12"
+Semovente L40 da 47/32,Italy,Vehicle Assault Gun,1942,10,3/3,4,10,8,7,6,5,4,No Turret
+Veteran Carro Armato M13/40,Italy,Vehicle Tank,1940,14,4/3,3,10,8,6,8,8,6,"Overlapping Fire, Highly Flammable, Veteran Crew"
+"A6M2 ""Zeke""",Japan,Aircraft,1940,12,3/3,A,4,3,-,8,6,-,"Aircraft, Antiair, Agility"
+A6M2 Zero Ace,Japan,Aircraft,1941,14,3/3,A,4,3,-,7,7,-,"Aircraft, Ace, Agility"
+A6M3 Zero Escort,Japan,Aircraft,1942,13,3/3,A,4,3,-,8,6,-,"Antiair, Agility, Aircraft, Steady Firing"
+A6M3 Zero Rookie,Japan,Aircraft,1942,9,4/4,A,3,2,-,7,5,,"Agility, Aircraft, Antiair, Inaccurate 1"
+"Kawanishi N1K-J ""Shiden-Kai""",Japan,Aircraft,1944,16,4/4,A,4,3,-,9,6,-,"Aircraft, Antiair, Agility"
+"KI-43 ""Oscar""",Japan,Aircraft,1941,11,3/3,A,3,2,-,7,4,-,"Aircraft, Antiair, Agility"
+"Ki-44 ""Tojo""",Japan,Aircraft,1942,13,4/4,A,3,2,-,8,6,-,"Aircraft, Antiair"
+"KI-61 ""tony"" Ace",Japan,Aircraft,1943,15,4/4,A,3,2,-,8,6,-,"Ace, Aircraft"
+"KI-6I ""Tony""",Japan,Aircraft,1943,13,4/4,A,3,2,-,8,6,-,"Aircraft, Antiair"
+Mitsubishi A6M Zero,Japan,Aircraft,1940,12,3/3,A,4,3,-,8,6,-,"Aircraft, Antiair, Agility"
+"Nakajima Ki-43 ""Oscar""",Japan,Aircraft,1941,11,3/3,A,4,3,-,7,4,-,"Aircraft, Antiair, Agility"
+47mm Type 1 Anti-Tank Gun,Japan,Soldier Artillery,1942,5,3/3,0,9,8,6,3,3,3,Relocate 2
+70mm Type 92,Japan,Soldier Artillery,1939,10,3/3,0,7,6,5,8,7,6,"Enhanced Range 16, Inaccurate 1, Shrapnel 2, Relocate 2, Light Artillery, Indirect Fire"
+Arisaka Rifleman,Japan,Soldier,1939,3,4/4,1,2,-,-,8,5,-,"Close Assault 6, Hand to Hand 12"
+Azad Hind Fauj Infantryman,Japan,Soldier,1944,3,4/4,1,2,-,-,8,5,-,Close Assault 6
+Honor Bound Hero,Japan,Soldier Hero,1939,7,5/5,1,2,-,-,8,6,-,"Japanese Hero, Hand to Hand 10, Close Assault 8, Superior Camouflage"
+Imperial Sergeant,Japan,Soldier Commander,1939,9,4/4,1,2,-,-,6,-,-,"Hand to Hand 10, COMMANDER ABILITIES:2, Banzai Charge"
+Imperial Sniper,Japan,Soldier Sniper,1939,8,3/3,1,1,1,1,5,5,5,"Crack Shot, Commander Hunter, Superior Camouflage"
+Japanese Bicycle Troop,Japan,Soldier,1939,4,4/4,1,2,-,-,8,6,-,"Hand to Hand 9, High Gear 2"
+Japanese Sapper,Japan,Soldier Commander,1939,4,4/4,1,2,-,-,6,-,-,"Close Assault 7, Demolitions"
+Jungle Spotter,Japan,Soldier Spotter,1939,6,3/3,1,2,-,-,7,5,-,"Spotter, Chatting on the Radio, Concealed"
+SNLF Captain,Japan,Soldier Commander,1939,6,4/4,1,2,-,-,7,4,-,"COMMANDER ABILITIES:2, Pinpointer"
+SNLF Fanatics,Japan,Soldier,1939,7,5/5,1,2,-,-,9,6,-,"Hard Charger, Hand to Hand 12, Close Assault 6"
+SNLF Paratroopers,Japan,Soldier Paratrooper,1942,5,4/4,1,2,-,-,8,5,-,"Paratrooper, Close Assault 6"
+Type 88 75mm AA Gun,Japan,Soldier Artillery,1939,16,3/3,0,14,12,10,6,6,5,"Large, Antiair, Extended Range 16, Large Silhouette"
+Type 89 Mortar,Japan,Soldier,1939,9,3/3,1,-,4,4,3,7,7,"Inaccurate 1, Shrapnel 2, Seasoned Crew"
+Type 92 Machine Gun Team,Japan,Soldier,1939,7,4/4,1,3,3,2,8,7,6,Double Shot
+Type 97 Anti-Tank Rifle,Japan,Soldier,1939,4,4/4,0,6,5,3,5,5,4,Heavy Rifle
+Type 99 LMG,Japan,Soldier,1939,4,4/4,1,2,2,-,8,6,-,Covering Fire
+Type 1 Ho-Ni,Japan,Vehicle Tank Destroyer,1942,12,3/3,3,13,11,9,-,-,-,"No Turret, Open Back"
+Type 2 Ka-Mi Amphibious Tank,Japan,Vehicle Tank,1942,9,2/2,3,7,6,5,7,7,6,Amphibious
+Type 3 Chi-Nu,Japan,Vehicle Tank,1944,18,5/3,4,13,11,9,6,6,5,Forest Camouflage
+Type 4 Ho-Ro,Japan,Vehicle Assault Gun,1944,16,4/2,3,8,7,6,9,9,7,"Enhanced Range 16, Fixed Howitzer, Indirect Fire, Blast, Bombardment, Open-exposed Crew"
+Type 87 Armored Car,Japan,Vehicle Armored Car,1939,6,2/2,3,2,-,-,7,6,6,"High Gear 3, Thin Wheels, Strike and Fade 1"
+Type 89a Chi-Ro,Japan,Vehicle Tank,1939,7,2/2,3,5,4,3,7,7,6,"Trench Crossing, Weak Suspension"
+Type 89b Chi-Ro,Japan,Vehicle Tank,1939,9,2/2,3,8,6,5,7,7,6,Poor Suspension
+Type 95 Ha-Go,Japan,Vehicle Tank,1939,8,2/2,4,8,7,5,7,7,6,"Weak Suspension, Forest Camouflage"
+Type 97 Chi-Ha,Japan,Vehicle Tank,1942,12,3/3,3,10,8,7,6,6,5,Surprise Fire
+Type 97 Te-Ke Tankette,Japan,Vehicle Tank,1939,7,2/2,4,6,4,2,5,-,-,-
+New Zealand Commander,NZ New Zealand,Soldier Commander,1941,6,4/4,1,2,-,-,6,-,-,"Close Assault 7, COMMANDER ABILITIES:2, Dispersal"
+New Zealand Infantry,NZ New Zealand,Soldier,1941,5,4/4,1,2,-,-,9,7,-,"Close Assault 8, Steely Resolve 2"
+Daimler Dingo Armored Car,NZ New Zealand,Vehicle Armored Car,1943,7,3/2,4,2,2,-,6,6,5,"High Gear 2, Recon"
+Kosciuszko Hurricane MK.I,Poland,Aircraft,1940,14,4/4,A,3,2,-,8,6,,"Aircraft, Antiair"
+Spitfire F Mk IX Raider,Poland,Aircraft,1944,15,4/4,A,4,3,-,8,6,-,"Aircraft, Antiair, Steady Firing"
+Cavalrymen,Poland,Soldier Cavalry,1939,4,3/3,4,2,-,-,7,5,-,"Determined Charge, Hand to Hand 9"
+Determined Infantryman,Poland,Soldier,1940,4,4/4,1,2,-,-,9,6,-,"Close Assault 6, Steely Resolve 2"
+Polish Mauser Kar 98,Poland,Soldier,1939,3,4/4,1,2,-,-,8,6,-,Close Assault 6
+Polish Officer,Poland,Soldier Commander,1939,7,4/4,1,2,-,-,5,-,-,"Close Assault 6, COMMANDER ABILITIES:2, Coordinated Fire (C. A.)"
+wz.36 37mm ATG,Poland,Soldier Artillery,1939,5,3/3,0,9,7,5,3,3,3,"Relocate 2, Light Artillery"
+7TP,Poland,Vehicle Tank,1939,9,2/2,3,9,7,5,6,6,5,-
+7TPdw,Poland,Vehicle Tank,1939,8,2/2,3,2,2,2,8,7,6,All Guns Blazing
+Cromwell IV,Poland,Vehicle Tank,1944,22,5/4,4,14,11,9,7,7,6,Vanguard
+TKS Ursus Tankette,Poland,Vehicle Assault Gun,1939,6,2/2,4,5,4,3,5,5,4,"Fixed Howitzer, Hard to Spot"
+Bf109E Escort,Romania,Aircraft,1941,14,4/4,A,4,3,-,8,6,-,"Aircraft, Antiair"
+IAR-80A,Romania,Aircraft,1941,11,4/4,A,3,2,-,8,5,-,-
+Anti-Tank Grenadier,Romania,Soldier,1941,4,4/4,1,2,-,-,7,5,-,Close Assault 9
+Bohler 47mm Anti-Tank Gun,Romania,Soldier Artillery,1941,6,3/3,0,9,8,6,3,3,3,"Relocate 2, Camouflaged"
+Romanian Cavalry,Romania,Soldier Cavalry,1941,4,3/3,3,2,-,-,7,5,-,"Hand to Hand 9, Charge"
+Romanian Infantry,Romania,Soldier,1941,3,4/4,1,2,-,-,8,6,-,Close Assault 6
+Romanian Mortar,Romania,Soldier,1941,7,3/3,1,-,4,4,3,6,6,"Inaccurate 1, Shrapnel 2, Seasoned Crew"
+Vigilant Lieutenant,Romania,Soldier Commander,1941,8,4/4,1,2,-,-,7,5,-,"Limited Range 2, COMMANDER ABILITIES:2, Defensive Preparation"
+R-2 LT-35,Romania,Vehicle Tank,1941,9,3/2,3,7,6,5,7,7,6,-
+R-35,Romania,Vehicle Tank,1941,9,4/4,2,8,7,5,6,6,4,Trench Crossing
+Romanian SdKfz 251,Romania,Vehicle Half-Track,1943,7,2/2,4,2,2,2,8,7,6,"Gun Transport, High Gear 2, Fighting Platform"
+T-4 Medium Tank,Romania,Vehicle Tank,1942,23,5/3,3,15,13,11,7,7,6,"Extended Range 10, Sideskirts"
+South African Infantry,SA South Africa,Soldier,1941,3,4/4,1,2,-,-,8,6,-,Close Assault 6
+Marmon Herrington Mk II AC,SA South Africa,Vehicle Armored Car,1941,7,2/2,5,2,2,2,9,8,7,"High Gear 2, Strike and Fade 2"
+Valentine II,SA South Africa,Vehicle Tank,1941,16,5/5,3,9,8,6,5,5,4,Robust
+Motorcycle Recon,Slovakia,Soldier Motorcycle,1939,4,3/3,5,2,-,-,7,5,-,"High Gear 2, Thin Wheels, Recon"
+Slovakian Infantry,Slovakia,Soldier,1939,3,4/4,1,2,-,-,8,6,-,Close Assault 6
+PzKpfw 35(t),Slovakia,Vehicle Tank,1939,9,3/2,4,8,7,5,7,7,6,Mobility
+PzKpfw 38(t),Slovakia,Vehicle Tank,1941,10,3/2,4,8,7,5,7,7,6,Robust
+Slovakian Marder III,Slovakia,Vehicle Tank Destroyer,1944,17,3/2,4,15,13,11,6,5,4,"No Turret, Robust"
+Fulmar Mk II,UK,Aircraft,1941,11,4/4,A,3,2,-,8,6,-,"Aircraft, Antiair"
+Gloster Meteor,UK,- Jet,1944,17,4/4,A,4,3,-,9,6,-,"Jet, Aircraft, Antiair"
+Hawker Typhoon,UK,Aircraft,1943,21,4/4,A,7,5,-,8,6,-,"Aircraft, Antiair, Rockets 8"
+Hurricane MK.I,UK,Aircraft,1939,13,4/4,A,4,3,-,7,5,-,"Aircraft, Antiair, Steady Firing"
+Spitfire Ace,UK,Aircraft,1940,17,4/4,A,4,3,-,9,7,-,"Aircraft, Ace, Agility"
+Spitfire F Mk IX Interceptor,UK,Aircraft,1944,15,4/4,A,4,3,-,8,6,-,"Aircraft, Antiair, Agility"
+Spitfire MK.I Ace,UK,Aircraft,1940,16,4/4,A,3,2,-,9,7,-,"Aircraft, Ace, Agility"
+Supermarine Spitfire Mk. 1,UK,Aircraft,1939,15,4/4,A,4,3,-,8,6,-,"Aircraft, Antiair, Agility"
+Supermarine Spitfire Mk. 1,UK,Aircraft,1940,15,4/4,A,4,3,-,8,6,-,"Aircraft, Antiair, Agility"
+Typhoon Interceptor,UK,Aircraft,1943,16,4/4,A,5,4,-,8,6,-,"Aircraft, Antiair"
+17 Pounder Anti-Tank Gun,UK,Soldier Artillery,1944,13,3/3,0,15,13,11,3,3,3,"Relocate 1, Extended Range 10, Armor-Piercing Rounds, Large"
+2-Pounder Anti-Tank Gun,UK,Soldier Artillery,1940,6,3/3,0,9,8,6,3,3,3,"Relocate 2, Quick Swivel"
+3-Inch Mortar,UK,Soldier Artillery,1940,11,3/3,0,-,6,5,3,8,8,"Enhanced Range 16, Inaccurate 1, Shrapnel 2, Relocate 2, Indirect Fire"
+40mm Bofors L60,UK,Soldier Artillery,1940,9,3/3,0,6,6,5,11,10,9,"Large, Relocate 1, Enhanced Range 10, Antiair"
+6 Pounder Anti-Tank Gun,UK,Soldier Artillery,1942,7,3/3,0,11,9,8,3,3,3,Relocate 2
+BEF infantrymen,UK,Soldier,1940,4,4/4,1,2,-,-,9,6,-,"Close Assault 6, Steely Resolve 2"
+Bren Machine Gunner,UK,Soldier,1939,5,4/4,1,2,2,-,8,7,-,Covering Fire
+Concealed Foreward Observer,UK,Soldier Spotter,1940,6,3/3,1,2,-,-,6,-,-,"Spotter, Chatting on the Radio, Camouflaged"
+Defiant paratroopers,UK,Soldier Paratrooper,1941,8,5/5,1,2,-,-,9,7,-,"Paratrooper, Close Assault 8"
+Entrenched Anti-Tank Gun,UK,Soldier Artillery,1942,7,3/3,0,11,9,8,3,3,3,"Relocate 2, Entrenched"
+Gurkha Rifleman,UK,Soldier,1940,4,4/4,1,2,-,-,8,6,-,"Hand to Hand 10, Close Assault 7"
+Inspiring Hero,UK,Soldier Hero Commander,1940,9,5/5,1,2,-,-,9,7,-,"U.K. Hero, Close Assault 7, COMMANDER ABILITIES:1, Tally-Ho!"
+Inspiring Lieutenant,UK,Soldier Commander,1940,10,4/4,1,2,-,-,8,6,-,"Close Assault 7, COMMANDER ABILITIES:2, Tally-Ho!"
+PIAT Gunner,UK,Soldier,1943,5,4/4,1,9,-,-,4,-,-,"Close Assault 10, Hard to Spot"
+Royal Engineers,UK,Soldier,1940,8,4/4,1,2,-,-,6,4,-,"Close Assault 16, Bridge Demolition"
+SMLE No.4 Rifleman,UK,Soldier,1941,3,4/4,1,2,-,-,8,6,-,Close Assault 6
+Sten SMG,UK,Soldier,1941,4,4/4,1,2,-,-,10,7,-,"Limited Range 2, Close Assault 6"
+Vickers Machine Gun Team,UK,Soldier,1940,8,4/4,1,3,3,2,9,8,6,Double Shot
+Archer,UK,Vehicle Tank Destroyer,1944,21,3/3,2,15,13,11,5,5,4,"Fixed Rear Gun, Extended Range 10, Strike and Fade 1"
+Bedford QL 3 Ton,UK,Vehicle,1941,4,1/1,3,-,-,-,-,-,-,"High Gear 2, Large Transport"
+Centurion A41,UK,Vehicle Tank,1945,44,7/4,3,16,14,11,8,7,6,"Robust, Superior Armor 2, Extended Range 12, Armor-Piercing Rounds"
+Churchill AVRE,UK,Vehicle Tank,1944,25,7/6,2,10,-,-,12,6,4,"AVRE, Blast, Bombardment"
+Churchill Crocodile,UK,Vehicle Tank,1944,35,7/6,2,13,11,9,10,5,4,"Superior Armor 2, Hull-Mounted Flamethrower"
+Churchill IV,UK,Vehicle Tank,1942,28,7/6,2,11,9,8,7,7,6,Superior Armor 2
+Comet A-34,UK,Vehicle Tank,1945,40,6/3,4,15,13,11,7,7,6,"High Gear 1, Battlefield Awareness, Superior Armor 2"
+Cromwell IV,UK,Vehicle Tank,1944,22,5/4,4,14,11,9,7,7,6,Vanguard
+Cruiser Mk III A13,UK,Vehicle Tank,1940,9,2/2,4,9,8,6,5,5,4,Vanguard
+Crusader II,UK,Vehicle Tank,1941,11,4/3,4,9,8,6,5,5,4,"Vanguard, Prone to Breakdown"
+Grant 1,UK,Vehicle Tank,1942,28,5/4,4,9,7,5,9,9,7,"Additional Hull-Mounted Cannon, Large Silhouette"
+Humber Scout Car,UK,Vehicle Armored Car,1941,8,3/2,5,2,2,2,9,8,7,"High Gear 2, Strike and Fade 2"
+"M22 ""Locust""",UK,Vehicle Tank,1945,13,3/2,4,9,7,6,6,6,4,"High Gear 1, Gliderborne"
+M3 Stuart,UK,Vehicle Tank,1941,15,4/3,5,9,7,5,8,8,6,All Guns Blazing
+Matilda II,UK,Vehicle Tank,1940,13,6/5,2,9,8,6,6,6,4,Superior Frontal Armor 2
+Mk. VII Tetrarch,UK,Vehicle Tank,1944,12,2/2,4,9,8,6,6,6,4,Gliderborne
+Morris Recon. Car Mk 2,UK,Vehicle Armored Car,1943,7,2/2,4,2,2,2,8,8,7,"Experienced Recon, High Gear 2, Strike and Fade 1"
+Morris Recon. Car Mk. 2,UK,Vehicle Armored Car,1943,7,2/2,4,2,2,2,8,8,7,"Experienced Recon, High Gear 2, Strike and Fade 1"
+Sherman IVC,UK,Vehicle Tank,1944,24,5/4,4,15,13,11,7,7,6,-
+Sherman VC Firefly,UK,Vehicle Tank,1944,24,5/4,4,15,13,11,7,7,6,-
+Staghound,UK,Vehicle Armored Car,1942,15,4/2,4,9,7,5,8,7,6,"High Gear 2, Strike and Fade 1"
+Universal Carrier,UK,Vehicle,1940,8,2/2,4,5,4,3,7,6,5,"Gun Transport, High Gear 1"
+Valentine I,UK,Vehicle Tank,1940,16,5/5,3,9,8,6,5,5,4,Robust
+Valentine II,UK,Vehicle Tank,1941,16,5/5,3,9,8,6,5,5,4,Robust
+F4U Corsair,US,Aircraft,1943,20,4/4,A,3,2,-,9,7,-,"Aircraft, Antiair, Superior Armor 2, Bombs"
+F4U-1 USMC Corsair,US,Aircraft,1943,20,4/4,A,3,2,-,9,7,-,"Aircraft, Antiair, Bombs, Superior Armor 2"
+FM-1 Wildcat,US,Aircraft,1943,11,4/4,A,2,1,-,7,5,,"Aircraft, Antiair"
+Lockheed P38G Lightning,US,Aircraft,1942,17,4/4,A,3,2,-,9,6,-,"Aircraft, Antiair, Strafe"
+Navy F4F-3 Wildcat,US,Aircraft,1941,12,4/4,A,3,2,-,7,5,-,"Aircraft, Antiair"
+Navy F4U Corsair,US,Aircraft,1942,20,4/4,A,3,2,-,9,7,-,"Aircraft, Antiair, Bombs, Superior Armor 2"
+P-38J Lightning Ace,US,Aircraft,1943,18,4/4,A,4,3,-,9,7,,"Ace, Aircraft, Strafe"
+P39D Rookie,US,Aircraft,1942,11,4/4,A,3,2,-,8,6,-,"Aircraft, Antiair, Inaccurate 1"
+P-40 Tomahawk,US,Aircraft,1941,13,4 4,A,3,2,-,7,5,-,"Aircraft, Antiair, Steady Firing"
+P-40B Rookie,US,Aircraft,1941,11,4/4,A,3,2,-,8,6,-,"Aircraft, Antiair, Inaccurate 1"
+P-51 B Mustang,US,Aircraft,1943,14,4/4,A,3,2,-,8,6,-,"Aircraft, Ace"
+P-51 C Escort,US,Aircraft,1943,13,4/4,A,3,2,-,8,6,-,"Aircraft, Antiair"
+P51D Mustang,US,Aircraft,1944,17,4/4,A,3,2,-,9,7,-,"Aircraft, Antiair, Rockets 8"
+P-51D Mustang,US,,1944,17,4/4,A,3,2,-,9,7,-,"Aircraft, Antiair, Rockets 8"
+USMC F4F-4 Wildcat,US,Aircraft,1942,14,4/4,A,3,2,-,9,7,-,"Aircraft, Antiair"
+"""Red Devil"" Captain",US,Soldier Commander,1942,7,4/4,1,2,-,-,8,6,-,"Close Assault 7, COMMANDER ABILITIES:2, Pinpointer"
+"""Screaming Eagle"" Captain",US,Soldier Para - Commander,1944,11,4/4,1,2,-,-,9,7,-,"Paratrooper, COMMANDER ABILITIES:3, Paratrooper Commander"
+"""Screaming Eagle"" Paratroopers",US,Soldier Paratrooper,1944,9,5/5,1,2,-,-,9,7,-,"Paratrooper, Close Assault 8, Hard Charger"
+"3"" Gun M5",US,Soldier Artillery,1943,10,3/3,0,14,12,10,3,3,3,"Relocate 1, Large"
+37mm Gun M3,US,Soldier Artillery,1941,5,3/3,0,9,7,5,3,3,3,"Relocate 2, Light Artillery"
+BAR Gunner,US,Soldier,1941,4,4/4,1,2,2,-,8,6,-,Covering Fire
+Bazooka,US,Soldier,1942,4,4/4,1,9,4,-,4,-,-,Close Assault 10
+Buffalo Soldiers,US,Soldier,1944,4,4/4,1,2,-,-,8,7,-,"Close Assault 6, Steely Resolve 2"
+Hunting Sniper,US,Soldier Sniper,1941,9,3/3,1,1,1,1,5,5,5,"Crack Shot, Gun Crew Hunter, Superior Camouflage"
+M1 81mm Mortar,US,Soldier Artillery,1941,12,3/3,0,-,6,5,3,8,8,"Improved Indirect Fire, Enhanced Range 16, Inaccurate 1, Shrapnel 2, Relocate 2"
+M1 Garand Rifle,US,Soldier,1942,4,4/4,1,2,-,-,8,7,-,"Close Assault 7, Coordinated Fire"
+M1919 MG,US,Soldier,1941,9,4/4,1,3,3,3,9,8,7,Double Shot
+M20 75mm Recoilless Rifle,US,Soldier Artillery,1945,10,3/3,0,10,9,7,8,7,5,"Relocate 2, Backblast, Light Artillery"
+M8 75mm Pack Howitzer,US,Soldier Artillery,1941,6,3/3,0,6,5,4,9,8,7,"Relocate 2, Indirect Fire, Enhanced Range 12, Light Artillery"
+Marine Rifleman,US,Soldier,1942,4,4/4,1,2,-,-,8,7,2,"Gung Ho, Close Assault 7"
+Marine Sergeant,US,Soldier Commander,1941,7,4/4,1,2,-,-,9,6,-,"Hand to Hand 9, COMMANDER ABILITIES:2, Fearless"
+Marines M2-2 Flamethrower,US,Soldier,1944,5,4/4,1,7,-,-,10,-,-,Flamethrower
+Mortar M2,US,Soldier,1941,6,3/3,1,-,4,4,3,6,6,"Inaccurate 1, Shrapnel 2"
+Quad 50,US,Soldier Artillery,1943,10,4/4,0,3,3,3,9,8,6,"Antiair, Relocate 2, Light Artillery, Double Shot"
+Rangers,US,Soldier Spotter,1942,7,5/5,1,2,-,-,9,7,-,"Lead the Way, Close Assault 7"
+Resourceful Hero,US,Soldier Hero,1941,8,5/5,1,2,-,-,10,7,-,"U.S. Hero, Improvisation, Close Assault 8"
+Thompson Gunner,US,Soldier,1941,4,4/4,1,2,-,-,10,8,-,"Limited Range 2, Gung Ho, Close Assault 7"
+Untested Recruit,US,Soldier,1942,2,4/4,1,2,-,-,8,5,-,"Green, Close Assault 4"
+US Engineer,US,Soldier,1942,6,4/4,1,2,-,-,8,6,-,"Close Assault 10, Bridge Demolition"
+"""Amtrack""",US,Vehicle,1943,11,2/2,3,3,3,2,8,8,6,"Amphibious, Transport"
+CCKW 352,US,Vehicle,1941,4,1/1,3,-,-,-,-,-,-,"High Gear 2, Large Transport"
+DUKW,US,Vehicle,1943,9,2/2,4,3,3,2,6,6,5,"Amphibious, High Gear 2, Gun Transport"
+Early M4A1 Sherman,US,Vehicle Tank,1942,20,5/4,4,13,11,9,9,9,7,Fire Hazard
+FO Jeep,US,Vehicle Spotter,1942,6,1/1,5,-,-,-,5,-,-,"Spotter, Chatting on the Radio"
+Higgins Boat,US,Vehicle Boat,1942,7,3/3,2,2,2,2,6,6,4,"Water Craft, Heavy Transport"
+Jeep,US,Vehicle car,1941,3,1/1,5,-,-,-,-,-,-,"High Gear 2, Transport"
+LVT(A)-1,US,Vehicle Tank,1943,9,2/2,3,9,7,5,9,9,7,"Amphibious, Overlapping Fire"
+M-10,US,Vehicle Tank Destroyer,1943,19,4/3,4,14,12,10,6,6,5,Flanking Attack
+M12 GMC,US,Vehicle Artillery,1944,28,4/3,3,12,10,9,10,10,9,"Fixed Howitzer, Enhanced Range 16, Indirect Fire, Bombardment, Blast, Open Back"
+M16 Half-Track,US,Vehicle Half-Track,1943,15,2/2,4,3,3,3,9,8,6,"High Gear 2, Antiair, Double Shot"
+M18 GMC,US,Vehicle Tank Destroyer,1944,24,3/2,5,14,12,10,6,6,4,"High Gear 2, Strike and Fade 1, Flanking Attack"
+M18 Hellcat,US,Vehicle Tank Destroyer,1944,24,3/2,5,14,12,10,6,6,4,"High Gear 2, Flanking Attack, Strike and Fade 1"
+M24 Chaffee,US,Vehicle Tank,1945,19,4/3,5,13,11,10,7,7,6,Superior Armor 2
+M26 Pershing,US,Vehicle Tank,1945,60,7/6,3,17,14,12,9,9,7,"Extended Range 12, Superior Armor 2"
+M3 Half-Track,US,Vehicle Half-Track,1941,8,2/2,4,3,3,3,8,7,6,"Gun Transport, High Gear 2, Fighting Platform"
+M3 Lee,US,Vehicle Tank,1942,32,5/4,3,9,7,5,9,9,7,"Strike and Fade 1, Tall Silhouette, Additional Hull-Mounted Cannon"
+M3 Light Tank,US,Vehicle Tank,1941,15,4/3,5,9,7,5,8,8,6,All Guns Blazing
+M36 GMC,US,Vehicle Tank Destroyer,1944,32,5/3,4,17,14,12,6,6,4,"Extended Range 12, Flanking Attack"
+M3A1 Scout Car,US,Vehicle Armored Car,1941,7,2/2,4,3,3,2,8,7,6,"Transport, High Gear 2"
+M3A5 Lee,US,Vehicle Tank,1942,28,5/4,3,9,7,5,9,9,7,"Additional Hull-Mounted Cannon, Tall Silhouette"
+M4 Sherman T-34 Calliope,US,Vehicle Tank,1944,29,5/4,3,13,11,9,10,10,9,Top-Mounted Rockets
+M4A1 Sherman,US,Vehicle Tank,1942,21,5/4,4,13,11,9,9,9,7,-
+M4A1 Sherman Commander,US,Vehicle Tank Commander,1942,33,5/4,4,13,11,9,9,9,7,"COMMANDER ABILITIES:2, Command Leadership"
+M4A3 (105) Sherman,US,Vehicle Tank,1944,24,5/4,4,10,8,7,11,11,9,Bombardment
+"M4A3E8 sherman ""Easy Eight""",US,Vehicle Tank,1944,34,5/4,4,14,12,10,7,7,6,"Exposed Transport, Excellent Suspension, Armor-Piercing Rounds, Superior Armor 2"
+M5 Half-Track,US,Vehicle Half-Track,1943,8,2/2,4,3,3,3,8,7,6,"Gun Transport, High Gear 2, Fighting Platform"
+M5A1,US,Vehicle Tank,1942,15,4/3,5,9,7,5,9,9,7,Robust
+M7 105mm Priest,US,Vehicle Tank,1942,27,3/3,3,10,8,7,11,10,9,"Indirect Fire, Enhanced Range 16, Bombardment, Fixed Howitzer, Open Back"
+"M8 ""Greyhound""",US,Vehicle Armored Car,1943,14,2/2,4,9,7,5,9,8,7,"High Gear 2, Strike and Fade 2, Experienced Recon"
+"Veteran M4 Sherman ""Rhino""",US,Vehicle Tank,1944,26,5/4,4,13,11,9,9,9,7,"Brushcutters, Veteran Crew"
+Guards Yak-1,USSR,Aircraft,1941,14,4/4,A,4,3,-,8,6,-,"Aircraft, Antiair"
+"I-16 ""Ishak""",USSR,Aircraft,1939,11,4/4,A,2,1,-,7,4,-,"Antiair, Antiair"
+IL-10 Sturmovik,USSR,Aircraft,1945,21,4/4,A,7,5,-,8,6,-,"Aircraft, Superior Armor 2"
+IL-2 Sturmovic,USSR,Aircraft,1941,21,4/4,A,7,5,-,8,6,-,"Aircraft, Superior Armor 2"
+La-5FN Ace,USSR,Aircraft,1942,15,4/4,A,4,3,-,8,6,-,"Ace, Aircraft"
+Lend-Lease Tomahawk MK.II,USSR,Aircraft,1941,13,4/4,A,3,2,-,7,5,-,"Aircraft, Antiair, Steady Firing"
+MiG-1,USSR,Aircraft,1941,13,4/4,A,3,2,-,8,5,-,"Aircraft, Antiair"
+P39 Lend Lease,USSR,Aircraft,1942,12,4/4,A,3,2,-,8,6,-,"Aircraft, Antiair"
+Yak-1 Rookie,USSR,Aircraft,1941,9,4/4,A,3,2,-,7,5,-,"Aircraft, Antiair, Inaccurate 1"
+76.2mm Model 1942,USSR,Soldier Artillery,1941,9,3/3,0,13,11,9,7,7,6,"Relocate 1, Extended Range 10"
+82mm PM-37 Mortar,USSR,Soldier Artillery,1939,11,3/3,0,-,6,5,3,8,8,"Enhanced Range 16, Relocate 2, Inaccurate 1, Shrapnel 2, Indirect Fire"
+82mm Pm-37 Mortar,USSR,Soldier Artillery,1939,11,3/3,0,-,6,5,3,8,8,"Enhanced Range 16, Relocate 2, Inaccurate 1, Shrapnel 2, Indirect Fire"
+85mm AA Gun,USSR,Soldier Artillery,1939,15,3/3,0,15,13,11,7,7,6,"Antiair, Extended Range 16, Large Silhouette, Large"
+Commissar,USSR,Soldier Commander,1939,5,4/4,1,2,-,-,5,-,-,"Close Assault 6, COMMANDER ABILITIES:1, Bravery Enforcement"
+Communist Partisans,USSR,Soldier,1941,3,4/4,1,2,-,-,7,5,-,"Partisan, Close Assault 5, Urban Combat"
+Cossack Captain,USSR,Soldier Commander,1939,9,4/4,1,2,-,-,8,5,-,"Limited Range 2, COMMANDER ABILITIES:2, Intimidation"
+Cossack Cavalrymen,USSR,Soldier Cavalry,1939,4,3/3,3,2,-,-,7,5,-,"Hand to Hand 9, Elusive"
+Degtyarev DP-27,USSR,Soldier,1939,4,4/4,1,2,2,-,9,5,-,"Command Dependent, Covering Fire"
+Fanatical Sniper,USSR,Soldier Sniper,1941,8,3/3,1,1,1,1,5,5,5,"Crack Shot, SS Hunter, Superior Camouflage"
+Guards Infantry,USSR,Soldier,1941,5,4/4,1,2,-,-,9,6,-,"Close Assault 8, Steely Resolve 2, Courage"
+Hero of the Soviet Union,USSR,Soldier Hero,1939,8,5/5,1,2,-,-,9,7,-,"Soviet Hero, Hand to Hand 10, Close Assault 8, Endurance"
+Maxim M1910 MG,USSR,Soldier,1939,7,4/4,1,3,3,2,9,8,6,"Double Shot, Command Dependent"
+Mongolian Cavalry,USSR,Soldier Cavalry,1939,4,3/3,3,2,-,-,7,5,-,Hand to Hand 10
+Mosin-Nagant 1891/30,USSR,Soldier,1939,3,4/4,1,2,-,-,8,6,-,"Close Assault 8, Command Dependent"
+PPSh-41 SMG,USSR,Soldier,1941,3,4/4,1,2,-,-,10,5,-,Limited Range 2
+PTRD-41 Anti-Tank Rifle,USSR,Soldier,1941,4,4/4,1,5,4,2,5,5,4,-
+Red Army Forward Observer,USSR,Soldier Spotter,1939,6,3/3,1,2,-,-,6,2,-,"Spotter, Chatting on the Radio, Concealed"
+Siberian Shock Troops,USSR,Soldier,1941,4,4/4,1,2,-,-,9,6,-,"Close Assault 6, Shock Troop"
+Soviet Conscript,USSR,Soldier,1939,2,4/4,1,2,-,-,8,5,-,"Command Dependent, Close Assault 6, Green"
+Soviet Grenadiers,USSR,Soldier,1939,4,4/4,1,2,-,-,8,6,-,"Limited Range 2, Hand to Hand 9, , Close Assault 7"
+Soviet-Polish Infantry,USSR,Soldier,1943,3,4/4,1,2,-,-,8,6,-,Close Assault 6
+Veteran NCO,USSR,Soldier Commander,1942,6,4/4,1,2,-,-,8,7,-,"Limited Range 2, Hand to Hand 9, COMMANDER ABILITIES:2, Fearless"
+ZIS-2 57mm Model 1943,USSR,Soldier Artillery,1943,7,3/3,0,11,9,8,3,3,3,Relocate 2
+BA-10M,USSR,Vehicle Armored Car,1939,12,2/2,4,9,7,6,7,6,4,"High Gear 2, Aggression 1"
+BA-64,USSR,Vehicle Armored Car,1942,8,2/2,4,2,2,2,7,6,4,"High Gear 3, Aggression 2"
+BM-13 Katyusha Rocket Launcher,USSR,Vehicle Artillery,1941,12,1/1,4,-,6,6,-,13,11,"Inaccurate 1, Enhanced Range 16, Bombardment, Blast, Rocket Salvo"
+BT-5,USSR,Vehicle Tank,1939,10,2/2,5,10,8,7,6,6,4,Excellent Suspension
+BT-7,USSR,Vehicle Tank,1939,13,3/2,5,10,8,7,7,7,6,"High Gear 1, Excellent Suspension"
+Guards T-34/76,USSR,Vehicle Tank,1941,30,5/5,4,13,11,10,7,7,6,"Exposed Transport, Superior Armor 2, Guard Crew"
+Guards T-34/85,USSR,Vehicle Tank,1944,34,6/5,4,14,12,10,7,7,6,"Guard Crew, Superior Armor 2, Exposed Transport"
+IS-2 Model 1944,USSR,Vehicle Tank,1944,61,7/7,3,18,15,12,8,8,7,Superior Armor 2
+IS-2 Veteran,USSR,Vehicle Tank,1944,67,7/7,3,18,15,12,8,8,7,"Superior Armor 2, Veteran Guard, Extended Range 10"
+IS-3,USSR,Vehicle Tank,1945,71,7/7,3,18,15,12,9,9,7,"HE Round, Superior Armor 3"
+ISU-122,USSR,Vehicle Tank Destroyer,1944,43,6/6,3,16,14,11,8,8,7,"Fixed Howitzer, Heavy Armor"
+KV-1,USSR,Vehicle Tank,1941,32,6/6,3,13,11,10,9,9,7,"Exposed Transport, Heavy Armor"
+KV-2 Model 1940,USSR,Vehicle Tank,1941,46,6/5,3,15,13,10,11,11,9,"Heavy Armor, Bombardment, Tall Silhouette, Turret Lock"
+KV-85,USSR,Vehicle Tank,1943,35,6/6,3,14,12,10,9,9,7,Heavy Armor
+Lend Lease Half-Track,USSR,Vehicle Half-Track,1943,8,2/2,4,3,3,3,8,7,6,"Gun Transport, High Gear 2, Fighting Platform"
+Polish SU-85,USSR,Vehicle Tank Destroyer,1944,22,5/5,4,14,12,10,4,-,-,"No Turret, Superior Armor 2"
+Soviet M3 Lee,USSR,Vehicle Tank,1942,30,5/4,3,9,7,5,9,9,7,"Exposed Transport, Additional Hull-Mounted Cannon, Tall Silhouette"
+SU-122,USSR,Vehicle Assault Gun,1943,22,5/5,4,10,7,5,8,8,6,"Fixed Howitzer, Superior Armor 2, Bombardment, Blast"
+SU-152,USSR,Vehicle Assault Gun,1943,51,6/6,3,15,13,10,11,11,9,"Fixed Howitzer, Bombardment, Limited Ammo, Heavy Armor"
+SU-76M,USSR,Vehicle Tank Destroyer,1943,16,4/4,4,13,11,10,7,7,6,"No Turret, Open Back"
+SU-85,USSR,Vehicle Tank Destroyer,1943,22,5/5,4,14,12,10,4,-,-,"No Turret, Superior Armor 2"
+T-26B,USSR,Vehicle Tank,1939,11,2/2,3,9,8,6,7,7,6,-
+T-28,USSR,Vehicle Tank,1939,16,4/3,2,10,8,7,9,9,7,"Poor Suspension, Overlapping Fire, Extra Machine Guns"
+T-34/76,USSR,Vehicle Tank,1941,28,5/5,4,13,11,10,7,7,6,"Exposed Transport, Superior Armor 2"
+T-34/76 Commander,USSR,Vehicle Tank Commander,1941,38,5/5,4,13,11,10,7,7,6,"Superior Armor 2, Exposed Transport, COMMANDER ABILITIES:2, Command Awareness"
+T-34/76 Model 1942,USSR,Vehicle Tank,1942,30,6/5,4,13,11,10,7,7,6,"Exposed Transport, Superior Armor 2"
+T-34/85,USSR,Vehicle Tank,1944,32,6/5,4,14,12,10,7,7,6,"Exposed Transport, Superior Armor 2"
+T-35,USSR,Vehicle Tank,1941,18,4/2,2,10,9,7,10,10,8,"Weak Suspension, Overlapping Fire, Multiturreted"
+T-38 Light Amphibious Tank,USSR,Vehicle Tank,1939,6,2/2,4,2,2,2,6,6,4,"Amphibious, Low Silhouette"
+T-70 Model 1942,USSR,Vehicle Tank,1942,12,4/3,5,9,7,6,5,5,4,Undermanned
+Valentine VI,USSR,Vehicle Tank,1941,16,5/5,3,9,8,6,5,5,4,Robust
+Veteran SU-76M,USSR,Vehicle Tank Destroyer,1943,20,4/4,4,13,11,10,7,7,6,"No Turret, Open Back, Veteran Crew"
+ZIS-42 Half Track,USSR,Vehicle Half-Track,1942,4,1/1,4,-,-,-,-,-,-,"High Gear 1, Large Transport"
+ZIS-5 3 Ton,USSR,Vehicle,1939,4,1/1,3,-,-,-,-,-,-,"High Gear 2, Large Transport"
+Yugoslav Partisan Commander,Yugoslavia,Soldier Commander,1941,6,4/4,1,2,-,-,6,-,-,"Partisan, Close Assault 5, COMMANDER ABILITIES:1, Dispersal"
+Yugoslav Partisan Infantry,Yugoslavia,Soldier,1941,3,4/4,1,2,-,-,7,5,-,"Partisan, Close Assault 5, Subtle"
