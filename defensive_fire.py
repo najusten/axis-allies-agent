@@ -16,13 +16,16 @@ Key Rules:
 - If disrupted by defensive fire, unit stops movement immediately
 """
 
-from typing import List, Tuple, Optional, Dict, Set
+from typing import List, Tuple, Optional, Dict, Set, TYPE_CHECKING
 from dataclasses import dataclass
 from enum import Enum
 
 from game_state import GameState, UnitState
 from board import Board
 from dice import DiceSystem, UnitCategory
+
+if TYPE_CHECKING:
+    from units import Unit
 
 
 @dataclass
