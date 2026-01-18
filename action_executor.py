@@ -4,6 +4,8 @@ Action Executor for Axis & Allies Miniatures
 Validates and executes actions on game states.
 Uses the authentic dice mechanics from dice.py for combat resolution.
 Integrates defensive fire system for movement.
+Integrates facing system for front/rear armor.
+Integrates casualty system for simultaneous combat.
 """
 
 from typing import Tuple, Optional, Dict, List
@@ -17,6 +19,11 @@ from movement import MovementSystem
 from abilities import AbilitySystem
 from dice import DiceSystem, UnitStatus, UnitCategory, get_unit_category
 from defensive_fire import DefensiveFireSystem, DefensiveFireResult
+from facing import (
+    FacingSystem, HexDirection, is_front_arc_attack,
+    calculate_facing_after_move, get_direction_name
+)
+from casualty import CasualtySystem
 
 
 class ActionResult:
@@ -52,12 +59,15 @@ class ActionExecutor:
     def __init__(self, movement_system: MovementSystem,
                  combat_system,  # Can be old or new CombatSystem
                  ability_system: AbilitySystem,
-                 random_seed: Optional[int] = None):
+                 random_seed: Optional[int] = None,
+                 use_simultaneous_combat: bool = True):
         self.movement_system = movement_system
         self.combat_system = combat_system
         self.ability_system = ability_system
         self.dice = DiceSystem(random_seed)
         self.defensive_fire = DefensiveFireSystem(ability_system, random_seed)
+        self.casualty_system = CasualtySystem()
+        self.use_simultaneous_combat = use_simultaneous_combat
         self.validator = ActionValidator(
             None, movement_system, combat_system, ability_system
         )
@@ -68,6 +78,22 @@ class ActionExecutor:
         Call this at the start of each movement phase.
         """
         self.defensive_fire.reset_phase()
+    
+    def reset_assault_phase(self):
+        """
+        Reset casualty system for a new assault phase.
+        Call this at the start of each assault phase.
+        """
+        self.casualty_system.reset_phase()
+    
+    def resolve_casualty_phase(self, game_state: GameState) -> Dict:
+        """
+        Resolve the casualty phase - flip counters and remove destroyed units.
+        Call this after all assault phases are complete.
+        
+        Returns results dictionary with destroyed/damaged/disrupted units.
+        """
+        return self.casualty_system.resolve_casualty_phase(game_state)
     
     def execute_action(self, game_state: GameState, action: Action) -> ActionResult:
         """
@@ -158,6 +184,13 @@ class ActionExecutor:
         if success:
             game_state.apply_action(action)
             
+            # Update facing for vehicles
+            if unit.unit_type == 'Vehicle':
+                new_facing = calculate_facing_after_move(from_hex, final_hex)
+                unit_state.facing = new_facing.value
+                facing_str = get_direction_name(new_facing)
+                message += f" (facing {facing_str})"
+            
             # Add defensive fire info to message if any occurred
             for df_result in df_results:
                 if df_result.target_disrupted:
@@ -196,12 +229,20 @@ class ActionExecutor:
         target_hex = game_state.board.get_hex(action.target_q, action.target_r)
         target_terrain = target_hex.terrain if target_hex else 'open'
         
-        # Determine if rear attack (simplified - would need facing system for real)
-        is_rear_attack = False  # TODO: Implement facing system
+        # Determine if rear attack based on facing
+        attacker_pos = (action.attacker_q, action.attacker_r)
+        target_pos = (action.target_q, action.target_r)
         
-        # Check if same hex
+        # Check if same hex (always rear for vehicles)
         attacker_same_hex = (action.attacker_q == action.target_q and 
                            action.attacker_r == action.target_r)
+        
+        # Determine front/rear based on target facing
+        is_rear_attack = False
+        if target.unit_type == 'Vehicle' and target_state.facing is not None:
+            target_facing = HexDirection(target_state.facing)
+            is_front = is_front_arc_attack(attacker_pos, target_pos, target_facing)
+            is_rear_attack = not is_front
         
         # Resolve the attack
         result = self._resolve_attack_full(
@@ -217,13 +258,34 @@ class ActionExecutor:
         game_state.mark_unit_attacked(action.unit_id)
         game_state.apply_action(action)
         
-        # Update target status based on result
-        if result['target_destroyed']:
+        # Handle damage based on simultaneous combat setting
+        if self.use_simultaneous_combat and result['hits'] > 0:
+            # Record hits as face-down counters (don't apply yet)
+            counter_types = self.casualty_system.record_hits(
+                action.target_id,
+                target.unit_type,
+                result['hits']
+            )
+            
+            # Check if unit will be destroyed (for message purposes)
+            will_destroy = self.casualty_system.unit_has_pending_destroyed(action.target_id)
+            
+            if will_destroy:
+                message = f"{attacker.name} attacks {target.name} - {result['outcome'].upper()}! (pending)"
+                result['pending_destroyed'] = True
+            else:
+                message = f"{attacker.name} attacks {target.name} - {result['outcome'].upper()} (pending)"
+                result['pending_counters'] = [ct.value for ct in counter_types]
+            
+            return ActionResult(True, message, result['hits'], None, result)
+        
+        elif result['target_destroyed']:
+            # Immediate mode: apply damage now
             game_state.remove_unit(action.target_id)
             message = f"{attacker.name} attacks {target.name} - {result['outcome'].upper()}!"
             return ActionResult(True, message, result['hits'], action.target_id, result)
         else:
-            # Update status flags on target
+            # Immediate mode: Update status flags on target
             new_status = result.get('target_new_status')
             if new_status:
                 self._apply_status_to_unit_state(target_state, new_status)

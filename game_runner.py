@@ -205,17 +205,43 @@ class GameRunner:
                 game_state.active_player = player
                 agent = agents[player]
                 
+                # Reset casualty tracking for this player's assault phase
+                self.action_executor.reset_assault_phase()
+                
                 self.log(f"\n--- {player} Assault Phase ---")
                 
                 phase_actions = self._run_phase(
                     game_state, agent, player, max_actions=20
                 )
                 turn_events.extend(phase_actions)
-                
-                # Check for victory
-                winner = game_state.check_victory_conditions()
-                if winner:
-                    return self._game_result(winner, game_state, turn_history, "elimination")
+            
+            # === CASUALTY PHASE ===
+            self.log(f"\n--- Casualty Phase ---")
+            casualty_results = self.action_executor.resolve_casualty_phase(game_state)
+            
+            # Log casualty phase results
+            if casualty_results['units_destroyed']:
+                for unit_id in casualty_results['units_destroyed']:
+                    self.log(f"  💀 {unit_id} destroyed")
+            if casualty_results['units_damaged']:
+                for unit_id in casualty_results['units_damaged']:
+                    self.log(f"  🔧 {unit_id} damaged")
+            if casualty_results['units_disrupted']:
+                for unit_id in casualty_results['units_disrupted']:
+                    self.log(f"  ⚡ {unit_id} disrupted")
+            if casualty_results['disruption_cleared']:
+                for unit_id in casualty_results['disruption_cleared']:
+                    self.log(f"  ✓ {unit_id} disruption cleared")
+            
+            if not any([casualty_results['units_destroyed'], 
+                       casualty_results['units_damaged'],
+                       casualty_results['units_disrupted']]):
+                self.log(f"  (no casualties)")
+            
+            # Check for victory after casualty phase
+            winner = game_state.check_victory_conditions()
+            if winner:
+                return self._game_result(winner, game_state, turn_history, "elimination")
             
             # === END OF TURN ===
             self._end_of_turn(game_state)
@@ -388,9 +414,10 @@ def create_test_armies(units_per_side: int = 3) -> Tuple[List[UnitState], List[U
     soldiers = [u for u in all_units 
                 if u.unit_type == 'Soldier' and u.per_short > 0 and u.speed and u.speed != 'A']
     
-    # Get some vehicles
+    # Get some vehicles that have both front and rear defense
     vehicles = [u for u in all_units
-                if u.unit_type == 'Vehicle' and u.defense_front]
+                if u.unit_type == 'Vehicle' and u.defense_front and u.defense_rear 
+                and u.speed and u.speed != 'A']
     
     # Axis nations
     axis = ['Germany', 'Japan', 'Italy']
@@ -398,26 +425,50 @@ def create_test_armies(units_per_side: int = 3) -> Tuple[List[UnitState], List[U
     
     axis_soldiers = [u for u in soldiers if u.nation in axis]
     allied_soldiers = [u for u in soldiers if u.nation in allied]
+    axis_vehicles = [u for u in vehicles if u.nation in axis]
+    allied_vehicles = [u for u in vehicles if u.nation in allied]
     
-    # Create player 1 (Axis) units - deploy on left-center
+    # Create player 1 (Axis) units - 2 soldiers + 1 vehicle
     p1_units = []
-    for i, unit in enumerate(axis_soldiers[:units_per_side]):
+    
+    # Add soldiers
+    for i, unit in enumerate(axis_soldiers[:2]):
         u = deepcopy(unit)
-        u.id = f"p1_unit_{i}"
-        # Deploy closer to center - about 3 hexes from enemy
+        u.id = f"p1_soldier_{i}"
         pos = (5, 5 + i * 2)
         defense = getattr(u, 'defense_front', 3)
         p1_units.append(UnitState(u, pos, "player1", defense))
     
-    # Create player 2 (Allied) units - deploy on right-center
+    # Add a vehicle if available
+    if axis_vehicles:
+        tank = deepcopy(axis_vehicles[0])
+        tank.id = "p1_tank_0"
+        pos = (5, 9)
+        defense = tank.defense_front
+        tank_state = UnitState(tank, pos, "player1", defense)
+        tank_state.facing = 0  # Facing East initially
+        p1_units.append(tank_state)
+    
+    # Create player 2 (Allied) units - 2 soldiers + 1 vehicle
     p2_units = []
-    for i, unit in enumerate(allied_soldiers[:units_per_side]):
+    
+    # Add soldiers
+    for i, unit in enumerate(allied_soldiers[:2]):
         u = deepcopy(unit)
-        u.id = f"p2_unit_{i}"
-        # Deploy closer to center - about 3 hexes from enemy
+        u.id = f"p2_soldier_{i}"
         pos = (8, 5 + i * 2)
         defense = getattr(u, 'defense_front', 3)
         p2_units.append(UnitState(u, pos, "player2", defense))
+    
+    # Add a vehicle if available
+    if allied_vehicles:
+        tank = deepcopy(allied_vehicles[0])
+        tank.id = "p2_tank_0"
+        pos = (8, 9)
+        defense = tank.defense_front
+        tank_state = UnitState(tank, pos, "player2", defense)
+        tank_state.facing = 3  # Facing West initially (toward enemy)
+        p2_units.append(tank_state)
     
     return p1_units, p2_units
 

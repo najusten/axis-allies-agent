@@ -336,8 +336,21 @@ class DefensiveFireSystem:
         
         # Get target defense
         # For vehicles, determine if this is front or rear based on movement direction
-        # (Vehicle faces toward hex it's entering during defensive fire)
-        is_rear = False  # Simplified - would need facing system for full implementation
+        # Rule: Vehicle faces toward hex it's entering during defensive fire
+        is_rear = False
+        if target.unit_type == 'Vehicle':
+            # During defensive fire, vehicle faces toward destination hex
+            # So attacks come from the front (defender shoots at front armor)
+            # But the rule is: use facing toward hex it's entering
+            from facing import calculate_facing_for_defensive_fire, is_front_arc_attack
+            vehicle_facing = calculate_facing_for_defensive_fire(
+                opportunity.from_hex, opportunity.to_hex
+            )
+            is_front = is_front_arc_attack(
+                opportunity.defender_pos, attack_in_hex, vehicle_facing
+            )
+            is_rear = not is_front
+        
         defense = self.get_defense_value(target, target_state, is_rear)
         
         # Check if attack hits (successes >= defense)

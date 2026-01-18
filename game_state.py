@@ -9,7 +9,7 @@ Manages the complete game state including:
 - Victory conditions
 """
 
-from typing import Dict, List, Tuple, Optional, Set
+from typing import Dict, List, Tuple, Optional, Set, TYPE_CHECKING
 from dataclasses import dataclass, field
 from copy import deepcopy
 import uuid
@@ -17,6 +17,9 @@ import uuid
 from board import Board, Hex
 from units import Unit
 from action import Action, MoveAction, AttackAction
+
+if TYPE_CHECKING:
+    from facing import HexDirection
 
 
 @dataclass
@@ -31,6 +34,7 @@ class UnitState:
     abilities_used: Set[str] = field(default_factory=set)
     is_disrupted: bool = False  # Status effects
     is_damaged: bool = False
+    facing: Optional[int] = None  # HexDirection value (0-5) for vehicles, None for soldiers
     
     def __post_init__(self):
         # Ensure unit has an ID
@@ -40,6 +44,10 @@ class UnitState:
         # Initialize health if not set
         if self.current_health is None:
             self.current_health = getattr(self.unit, 'defense_front', 3)
+        
+        # Initialize facing for vehicles
+        if self.unit.unit_type == 'Vehicle' and self.facing is None:
+            self.facing = 0  # Default facing: East
     
     @property
     def is_alive(self) -> bool:
