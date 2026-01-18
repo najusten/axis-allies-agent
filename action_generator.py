@@ -110,6 +110,10 @@ class ActionGenerator:
             if unit_state.has_moved:
                 continue
             
+            # Skip if disrupted (disrupted units can't move)
+            if unit_state.is_disrupted:
+                continue
+            
             # Get all reachable hexes
             reachable = self.movement_system.get_reachable_hexes(
                 game_state.board, q, r, unit

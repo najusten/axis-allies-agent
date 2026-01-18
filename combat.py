@@ -1,522 +1,538 @@
-import random
-from typing import Tuple, Dict, List
+"""
+Combat System for Axis & Allies Miniatures
+
+Handles combat resolution between units using the authentic dice mechanics.
+Integrates with the dice.py module for all rolling and damage resolution.
+"""
+
+from typing import Tuple, Dict, List, Optional
 from board import Board
 from movement import MovementSystem
 from abilities import AbilitySystem
-
-class UnitState:
-    """Tracks the current state of a unit in combat"""
-    
-    def __init__(self, unit):
-        self.unit = unit
-        self.disrupted = False
-        self.disrupted_this_turn = False
-        self.damage_counters = 0  # For vehicles
-        self.destroyed = False
-        self.pending_destruction = False  # Marked for destruction, but still fights this turn
-        self.disruptions_this_turn = 0  # Track multiple disruptions in same turn
-    
-    def apply_end_of_turn_casualties(self):
-        """Apply casualties at end of turn (for simultaneous combat)"""
-        if self.pending_destruction:
-            self.destroyed = True
-    
-    def reset_turn_flags(self):
-        """Call at end of turn - disrupted_this_turn becomes just disrupted"""
-        if self.disruptions_this_turn > 0:
-            self.disrupted = True
-        self.disrupted_this_turn = False
-        self.disruptions_this_turn = 0
-        self.pending_destruction = False
-    
-    def is_vehicle(self):
-        return self.unit.unit_type in ['Vehicle', 'Aircraft']
-    
-    def can_act(self):
-        """Can this unit still act this turn? (not yet destroyed)"""
-        return not self.destroyed
-    
-    def __str__(self):
-        status = []
-        if self.destroyed:
-            status.append("DESTROYED")
-        elif self.pending_destruction:
-            status.append("PENDING DESTRUCTION")
-        if self.disrupted:
-            status.append("DISRUPTED")
-        if self.disruptions_this_turn > 0 and not self.destroyed:
-            status.append(f"DISRUPTED THIS TURN (x{self.disruptions_this_turn})")
-        if self.damage_counters > 0:
-            status.append(f"{self.damage_counters} damage")
-        status_str = f" [{', '.join(status)}]" if status else ""
-        return f"{self.unit.name}{status_str}"
+from dice import (
+    DiceSystem, UnitStatus, UnitCategory, 
+    AttackResult, DamageResult, CoverResult,
+    get_unit_category, get_unit_status
+)
 
 
 class CombatSystem:
-    """Handles combat resolution between units"""
+    """
+    Handles combat resolution between units.
     
-    def __init__(self, ability_system: AbilitySystem):
-        """Initialize combat system with ability system"""
+    Uses the DiceSystem for authentic A&A Miniatures mechanics:
+    - Attack dice hit on 4, 5, 6 (50% per die)
+    - Disrupted/Damaged units: -1 penalty (hit on 5, 6 only)
+    - Cover saves: Infantry 4+, Vehicles 5+
+    - Damage thresholds based on successes vs defense
+    """
+    
+    # Cover-granting terrain types
+    COVER_TERRAIN = ['forest', 'building', 'hill', 'town']
+    
+    def __init__(self, ability_system: AbilitySystem, random_seed: Optional[int] = None):
+        """
+        Initialize combat system.
+        
+        Args:
+            ability_system: AbilitySystem for special ability lookups
+            random_seed: Optional seed for reproducible dice rolls (testing)
+        """
         self.ability_system = ability_system
+        self.dice = DiceSystem(random_seed)
     
-    @staticmethod
-    def roll_dice(num_dice: int) -> List[int]:
-        """Roll multiple d6 dice"""
-        return [random.randint(1, 6) for _ in range(num_dice)]
-    
-    def roll_cover(self, unit_state: UnitState, terrain: str, 
-                   attacker_abilities: Dict = None) -> Tuple[bool, int]:
+    def get_attack_value(self, attacker, range_category: str) -> int:
         """
-        Roll cover save for a unit.
-        Returns (success, roll_value)
+        Get attack value (number of dice) for a unit at a given range.
         
-        Soldiers: 4+ in cover terrain (base)
-        Vehicles: 5+ in cover terrain (base)
+        This is the BASE attack value before any ability modifiers.
         
-        Can be modified by attacker abilities (e.g., Pinpointer -1)
+        Args:
+            attacker: Unit performing the attack
+            range_category: 'short', 'medium', or 'long'
+        
+        Returns:
+            Number of attack dice
         """
-        cover_terrains = ['forest', 'building', 'hill']
-        if terrain not in cover_terrains:
-            return False, 0
-        
-        roll = random.randint(1, 6)
-        
-        # Base cover threshold
-        if unit_state.is_vehicle():
-            threshold = 5
-        else:
-            threshold = 4
-        
-        # Apply attacker's cover penalties (e.g., Pinpointer)
-        if attacker_abilities and 'cover_penalty' in attacker_abilities:
-            threshold += attacker_abilities['cover_penalty']
-            threshold = min(threshold, 6)  # Can't exceed 6
-        
-        success = roll >= threshold
-        return success, roll
+        # This will be overridden by get_attack_dice which considers target type
+        return 0
     
-    def get_attack_dice(self, attacker_state: UnitState, target_state: UnitState, 
-                       distance: int, ability_mods: Dict) -> int:
+    def get_attack_dice(self, attacker, target, distance: int, 
+                        ability_mods: Dict = None) -> int:
         """
         Get number of attack dice based on target type, range, and abilities.
+        
+        Args:
+            attacker: Attacking unit
+            target: Target unit
+            distance: Distance in hexes
+            ability_mods: Dictionary of ability modifiers
+        
+        Returns:
+            Number of dice to roll
         """
-        attacker = attacker_state.unit
-        target = target_state.unit
+        ability_mods = ability_mods or {}
         
         # Check for Close Assault first (overrides normal attack)
         if ability_mods.get('close_assault_dice') and distance == 0:
             return ability_mods['close_assault_dice']
         
-        # Normal attack
+        # Determine range category
         range_category = MovementSystem.get_range_category(distance)
-        is_vehicle = target_state.is_vehicle()
+        
+        # Check if target is a vehicle
+        target_type = getattr(target, 'unit_type', 'Soldier')
+        is_vehicle = target_type == 'Vehicle'
         
         if is_vehicle:
             if range_category == 'short':
-                dice = attacker.veh_short
+                dice = getattr(attacker, 'veh_short', 0)
             elif range_category == 'medium':
-                dice = attacker.veh_medium
+                dice = getattr(attacker, 'veh_medium', 0)
             else:
-                dice = attacker.veh_long
+                dice = getattr(attacker, 'veh_long', 0)
         else:
             if range_category == 'short':
-                dice = attacker.per_short
+                dice = getattr(attacker, 'per_short', 0)
             elif range_category == 'medium':
-                dice = attacker.per_medium
+                dice = getattr(attacker, 'per_medium', 0)
             else:
-                dice = attacker.per_long
+                dice = getattr(attacker, 'per_long', 0)
         
         # Apply any bonus dice from abilities
         dice += ability_mods.get('bonus_dice', 0)
         
-        return dice
+        return max(0, dice)
     
-    def count_hits(self, rolls: List[int], hit_threshold: int, 
-                   is_disrupted_from_previous: bool) -> int:
+    def get_defense_value(self, target, is_rear_attack: bool = False,
+                          is_disrupted: bool = False, 
+                          is_damaged: bool = False,
+                          ability_mods: Dict = None) -> int:
         """
-        Count hits from attack rolls.
-        hit_threshold: from abilities (default 4, can be 3 or 5)
-        Disrupted from previous turn: only hit on 5-6
-        """
-        if is_disrupted_from_previous:
-            # Disruption overrides better hit thresholds
-            effective_threshold = max(hit_threshold, 5)
-        else:
-            effective_threshold = hit_threshold
+        Get effective defense value for a target.
         
-        return sum(1 for roll in rolls if roll >= effective_threshold)
+        Args:
+            target: Target unit
+            is_rear_attack: True if attacking from rear arc
+            is_disrupted: True if target is disrupted
+            is_damaged: True if target is damaged
+            ability_mods: Dictionary of ability modifiers
+        
+        Returns:
+            Effective defense value
+        """
+        ability_mods = ability_mods or {}
+        
+        # Base defense (front or rear)
+        if is_rear_attack:
+            defense = getattr(target, 'defense_rear', getattr(target, 'defense_front', 3))
+        else:
+            defense = getattr(target, 'defense_front', 3)
+        
+        # Apply disrupted/damaged penalty (-1, non-stacking)
+        if is_disrupted or is_damaged:
+            defense = max(1, defense - 1)
+        
+        # Apply ability modifiers
+        defense += ability_mods.get('defense_bonus', 0)
+        
+        return max(1, defense)
     
-    def resolve_attack(self, attacker_state: UnitState, target_state: UnitState,
-                      distance: int, target_terrain: str = 'open',
-                      is_rear_attack: bool = False,
-                      attacker_adjacent_units: List = None) -> Dict:
+    def terrain_provides_cover(self, terrain: str) -> bool:
+        """Check if terrain provides cover"""
+        return terrain in self.COVER_TERRAIN
+    
+    def resolve_attack(self, attacker, target, distance: int,
+                       attacker_state: Dict = None,
+                       target_state: Dict = None,
+                       target_terrain: str = 'open',
+                       is_rear_attack: bool = False,
+                       attacker_same_hex: bool = False) -> Dict:
         """
-        Resolve a single attack with full ability integration.
-        Marks units for destruction but doesn't remove them (for simultaneous combat).
+        Resolve a complete attack using authentic A&A Miniatures mechanics.
+        
+        Args:
+            attacker: Attacking unit
+            target: Target unit
+            distance: Distance in hexes
+            attacker_state: Dict with 'is_disrupted', 'is_damaged' keys
+            target_state: Dict with 'is_disrupted', 'is_damaged' keys
+            target_terrain: Terrain type target is in
+            is_rear_attack: True if attacking from rear arc
+            attacker_same_hex: True if attacker is in same hex as target
+        
+        Returns:
+            Dictionary with complete attack resolution details
         """
+        attacker_state = attacker_state or {}
+        target_state = target_state or {}
+        
         result = {
-            'attacker': attacker_state.unit.name,
-            'target': target_state.unit.name,
+            'attacker': getattr(attacker, 'name', 'Unknown'),
+            'target': getattr(target, 'name', 'Unknown'),
             'distance': distance,
-            'range': MovementSystem.get_range_category(distance),
-            'attack_rolls': [],
-            'hits': 0,
+            'range_category': MovementSystem.get_range_category(distance),
+            'attack_dice': 0,
+            'attack_result': None,
+            'cover_result': None,
             'defense_value': 0,
-            'cover_rolled': False,
-            'cover_successful': False,
-            'cover_roll_value': 0,
-            'outcome': None,
-            'details': [],
-            'ability_notes': []
+            'effective_defense': 0,
+            'hits': 0,
+            'damage_result': None,
+            'outcome': 'no_attack',
+            'notes': [],
+            'target_new_status': None,
+            'target_destroyed': False
         }
         
-        # Check if attacker can still act
-        if not attacker_state.can_act():
-            result['outcome'] = 'no_attack'
-            result['details'].append("Attacker is destroyed")
+        # Get ability modifiers
+        attack_mods = self.ability_system.get_attack_modifiers(
+            attacker, target, distance, target_terrain
+        )
+        
+        # Check if attack is possible
+        if not attack_mods.get('can_attack', True):
+            result['notes'].extend(attack_mods.get('notes', []))
             return result
         
-        # Get attack modifiers from abilities
-        attack_mods = self.ability_system.get_attack_modifiers(
-            attacker_state.unit, 
-            target_state.unit, 
-            distance, 
-            target_terrain
-        )
+        # Get attack dice count
+        attack_dice = self.get_attack_dice(attacker, target, distance, attack_mods)
+        result['attack_dice'] = attack_dice
+        
+        if attack_dice <= 0:
+            result['notes'].append("No attack value at this range")
+            return result
         
         # Close Assault always targets rear armor
         if attack_mods.get('close_assault_dice') and distance == 0:
             is_rear_attack = True
-            result['ability_notes'].append("Close Assault: Targeting rear armor")
+            result['notes'].append("Close Assault: Targeting rear armor")
         
-        # Check if attack is possible
-        if not attack_mods['can_attack']:
-            result['outcome'] = 'no_attack'
-            result['details'].extend(attack_mods['notes'])
-            return result
+        # Determine attacker penalties
+        attacker_disrupted = attacker_state.get('is_disrupted', False)
+        attacker_damaged = attacker_state.get('is_damaged', False)
         
-        # Check for abilities like Pinpointer (affects adjacent friendly soldiers)
-        cover_penalty = 0
-        if attacker_adjacent_units:
-            for adj_unit in attacker_adjacent_units:
-                if 'Pinpointer' in adj_unit.abilities:
-                    cover_penalty = -1  # Makes cover harder
-                    result['ability_notes'].append(f"{adj_unit.name} Pinpointer: -1 to target's cover rolls")
+        # Determine target status
+        target_disrupted = target_state.get('is_disrupted', False)
+        target_damaged = target_state.get('is_damaged', False)
         
-        # Get attack dice
-        attack_dice = self.get_attack_dice(attacker_state, target_state, distance, attack_mods)
+        # Get target's unit category
+        target_category = get_unit_category(target)
         
-        if attack_dice == 0:
-            result['outcome'] = 'no_attack'
-            result['details'].append("No attack value at this range")
-            return result
+        # Get current status for damage resolution
+        if target_disrupted and target_damaged:
+            current_status = UnitStatus.DISRUPTED_AND_DAMAGED
+        elif target_damaged:
+            current_status = UnitStatus.DAMAGED
+        elif target_disrupted:
+            current_status = UnitStatus.DISRUPTED
+        else:
+            current_status = UnitStatus.HEALTHY
         
-        # Check if attacker is disrupted from previous turn
-        attacker_disrupted_prev = (attacker_state.disrupted and 
-                                   not attacker_state.disrupted_this_turn)
+        # Get defense modifiers
+        defense_mods = self.ability_system.get_defense_modifiers(
+            target, target_terrain, is_rear_attack
+        )
+        
+        # Calculate defense value
+        base_defense = self.get_defense_value(
+            target, is_rear_attack, 
+            target_disrupted, target_damaged,
+            defense_mods
+        )
+        result['defense_value'] = base_defense
+        result['effective_defense'] = base_defense
+        result['is_rear_attack'] = is_rear_attack
+        
+        # Check for cover
+        has_cover = self.terrain_provides_cover(target_terrain)
+        ignore_cover = attack_mods.get('ignore_cover', False)
+        
+        if ignore_cover:
+            has_cover = False
+            result['notes'].append("Attacker ignores cover")
+        
+        # Roll cover save if applicable (defender rolls first to know if they have protection)
+        cover_success = False
+        if has_cover:
+            cover_ability_mod = defense_mods.get('cover_bonus', 0)
+            cover_result = self.dice.roll_cover_save(
+                target_category,
+                attacker_same_hex,
+                cover_ability_mod
+            )
+            result['cover_result'] = {
+                'roll': cover_result.roll,
+                'threshold': cover_result.threshold,
+                'modifier': cover_result.modifier,
+                'success': cover_result.success
+            }
+            cover_success = cover_result.success
         
         # Roll attack
-        attack_rolls = self.roll_dice(attack_dice)
-        result['attack_rolls'] = attack_rolls
-        result['attacker_disrupted'] = attacker_disrupted_prev
-        result['hit_threshold'] = attack_mods['hit_threshold']
+        attack_ability_mod = attack_mods.get('hit_modifier', 0)
+        attack_result = self.dice.roll_attack(
+            attack_dice,
+            attacker_disrupted,
+            attacker_damaged,
+            attack_ability_mod
+        )
+        result['attack_result'] = {
+            'dice_rolled': attack_result.dice_rolled,
+            'successes': attack_result.successes,
+            'hit_threshold': attack_result.hit_threshold,
+            'rolls': attack_result.rolls
+        }
         
-        hits = self.count_hits(attack_rolls, attack_mods['hit_threshold'], 
-                               attacker_disrupted_prev)
+        # Calculate hits based on successes vs defense
+        hits = self.dice.calculate_hits(attack_result.successes, base_defense)
         result['hits'] = hits
         
         if hits == 0:
             result['outcome'] = 'miss'
-            result['details'].append("All attacks missed")
+            result['notes'].append(f"Scored {attack_result.successes} successes, needed {base_defense} to hit")
             return result
         
-        # Get defense value
-        defense = (target_state.unit.defense_rear if is_rear_attack 
-                  else target_state.unit.defense_front)
-        
-        # Get defense modifiers from abilities
-        defense_mods = self.ability_system.get_defense_modifiers(
-            target_state.unit, 
-            target_terrain, 
-            is_rear_attack
+        # Resolve damage
+        damage_result = self.dice.resolve_damage(
+            hits, target_category, current_status, cover_success
         )
+        result['damage_result'] = {
+            'hits_scored': damage_result.hits_scored,
+            'new_status': damage_result.new_status.value,
+            'status_change': damage_result.status_change,
+            'counters_placed': damage_result.counters_placed
+        }
+        result['target_new_status'] = damage_result.new_status
+        result['target_destroyed'] = damage_result.new_status == UnitStatus.DESTROYED
         
-        defense += defense_mods.get('defense_bonus', 0)
-        result['defense_value'] = defense
-        result['is_rear_attack'] = is_rear_attack
-        result['ability_notes'].extend(attack_mods['notes'])
-        result['ability_notes'].extend(defense_mods['notes'])
-        
-        # Roll cover (if not ignored by attacker abilities)
-        cover_success = False
-        if not attack_mods.get('ignore_cover', False):
-            cover_success, cover_roll = self.roll_cover(
-                target_state, 
-                target_terrain,
-                {'cover_penalty': cover_penalty}
-            )
-            result['cover_rolled'] = target_terrain in ['forest', 'building', 'hill']
-            result['cover_successful'] = cover_success
-            result['cover_roll_value'] = cover_roll
+        # Set outcome based on damage result
+        if damage_result.new_status == UnitStatus.DESTROYED:
+            result['outcome'] = 'destroyed'
+        elif damage_result.new_status == UnitStatus.DISRUPTED_AND_DAMAGED:
+            result['outcome'] = 'disrupted_and_damaged'
+        elif damage_result.new_status == UnitStatus.DAMAGED:
+            result['outcome'] = 'damaged'
+        elif damage_result.new_status == UnitStatus.DISRUPTED:
+            result['outcome'] = 'disrupted'
         else:
-            result['details'].append("Attacker ignores cover")
+            result['outcome'] = 'no_effect'
         
-        # Check if hits meet/exceed defense
-        if hits < defense:
-            result['outcome'] = 'miss'
-            result['details'].append(f"Only {hits} hits, need {defense}")
-            return result
-        
-        # Determine damage considering Superior Armor
-        armor_modifier = defense_mods.get('armor_modifier', 0)
-        hits_needed_for_damage = defense + 1 + armor_modifier
-        
-        # Process damage based on unit type
-        target_is_vehicle = target_state.is_vehicle()
-        
-        if target_is_vehicle:
-            # VEHICLE LOGIC
-            if cover_success:
-                # Cover limits to disruption
-                result['outcome'] = 'disrupted'
-                target_state.disruptions_this_turn += 1
-                target_state.disrupted_this_turn = True
-                result['details'].append("Cover saved - disrupted instead of damaged")
-            else:
-                # No cover - check damage
-                if hits < hits_needed_for_damage:
-                    # Only met defense = disrupted
-                    result['outcome'] = 'disrupted'
-                    target_state.disruptions_this_turn += 1
-                    target_state.disrupted_this_turn = True
-                else:
-                    # Exceeded defense = damaged
-                    result['outcome'] = 'damaged'
-                    target_state.damage_counters += 1
-                    result['details'].append(f"Total damage counters: {target_state.damage_counters}")
-                    
-                    # Check if destroyed (2+ damage)
-                    if target_state.damage_counters >= 2:
-                        result['outcome'] = 'destroyed'
-                        target_state.pending_destruction = True
-            
-            # Check for multiple disruptions this turn
-            if target_state.disruptions_this_turn >= 2 and not target_state.pending_destruction:
-                # 2 disruptions = 1 damage for vehicles
-                target_state.damage_counters += 1
-                result['outcome'] = 'damaged'
-                result['details'].append(f"2+ disruptions this turn = damage counter (total: {target_state.damage_counters})")
-                if target_state.damage_counters >= 2:
-                    result['outcome'] = 'destroyed'
-                    target_state.pending_destruction = True
-            
-            if target_state.disruptions_this_turn >= 3:
-                result['outcome'] = 'destroyed'
-                target_state.pending_destruction = True
-                result['details'].append("3 disruptions this turn = destroyed")
-        else:
-            # SOLDIER LOGIC
-            if hits == defense:
-                # Exactly met = disrupted (unless already disrupted this turn)
-                if target_state.disrupted_this_turn:
-                    # 2nd disruption same turn = destroyed
-                    result['outcome'] = 'destroyed'
-                    target_state.pending_destruction = True
-                    result['details'].append("2nd disruption same turn = destroyed")
-                else:
-                    if cover_success:
-                        result['outcome'] = 'disrupted'
-                        target_state.disruptions_this_turn += 1
-                        target_state.disrupted_this_turn = True
-                        result['details'].append("Cover limited to disruption")
-                    else:
-                        result['outcome'] = 'disrupted'
-                        target_state.disruptions_this_turn += 1
-                        target_state.disrupted_this_turn = True
-            else:
-                # Exceeded defense = destroyed (unless cover saves)
-                if cover_success and not target_state.disrupted_this_turn:
-                    result['outcome'] = 'disrupted'
-                    target_state.disruptions_this_turn += 1
-                    target_state.disrupted_this_turn = True
-                    result['details'].append("Cover saved from destruction")
-                else:
-                    result['outcome'] = 'destroyed'
-                    target_state.pending_destruction = True
-                    if target_state.disrupted_this_turn:
-                        result['details'].append("Already disrupted this turn - destroyed")
+        # Add notes from abilities
+        result['notes'].extend(attack_mods.get('notes', []))
+        result['notes'].extend(defense_mods.get('notes', []))
         
         return result
     
-    @staticmethod
-    def print_combat_result(result: Dict):
-        """Print formatted combat result"""
-        print(f"\n{'='*70}")
-        print(f"⚔️  {result['attacker']} attacks {result['target']}")
-        print(f"{'='*70}")
-        print(f"Range: {result['distance']} hexes ({result['range']})", end='')
-        if result.get('is_rear_attack'):
-            print(" [REAR ATTACK]")
-        else:
-            print()
+    def get_damage_modifiers(self, attacker, target, 
+                             range_category: str, distance: int) -> Dict:
+        """
+        Get damage modifiers from abilities.
         
-        # Show ability effects
-        if result.get('ability_notes'):
-            print(f"\n✨ Ability effects:")
-            for note in result['ability_notes']:
-                print(f"   • {note}")
+        Note: In A&A Miniatures, damage is determined by hits vs defense,
+        not by a separate damage value. This method is for compatibility
+        with the existing action_executor interface.
+        
+        Returns:
+            Dictionary with 'bonus_damage' key (usually 0)
+        """
+        # Most abilities don't add bonus damage in A&A Miniatures
+        # Damage is determined by hits vs defense thresholds
+        return {'bonus_damage': 0}
+    
+    @staticmethod
+    def format_attack_result(result: Dict) -> str:
+        """Format attack result for display"""
+        lines = []
+        lines.append(f"{'='*60}")
+        lines.append(f"⚔️  {result['attacker']} attacks {result['target']}")
+        lines.append(f"{'='*60}")
+        lines.append(f"Range: {result['distance']} hexes ({result['range_category']})")
+        
+        if result.get('is_rear_attack'):
+            lines.append("  [REAR ATTACK]")
+        
+        if result.get('notes'):
+            lines.append("\n✨ Notes:")
+            for note in result['notes']:
+                lines.append(f"   • {note}")
         
         if result['outcome'] == 'no_attack':
-            print(f"\n❌ Cannot attack:")
-            for detail in result['details']:
-                print(f"   • {detail}")
-            return
+            lines.append("\n❌ Cannot attack")
+            return '\n'.join(lines)
         
-        print(f"\n🎲 Attack rolls ({len(result['attack_rolls'])} dice): {result['attack_rolls']}")
-        if result.get('attacker_disrupted'):
-            print(f"   ⚠️  Attacker disrupted from previous turn - only hits on 5-6")
-        else:
-            print(f"   Hit threshold: {result.get('hit_threshold', 4)}+")
-        print(f"   Hits scored: {result['hits']}")
+        # Attack roll details
+        ar = result.get('attack_result', {})
+        if ar:
+            lines.append(f"\n🎲 Attack: {ar.get('dice_rolled', 0)} dice (need {ar.get('hit_threshold', 4)}+)")
+            lines.append(f"   Rolls: {ar.get('rolls', [])}")
+            lines.append(f"   Successes: {ar.get('successes', 0)}")
         
-        if result['outcome'] == 'miss':
-            print(f"\n❌ Attack failed:")
-            for detail in result['details']:
-                print(f"   • {detail}")
-            return
+        lines.append(f"\n🛡️  Defense: {result.get('effective_defense', 0)}")
         
-        print(f"\n🛡️  Defense: {result['defense_value']}")
+        # Cover result
+        cr = result.get('cover_result')
+        if cr:
+            status = "SUCCESS ✓" if cr['success'] else "FAILED ✗"
+            lines.append(f"🌲 Cover: Roll {cr['roll']} vs {cr['threshold']}+ → {status}")
         
-        if result['cover_rolled']:
-            cover_str = f"Roll: {result['cover_roll_value']} - "
-            cover_str += "SUCCESS ✓" if result['cover_successful'] else "FAILED ✗"
-            print(f"🌲 Cover: {cover_str}")
+        # Damage result
+        lines.append(f"\n💥 Hits: {result.get('hits', 0)}")
         
+        dr = result.get('damage_result', {})
+        if dr:
+            lines.append(f"   Result: {dr.get('status_change', 'Unknown')}")
+        
+        # Outcome
         outcome_icons = {
+            'miss': '❌',
+            'no_effect': '➖',
             'disrupted': '⚠️',
             'damaged': '💔',
+            'disrupted_and_damaged': '💔⚠️',
             'destroyed': '💥'
         }
-        
         icon = outcome_icons.get(result['outcome'], '❓')
-        print(f"\n{icon} {result['target']} is {result['outcome'].upper()}!")
+        lines.append(f"\n{icon} Outcome: {result['outcome'].upper()}")
         
-        if result['details']:
-            for detail in result['details']:
-                print(f"   • {detail}")
-        
-        print(f"{'='*70}\n")
+        lines.append(f"{'='*60}")
+        return '\n'.join(lines)
 
 
-# Test the updated combat system
+# Test the combat system
 if __name__ == "__main__":
     from units import load_units
-    from abilities import AbilitySystem
     
-    print("=== COMBAT SYSTEM WITH SIMULTANEOUS COMBAT ===\n")
+    print("=" * 70)
+    print("AXIS & ALLIES MINIATURES - COMBAT SYSTEM TEST")
+    print("=" * 70)
     
     # Load systems
-    ability_system = AbilitySystem('Axis and Allies Unit Data for Analysis - Special_Abilities.csv')
+    # Handle both filename formats
+    import os
+    ability_file = 'Axis_and_Allies_Unit_Data_for_Analysis_-_Special_Abilities.csv'
+    if not os.path.exists(ability_file):
+        ability_file = 'Axis and Allies Unit Data for Analysis - Special_Abilities.csv'
+    
+    ability_system = AbilitySystem(ability_file)
     combat_system = CombatSystem(ability_system)
-    units = load_units()
     
-    # Filter out obstacles
-    combat_units = [u for u in units if not ability_system.is_obstacle_unit(u)]
+    # Load units - need to handle filename
+    unit_file = 'Axis_and_Allies_Unit_Data_for_Analysis_-_Unit_Stats.csv'
+    if not os.path.exists(unit_file):
+        unit_file = 'Axis and Allies Unit Data for Analysis - Unit_Stats.csv'
     
-    # Complete nation lists
-    axis_nations = ['Germany', 'Japan', 'Italy', 'Romania', 'Hungary', 'Finland', 
-                    'Bulgaria', 'Slovakia', 'Croatia']
-    allied_nations = ['USA', 'UK', 'Soviet Union', 'France', 'Poland', 'China', 
-                      'Australia', 'Canada', 'New Zealand', 'Greece', 'Belgium', 
-                      'South Africa', 'Yugoslavia']
+    import csv
+    units = []
+    from units import Unit
+    with open(unit_file, 'r') as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            unit = Unit(
+                name=row['Unit Name'],
+                nation=row['Nation'],
+                unit_type=row['Type'],
+                year=row['Year'],
+                cost=row['Cost'],
+                defense=row['Def'],
+                speed=row['Speed'],
+                veh_short=row['Veh S'],
+                veh_medium=row['Veh M'],
+                veh_long=row['Veh L'],
+                per_short=row['Per S'],
+                per_medium=row['Per M'],
+                per_long=row['Per L'],
+                abilities=row['Abilities']
+            )
+            units.append(unit)
     
     # Get test units
-    axis_soldiers = [u for u in combat_units if u.nation in axis_nations and 
-                     u.unit_type == 'Soldier' and u.per_short > 0]
-    allied_soldiers = [u for u in combat_units if u.nation in allied_nations and 
-                       u.unit_type == 'Soldier' and u.per_short > 0]
+    soldiers = [u for u in units if u.unit_type == 'Soldier' and u.per_short > 0]
+    vehicles = [u for u in units if u.unit_type == 'Vehicle' and u.veh_short > 0]
     
-    if not axis_soldiers or not allied_soldiers:
-        print("Error: Could not find suitable soldiers for testing")
-        exit(1)
-    
-    axis_infantry = axis_soldiers[0]
-    allied_infantry = allied_soldiers[0]
-    
-    # Find Owen SMG
-    owen_units = [u for u in combat_units if u.name == 'Owen SMG']
-    owen = owen_units[0] if owen_units else allied_infantry
-    
-    # Find a tank
-    tanks = [u for u in combat_units if u.unit_type == 'Vehicle' and u.veh_short > 0]
-    tank = tanks[0] if tanks else None
-    
-    print(f"Selected units:")
-    print(f"  Axis: {axis_infantry.name} ({axis_infantry.nation}) - AXIS NATION")
-    print(f"    Defense: {axis_infantry.defense_front}/{axis_infantry.defense_rear}")
-    print(f"  Allied: {allied_infantry.name} ({allied_infantry.nation})")
-    print(f"    Defense: {allied_infantry.defense_front}/{allied_infantry.defense_rear}")
-    if owen:
-        print(f"  Special: {owen.name} ({owen.nation})")
-        print(f"    Abilities: {', '.join(owen.abilities)}")
-    if tank:
-        print(f"  Tank: {tank.name} ({tank.nation})")
-        print(f"    Defense: {tank.defense_front}/{tank.defense_rear}")
-    
-    # SCENARIO: Simultaneous Combat
-    print("\n" + "="*70)
-    print("SCENARIO: SIMULTANEOUS COMBAT DEMONSTRATION")
-    print("="*70)
-    print("Both units attack each other in the same turn.")
-    print("Casualties are marked but not removed until end of turn.\n")
-    
-    axis_inf = UnitState(axis_infantry)
-    allied_inf = UnitState(allied_infantry)
-    
-    print(f"Initial states:")
-    print(f"  {axis_inf}")
-    print(f"  {allied_inf}\n")
-    
-    print("--- COMBAT PHASE ---")
-    print("\n1️⃣  First player attacks:")
-    result1 = combat_system.resolve_attack(axis_inf, allied_inf, distance=1, 
-                                          target_terrain='open')
-    CombatSystem.print_combat_result(result1)
-    print(f"Allied unit state after being attacked: {allied_inf}")
-    print("⚠️  Note: Unit may be marked for destruction but can still fight!\n")
-    
-    print("2️⃣  Second player attacks (simultaneous - happens even if marked for death):")
-    result2 = combat_system.resolve_attack(allied_inf, axis_inf, distance=1,
-                                          target_terrain='open')
-    CombatSystem.print_combat_result(result2)
-    print(f"Axis unit state after being attacked: {axis_inf}\n")
-    
-    print("--- END OF TURN: APPLY CASUALTIES ---")
-    axis_inf.apply_end_of_turn_casualties()
-    allied_inf.apply_end_of_turn_casualties()
-    
-    print(f"Final states after casualties applied:")
-    print(f"  {axis_inf}")
-    print(f"  {allied_inf}")
-    
-    # Close Assault rear armor test
-    if tank and owen:
-        print("\n" + "="*70)
-        print("SCENARIO: CLOSE ASSAULT ALWAYS TARGETS REAR ARMOR")
-        print("="*70)
+    if soldiers and vehicles:
+        infantry = soldiers[0]
+        tank = vehicles[0]
         
-        owen_state = UnitState(owen)
-        tank_state = UnitState(tank)
+        print(f"\nTest Units:")
+        print(f"  Infantry: {infantry.name} (Defense: {infantry.defense_front})")
+        print(f"  Tank: {tank.name} (Defense: {tank.defense_front}/{tank.defense_rear})")
         
-        print(f"Tank defense: Front={tank.defense_front}, Rear={tank.defense_rear}")
-        print(f"Close Assault should target rear ({tank.defense_rear})\n")
+        # Test 1: Infantry vs Infantry (open terrain)
+        print("\n" + "=" * 70)
+        print("TEST 1: Infantry vs Infantry (Open Terrain)")
+        print("=" * 70)
         
-        result = combat_system.resolve_attack(owen_state, tank_state, distance=0,
-                                             target_terrain='open')
-        CombatSystem.print_combat_result(result)
-        print(f"Tank state: {tank_state}")
+        result = combat_system.resolve_attack(
+            infantry, soldiers[1] if len(soldiers) > 1 else infantry,
+            distance=1,
+            target_terrain='open'
+        )
+        print(CombatSystem.format_attack_result(result))
+        
+        # Test 2: Infantry vs Infantry (Forest - Cover)
+        print("\n" + "=" * 70)
+        print("TEST 2: Infantry vs Infantry (Forest - Cover)")
+        print("=" * 70)
+        
+        result = combat_system.resolve_attack(
+            infantry, soldiers[1] if len(soldiers) > 1 else infantry,
+            distance=1,
+            target_terrain='forest'
+        )
+        print(CombatSystem.format_attack_result(result))
+        
+        # Test 3: Tank vs Infantry
+        print("\n" + "=" * 70)
+        print("TEST 3: Tank vs Infantry")
+        print("=" * 70)
+        
+        result = combat_system.resolve_attack(
+            tank, infantry,
+            distance=2,
+            target_terrain='open'
+        )
+        print(CombatSystem.format_attack_result(result))
+        
+        # Test 4: Infantry vs Tank (rear attack)
+        print("\n" + "=" * 70)
+        print("TEST 4: Infantry vs Tank (Rear Attack)")
+        print("=" * 70)
+        
+        result = combat_system.resolve_attack(
+            infantry, tank,
+            distance=1,
+            target_terrain='open',
+            is_rear_attack=True
+        )
+        print(CombatSystem.format_attack_result(result))
+        
+        # Test 5: Disrupted attacker
+        print("\n" + "=" * 70)
+        print("TEST 5: Disrupted Attacker (-1 penalty, needs 5+ to hit)")
+        print("=" * 70)
+        
+        result = combat_system.resolve_attack(
+            infantry, soldiers[1] if len(soldiers) > 1 else infantry,
+            distance=1,
+            attacker_state={'is_disrupted': True},
+            target_terrain='open'
+        )
+        print(CombatSystem.format_attack_result(result))
+        
+        # Test 6: Disrupted target (defense reduced by 1)
+        print("\n" + "=" * 70)
+        print("TEST 6: Disrupted Target (Defense -1)")
+        print("=" * 70)
+        
+        result = combat_system.resolve_attack(
+            infantry, soldiers[1] if len(soldiers) > 1 else infantry,
+            distance=1,
+            target_state={'is_disrupted': True},
+            target_terrain='open'
+        )
+        print(CombatSystem.format_attack_result(result))
     
-    print("\n✅ All fixes tested:")
-    print("  ✓ Simultaneous combat (casualties marked, not removed)")
-    print("  ✓ Unit states display correctly (DISRUPTED, PENDING DESTRUCTION)")
-    print("  ✓ Close Assault targets rear armor")
+    print("\n" + "=" * 70)
+    print("COMBAT SYSTEM TEST COMPLETE")
+    print("=" * 70)

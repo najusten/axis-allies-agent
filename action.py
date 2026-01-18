@@ -181,9 +181,18 @@ class ActionValidator:
         if game_state.has_unit_attacked(unit.id):
             return ActionValidation(False, "Unit has already attacked this turn")
         
-        # Check range
-        if action.distance > unit.range:
-            return ActionValidation(False, f"Target out of range (distance: {action.distance}, max: {unit.range})")
+        # Check range - calculate max range from attack values
+        # Long range is 5-8 hexes, so max theoretical range is 8
+        max_range = 0
+        if getattr(unit, 'veh_long', 0) > 0 or getattr(unit, 'per_long', 0) > 0:
+            max_range = 8
+        elif getattr(unit, 'veh_medium', 0) > 0 or getattr(unit, 'per_medium', 0) > 0:
+            max_range = 4
+        elif getattr(unit, 'veh_short', 0) > 0 or getattr(unit, 'per_short', 0) > 0:
+            max_range = 1
+        
+        if action.distance > max_range:
+            return ActionValidation(False, f"Target out of range (distance: {action.distance}, max: {max_range})")
         
         # Check LOS
         if not action.has_los:

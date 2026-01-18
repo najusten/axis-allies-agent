@@ -2,31 +2,35 @@
 Action Executor for Axis & Allies Miniatures
 
 Validates and executes actions on game states.
-This is the core game loop - it takes actions and applies them to the game state.
+Uses the authentic dice mechanics from dice.py for combat resolution.
+Integrates defensive fire system for movement.
 """
 
-from typing import Tuple, Optional
-import random
-
-from game_state import GameState, GamePhase
+from typing import Tuple, Optional, Dict, List
+from game_state import GameState, GamePhase, UnitState
 from action import (
     Action, MoveAction, AttackAction, MoveAndAttackAction,
     UseAbilityAction, PassAction, EndPhaseAction,
     ActionValidator, ActionValidation
 )
 from movement import MovementSystem
-from combat import CombatSystem
 from abilities import AbilitySystem
+from dice import DiceSystem, UnitStatus, UnitCategory, get_unit_category
+from defensive_fire import DefensiveFireSystem, DefensiveFireResult
 
 
 class ActionResult:
     """Result of executing an action"""
     def __init__(self, success: bool, message: str = "", 
-                 damage_dealt: int = 0, unit_destroyed: str = None):
+                 hits: int = 0, unit_destroyed: str = None,
+                 combat_details: Dict = None,
+                 defensive_fire_results: List[DefensiveFireResult] = None):
         self.success = success
         self.message = message
-        self.damage_dealt = damage_dealt
+        self.hits = hits  # Number of hits scored (0, 1, 2, or 3)
         self.unit_destroyed = unit_destroyed
+        self.combat_details = combat_details or {}
+        self.defensive_fire_results = defensive_fire_results or []
     
     def __str__(self):
         return f"{'✓' if self.success else '✗'} {self.message}"
@@ -38,18 +42,32 @@ class ActionResult:
 class ActionExecutor:
     """
     Validates and executes actions on game states.
-    This is the bridge between player decisions and game state changes.
+    Uses authentic A&A Miniatures dice mechanics.
+    Integrates defensive fire during movement.
     """
     
+    # Cover-granting terrain types
+    COVER_TERRAIN = ['forest', 'building', 'hill', 'town']
+    
     def __init__(self, movement_system: MovementSystem,
-                 combat_system: CombatSystem,
-                 ability_system: AbilitySystem):
+                 combat_system,  # Can be old or new CombatSystem
+                 ability_system: AbilitySystem,
+                 random_seed: Optional[int] = None):
         self.movement_system = movement_system
         self.combat_system = combat_system
         self.ability_system = ability_system
+        self.dice = DiceSystem(random_seed)
+        self.defensive_fire = DefensiveFireSystem(ability_system, random_seed)
         self.validator = ActionValidator(
             None, movement_system, combat_system, ability_system
         )
+    
+    def reset_defensive_fire_phase(self):
+        """
+        Reset defensive fire tracking for a new phase.
+        Call this at the start of each movement phase.
+        """
+        self.defensive_fire.reset_phase()
     
     def execute_action(self, game_state: GameState, action: Action) -> ActionResult:
         """
@@ -82,10 +100,14 @@ class ActionExecutor:
             return ActionResult(False, f"Unknown action type: {type(action)}")
     
     def _execute_move(self, game_state: GameState, action: MoveAction) -> ActionResult:
-        """Execute a movement action"""
+        """Execute a movement action with defensive fire checks"""
         unit_state = game_state.get_unit_state(action.unit_id)
         if not unit_state:
             return ActionResult(False, f"Unit {action.unit_id} not found")
+        
+        # Check if unit is disrupted (can't move)
+        if unit_state.is_disrupted:
+            return ActionResult(False, f"{unit_state.unit.name} is disrupted and cannot move")
         
         unit = unit_state.unit
         
@@ -94,20 +116,65 @@ class ActionExecutor:
         if not validation:
             return ActionResult(False, f"Invalid move: {validation.reason}")
         
-        # Execute the move
-        success = game_state.move_unit(action.unit_id, action.to_q, action.to_r)
+        from_hex = (action.from_q, action.from_r)
+        to_hex = (action.to_q, action.to_r)
+        
+        # Check for defensive fire opportunities
+        df_opportunities = self.defensive_fire.check_defensive_fire_triggered(
+            game_state, action.unit_id, from_hex, to_hex
+        )
+        
+        df_results = []
+        movement_stopped = False
+        final_hex = to_hex
+        
+        # Resolve each defensive fire attack
+        for opportunity in df_opportunities:
+            # AI chooses to attack in destination hex by default (usually better)
+            # In a human game, defender would choose
+            result = self.defensive_fire.resolve_defensive_fire(
+                game_state, opportunity, attack_in_hex=to_hex
+            )
+            df_results.append(result)
+            
+            # Apply the result
+            stopped_at = self.defensive_fire.apply_defensive_fire_result(game_state, result)
+            
+            if result.movement_stopped:
+                movement_stopped = True
+                final_hex = stopped_at if stopped_at else to_hex
+                # Once stopped, no more defensive fire matters
+                break
+        
+        # Execute the move (to final hex - may be destination or where stopped)
+        if movement_stopped:
+            # Move to where unit was stopped
+            success = game_state.move_unit(action.unit_id, final_hex[0], final_hex[1])
+            message = f"{unit.name} moved to ({final_hex[0]}, {final_hex[1]}) - STOPPED by defensive fire!"
+        else:
+            success = game_state.move_unit(action.unit_id, action.to_q, action.to_r)
+            message = f"{unit.name} moved to ({action.to_q}, {action.to_r})"
         
         if success:
             game_state.apply_action(action)
+            
+            # Add defensive fire info to message if any occurred
+            for df_result in df_results:
+                if df_result.target_disrupted:
+                    message += f"\n    ⚔ {df_result.message}"
+                elif df_result.dice_rolled > 0:
+                    message += f"\n    ⚔ {df_result.message}"
+            
             return ActionResult(
                 True, 
-                f"{unit.name} moved to ({action.to_q}, {action.to_r})"
+                message,
+                defensive_fire_results=df_results
             )
         else:
             return ActionResult(False, "Move failed")
     
     def _execute_attack(self, game_state: GameState, action: AttackAction) -> ActionResult:
-        """Execute an attack action"""
+        """Execute an attack action using authentic dice mechanics"""
         attacker_state = game_state.get_unit_state(action.unit_id)
         target_state = game_state.get_unit_state(action.target_id)
         
@@ -125,31 +192,231 @@ class ActionExecutor:
         if not validation:
             return ActionResult(False, f"Invalid attack: {validation.reason}")
         
-        # Execute the attack using combat system
-        hit, damage = self._resolve_attack(
-            attacker, target, action.range_category, action.distance
+        # Get terrain for cover check
+        target_hex = game_state.board.get_hex(action.target_q, action.target_r)
+        target_terrain = target_hex.terrain if target_hex else 'open'
+        
+        # Determine if rear attack (simplified - would need facing system for real)
+        is_rear_attack = False  # TODO: Implement facing system
+        
+        # Check if same hex
+        attacker_same_hex = (action.attacker_q == action.target_q and 
+                           action.attacker_r == action.target_r)
+        
+        # Resolve the attack
+        result = self._resolve_attack_full(
+            attacker, target,
+            attacker_state, target_state,
+            action.distance,
+            target_terrain,
+            is_rear_attack,
+            attacker_same_hex
         )
         
-        message = f"{attacker.name} attacks {target.name} at {action.range_category} range"
+        # Apply results to game state
+        game_state.mark_unit_attacked(action.unit_id)
+        game_state.apply_action(action)
         
-        if hit:
-            # Apply damage
-            unit_destroyed = game_state.damage_unit(action.target_id, damage)
-            game_state.mark_unit_attacked(action.unit_id)
-            game_state.apply_action(action)
-            
-            if unit_destroyed:
-                message += f" - HIT! {damage} damage. {target.name} DESTROYED!"
-                return ActionResult(True, message, damage, action.target_id)
-            else:
-                remaining_hp = target_state.current_health
-                message += f" - HIT! {damage} damage ({remaining_hp} HP remaining)"
-                return ActionResult(True, message, damage)
+        # Update target status based on result
+        if result['target_destroyed']:
+            game_state.remove_unit(action.target_id)
+            message = f"{attacker.name} attacks {target.name} - {result['outcome'].upper()}!"
+            return ActionResult(True, message, result['hits'], action.target_id, result)
         else:
-            game_state.mark_unit_attacked(action.unit_id)
-            game_state.apply_action(action)
-            message += " - MISS!"
-            return ActionResult(True, message, 0)
+            # Update status flags on target
+            new_status = result.get('target_new_status')
+            if new_status:
+                self._apply_status_to_unit_state(target_state, new_status)
+            
+            message = f"{attacker.name} attacks {target.name} - {result['outcome'].upper()}"
+            return ActionResult(True, message, result['hits'], None, result)
+    
+    def _resolve_attack_full(self, attacker, target,
+                            attacker_state: UnitState, target_state: UnitState,
+                            distance: int, target_terrain: str,
+                            is_rear_attack: bool, attacker_same_hex: bool) -> Dict:
+        """
+        Resolve an attack using authentic A&A Miniatures dice mechanics.
+        
+        Returns dictionary with full combat resolution details.
+        """
+        result = {
+            'attacker': attacker.name,
+            'target': target.name,
+            'distance': distance,
+            'outcome': 'miss',
+            'hits': 0,
+            'target_new_status': None,
+            'target_destroyed': False,
+            'attack_dice': 0,
+            'attack_rolls': [],
+            'successes': 0,
+            'defense': 0,
+            'cover_rolled': False,
+            'cover_success': False,
+            'notes': []
+        }
+        
+        # Get attack modifiers from abilities
+        attack_mods = self.ability_system.get_attack_modifiers(
+            attacker, target, distance, target_terrain
+        )
+        
+        if not attack_mods.get('can_attack', True):
+            result['notes'].extend(attack_mods.get('notes', []))
+            return result
+        
+        # Determine attack dice
+        attack_dice = self._get_attack_dice(attacker, target, distance, attack_mods)
+        result['attack_dice'] = attack_dice
+        
+        if attack_dice <= 0:
+            result['notes'].append("No attack value at this range")
+            return result
+        
+        # Get attacker status
+        attacker_disrupted = attacker_state.is_disrupted
+        attacker_damaged = attacker_state.is_damaged
+        
+        # Get target status
+        target_disrupted = target_state.is_disrupted
+        target_damaged = target_state.is_damaged
+        
+        # Determine current target status
+        if target_disrupted and target_damaged:
+            current_status = UnitStatus.DISRUPTED_AND_DAMAGED
+        elif target_damaged:
+            current_status = UnitStatus.DAMAGED
+        elif target_disrupted:
+            current_status = UnitStatus.DISRUPTED
+        else:
+            current_status = UnitStatus.HEALTHY
+        
+        # Get target category
+        target_category = get_unit_category(target)
+        
+        # Calculate defense
+        if is_rear_attack:
+            base_defense = getattr(target, 'defense_rear', getattr(target, 'defense_front', 3))
+        else:
+            base_defense = getattr(target, 'defense_front', 3)
+        
+        # Apply disrupted/damaged defense penalty
+        if target_disrupted or target_damaged:
+            base_defense = max(1, base_defense - 1)
+        
+        result['defense'] = base_defense
+        
+        # Check cover
+        has_cover = target_terrain in self.COVER_TERRAIN
+        ignore_cover = attack_mods.get('ignore_cover', False)
+        
+        if ignore_cover:
+            has_cover = False
+            result['notes'].append("Attacker ignores cover")
+        
+        # Roll cover save if applicable
+        cover_success = False
+        if has_cover:
+            result['cover_rolled'] = True
+            cover_result = self.dice.roll_cover_save(
+                target_category, attacker_same_hex
+            )
+            cover_success = cover_result.success
+            result['cover_success'] = cover_success
+            result['cover_roll'] = cover_result.roll
+            result['cover_threshold'] = cover_result.threshold
+        
+        # Roll attack
+        attack_ability_mod = attack_mods.get('hit_modifier', 0)
+        attack_result = self.dice.roll_attack(
+            attack_dice, attacker_disrupted, attacker_damaged, attack_ability_mod
+        )
+        result['attack_rolls'] = attack_result.rolls
+        result['successes'] = attack_result.successes
+        result['hit_threshold'] = attack_result.hit_threshold
+        
+        # Calculate hits
+        hits = self.dice.calculate_hits(attack_result.successes, base_defense)
+        result['hits'] = hits
+        
+        if hits == 0:
+            result['outcome'] = 'miss'
+            result['notes'].append(f"Scored {attack_result.successes} successes, needed {base_defense}")
+            return result
+        
+        # Resolve damage
+        damage_result = self.dice.resolve_damage(
+            hits, target_category, current_status, cover_success
+        )
+        
+        result['target_new_status'] = damage_result.new_status
+        result['target_destroyed'] = damage_result.new_status == UnitStatus.DESTROYED
+        result['status_change'] = damage_result.status_change
+        result['counters_placed'] = damage_result.counters_placed
+        
+        # Set outcome
+        if damage_result.new_status == UnitStatus.DESTROYED:
+            result['outcome'] = 'destroyed'
+        elif damage_result.new_status == UnitStatus.DISRUPTED_AND_DAMAGED:
+            result['outcome'] = 'disrupted_and_damaged'
+        elif damage_result.new_status == UnitStatus.DAMAGED:
+            result['outcome'] = 'damaged'
+        elif damage_result.new_status == UnitStatus.DISRUPTED:
+            result['outcome'] = 'disrupted'
+        else:
+            result['outcome'] = 'no_effect'
+        
+        return result
+    
+    def _get_attack_dice(self, attacker, target, distance: int, 
+                        ability_mods: Dict = None) -> int:
+        """Get number of attack dice based on target type and range"""
+        ability_mods = ability_mods or {}
+        
+        # Close Assault override
+        if ability_mods.get('close_assault_dice') and distance == 0:
+            return ability_mods['close_assault_dice']
+        
+        # Determine range category
+        from movement import MovementSystem
+        range_category = MovementSystem.get_range_category(distance)
+        
+        # Check target type
+        target_type = getattr(target, 'unit_type', 'Soldier')
+        is_vehicle = target_type == 'Vehicle'
+        
+        if is_vehicle:
+            if range_category == 'short':
+                dice = getattr(attacker, 'veh_short', 0)
+            elif range_category == 'medium':
+                dice = getattr(attacker, 'veh_medium', 0)
+            else:
+                dice = getattr(attacker, 'veh_long', 0)
+        else:
+            if range_category == 'short':
+                dice = getattr(attacker, 'per_short', 0)
+            elif range_category == 'medium':
+                dice = getattr(attacker, 'per_medium', 0)
+            else:
+                dice = getattr(attacker, 'per_long', 0)
+        
+        # Apply bonus dice from abilities
+        dice += ability_mods.get('bonus_dice', 0)
+        
+        return max(0, dice)
+    
+    def _apply_status_to_unit_state(self, unit_state: UnitState, new_status: UnitStatus):
+        """Apply a UnitStatus to a UnitState object"""
+        if new_status == UnitStatus.DISRUPTED:
+            unit_state.is_disrupted = True
+        elif new_status == UnitStatus.DAMAGED:
+            unit_state.is_damaged = True
+        elif new_status == UnitStatus.DISRUPTED_AND_DAMAGED:
+            unit_state.is_disrupted = True
+            unit_state.is_damaged = True
+        elif new_status == UnitStatus.DESTROYED:
+            unit_state.current_health = 0
     
     def _execute_move_and_attack(self, game_state: GameState, 
                                  action: MoveAndAttackAction) -> ActionResult:
@@ -177,8 +444,9 @@ class ActionExecutor:
         return ActionResult(
             attack_result.success,
             combined_message,
-            attack_result.damage_dealt,
-            attack_result.unit_destroyed
+            attack_result.hits,
+            attack_result.unit_destroyed,
+            attack_result.combat_details
         )
     
     def _execute_ability(self, game_state: GameState, 
@@ -199,8 +467,6 @@ class ActionExecutor:
         game_state.mark_ability_used(action.unit_id, action.ability_name)
         game_state.apply_action(action)
         
-        # Ability effects would be applied here
-        # This would depend on the specific ability
         return ActionResult(
             True,
             f"{unit.name} uses {action.ability_name}"
@@ -230,42 +496,8 @@ class ActionExecutor:
                 f"Advanced to {game_state.current_phase} phase"
             )
     
-    def _resolve_attack(self, attacker, target, range_category: str, 
-                       distance: int) -> Tuple[bool, int]:
-        """
-        Resolve an attack using the combat system.
-        Returns (hit: bool, damage: int)
-        """
-        # Get attack value for range
-        attack_value = self.combat_system.get_attack_value(attacker, range_category)
-        
-        if attack_value == 0:
-            return False, 0  # Can't attack at this range
-        
-        # Roll attack (simplified - using random for now)
-        # Real implementation would use proper dice rolling
-        attack_roll = random.randint(1, 6)
-        
-        # Check if hit
-        hit = attack_roll <= attack_value
-        
-        if hit:
-            # Calculate damage (simplified)
-            # Real implementation would consider armor, cover, etc.
-            damage = 1  # Base damage
-            
-            # Apply modifiers from abilities
-            damage_mods = self.ability_system.get_damage_modifiers(
-                attacker, target, range_category, distance
-            )
-            damage += damage_mods.get('bonus_damage', 0)
-            
-            return True, max(1, damage)
-        
-        return False, 0
-    
     def execute_action_sequence(self, game_state: GameState, 
-                               actions: list[Action]) -> list[ActionResult]:
+                               actions: list) -> list:
         """
         Execute a sequence of actions.
         Stops on first failure unless action is PassAction or EndPhaseAction.
@@ -285,7 +517,6 @@ class ActionExecutor:
     def can_execute(self, game_state: GameState, action: Action) -> ActionValidation:
         """
         Check if an action can be executed without actually executing it.
-        Useful for AI planning and action filtering.
         """
         self.validator.board = game_state.board
         
@@ -293,6 +524,9 @@ class ActionExecutor:
             unit_state = game_state.get_unit_state(action.unit_id)
             if not unit_state:
                 return ActionValidation(False, "Unit not found")
+            # Check disruption
+            if unit_state.is_disrupted:
+                return ActionValidation(False, "Unit is disrupted and cannot move")
             return self.validator.validate_move(action, unit_state.unit, game_state)
         
         elif isinstance(action, AttackAction):
@@ -320,49 +554,138 @@ class ActionExecutor:
                 action, unit_state.unit, game_state
             )
         
-        # Pass and EndPhase are always valid
         return ActionValidation(True)
 
 
 # Demo/Test function
 def demo_action_execution():
-    """Demonstrate action execution"""
-    from game_state import create_test_game_state
-    from action_generator import ActionGenerator
+    """Demonstrate action execution with new dice system"""
+    import os
     
-    # Create test game
-    game_state = create_test_game_state()
+    # Handle both filename formats
+    ability_file = 'Axis_and_Allies_Unit_Data_for_Analysis_-_Special_Abilities.csv'
+    if not os.path.exists(ability_file):
+        ability_file = 'Axis and Allies Unit Data for Analysis - Special_Abilities.csv'
     
-    # Create systems
     from abilities import AbilitySystem
-    ability_system = AbilitySystem('Axis and Allies Unit Data for Analysis - Special_Abilities.csv')
+    ability_system = AbilitySystem(ability_file)
+    
+    from movement import MovementSystem
     movement_system = MovementSystem(ability_system)
-    combat_system = CombatSystem(ability_system)
     
-    # Create executor and generator
+    # Use a dummy combat system (executor has its own dice now)
+    combat_system = None
+    
     executor = ActionExecutor(movement_system, combat_system, ability_system)
-    generator = ActionGenerator(movement_system, combat_system, ability_system)
     
-    print("=== ACTION EXECUTION DEMO ===\n")
-    print(game_state)
-    print()
+    print("=" * 70)
+    print("ACTION EXECUTOR - DICE SYSTEM INTEGRATION TEST")
+    print("=" * 70)
     
-    # Get legal actions
-    actions = generator.get_all_legal_actions(game_state, "player1")
-    print(f"Player 1 has {len(actions)} legal actions")
-    print()
+    # Create a simple test scenario
+    from board import Board
+    from game_state import GameState, UnitState as GSUnitState
+    from units import Unit
+    import csv
     
-    # Execute a few actions
-    print("Executing sample actions:\n")
+    # Load units
+    unit_file = 'Axis_and_Allies_Unit_Data_for_Analysis_-_Unit_Stats.csv'
+    if not os.path.exists(unit_file):
+        unit_file = 'Axis and Allies Unit Data for Analysis - Unit_Stats.csv'
     
-    for i, action in enumerate(actions[:3]):
-        print(f"{i+1}. Attempting: {action}")
-        result = executor.execute_action(game_state, action)
-        print(f"   {result}")
-        print()
+    units = []
+    with open(unit_file, 'r') as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            unit = Unit(
+                name=row['Unit Name'],
+                nation=row['Nation'],
+                unit_type=row['Type'],
+                year=row['Year'],
+                cost=row['Cost'],
+                defense=row['Def'],
+                speed=row['Speed'],
+                veh_short=row['Veh S'],
+                veh_medium=row['Veh M'],
+                veh_long=row['Veh L'],
+                per_short=row['Per S'],
+                per_medium=row['Per M'],
+                per_long=row['Per L'],
+                abilities=row['Abilities']
+            )
+            units.append(unit)
     
-    print("\nUpdated game state:")
-    print(game_state)
+    # Get test units
+    soldiers = [u for u in units if u.unit_type == 'Soldier' and u.per_short > 0][:2]
+    vehicles = [u for u in units if u.unit_type == 'Vehicle' and u.veh_short > 0][:1]
+    
+    if len(soldiers) >= 2:
+        # Create board
+        board = Board(15, 15)
+        board.set_terrain(5, 5, 'forest')
+        
+        # Create unit states
+        from copy import deepcopy
+        
+        inf1 = deepcopy(soldiers[0])
+        inf1.id = "p1_inf"
+        inf2 = deepcopy(soldiers[1])
+        inf2.id = "p2_inf"
+        
+        p1_unit = GSUnitState(inf1, (3, 3), "player1", inf1.defense_front)
+        p2_unit = GSUnitState(inf2, (4, 3), "player2", inf2.defense_front)
+        
+        game_state = GameState(board, [p1_unit], [p2_unit])
+        game_state.current_phase = GamePhase.ASSAULT
+        
+        print(f"\nTest Scenario:")
+        print(f"  Attacker: {inf1.name} at (3,3)")
+        print(f"  Target: {inf2.name} at (4,3)")
+        print(f"  Distance: 1 hex")
+        print(f"  Terrain: open")
+        
+        # Create attack action
+        from action import AttackAction
+        attack = AttackAction(
+            unit_id="p1_inf",
+            attacker_q=3, attacker_r=3,
+            target_id="p2_inf",
+            target_q=4, target_r=3,
+            range_category="short",
+            distance=1,
+            has_los=True
+        )
+        
+        print("\n--- Executing Attack ---")
+        result = executor.execute_action(game_state, attack)
+        print(f"\nResult: {result}")
+        
+        if result.combat_details:
+            cd = result.combat_details
+            print(f"\nCombat Details:")
+            print(f"  Attack dice: {cd.get('attack_dice', 0)}")
+            print(f"  Rolls: {cd.get('attack_rolls', [])}")
+            print(f"  Hit threshold: {cd.get('hit_threshold', 4)}+")
+            print(f"  Successes: {cd.get('successes', 0)}")
+            print(f"  Defense: {cd.get('defense', 0)}")
+            print(f"  Hits: {cd.get('hits', 0)}")
+            print(f"  Outcome: {cd.get('outcome', 'unknown')}")
+            if cd.get('cover_rolled'):
+                print(f"  Cover: roll {cd.get('cover_roll')} vs {cd.get('cover_threshold')}+ = {'SUCCESS' if cd.get('cover_success') else 'FAILED'}")
+        
+        # Check target status
+        target_state = game_state.get_unit_state("p2_inf")
+        if target_state:
+            print(f"\nTarget status after attack:")
+            print(f"  Disrupted: {target_state.is_disrupted}")
+            print(f"  Damaged: {target_state.is_damaged}")
+            print(f"  Alive: {target_state.is_alive}")
+        else:
+            print(f"\nTarget was DESTROYED!")
+    
+    print("\n" + "=" * 70)
+    print("TEST COMPLETE")
+    print("=" * 70)
 
 
 if __name__ == "__main__":
