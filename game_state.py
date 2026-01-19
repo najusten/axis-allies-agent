@@ -99,31 +99,38 @@ class GameState:
     Tracks everything needed to represent the current state of the game.
     """
     
-    def __init__(self, board: Board, player1_units: List[UnitState] = None, 
-                 player2_units: List[UnitState] = None):
+    def __init__(self, board: Board, player1_units: List[UnitState] = None,
+                 player2_units: List[UnitState] = None,
+                 objective_position: Tuple[int, int] = None):
         self.board = board
         self.turn_number = 1
         self.current_phase = GamePhase.DEPLOYMENT
         self.active_player = "player1"
-        
+
         # Unit tracking
         self.units: Dict[str, UnitState] = {}
-        
+
         # Add player units
         if player1_units:
             for unit_state in player1_units:
                 self.add_unit(unit_state)
-        
+
         if player2_units:
             for unit_state in player2_units:
                 self.add_unit(unit_state)
-        
+
         # Action history
         self.action_history: List[Action] = []
-        
+
         # Victory conditions
         self.winner: Optional[str] = None
         self.game_over = False
+
+        # Objective position (defaults to center of board if not specified)
+        if objective_position is not None:
+            self.objective_position = objective_position
+        else:
+            self.objective_position = (board.width // 2, board.height // 2)
     
     def add_unit(self, unit_state: UnitState):
         """Add a unit to the game state"""
@@ -297,13 +304,78 @@ class GameState:
             self.game_over = True
             return "player1"
         
-        # Could add other victory conditions here:
-        # - Objective control
-        # - Point victory
-        # - Turn limit
-        
+        # Objective control is checked separately by GameRunner at end of turn
+        # (not during phases)
+
         return None
-    
+
+    def get_units_adjacent_to_objective(self, player: str = None) -> List['UnitState']:
+        """
+        Get all units adjacent to the objective (in same hex or 1 hex away).
+
+        Args:
+            player: If specified, only return units belonging to this player.
+                   If None, return all units.
+
+        Returns:
+            List of UnitState objects adjacent to objective.
+        """
+        obj_q, obj_r = self.objective_position
+        adjacent_units = []
+
+        for unit_state in self.units.values():
+            if not unit_state.is_alive:
+                continue
+
+            if player is not None and unit_state.owner != player:
+                continue
+
+            # Check if unit is adjacent (distance 0 or 1)
+            unit_q, unit_r = unit_state.position
+            distance = self.board.hex_distance(obj_q, obj_r, unit_q, unit_r)
+
+            if distance <= 1:
+                adjacent_units.append(unit_state)
+
+        return adjacent_units
+
+    def check_objective_control(self) -> Optional[str]:
+        """
+        Check who controls the objective.
+
+        Control = being the ONLY player with units adjacent to the objective.
+        Adjacent = in the same hex OR one hex away.
+
+        Returns:
+            'player1' if player1 controls, 'player2' if player2 controls,
+            None if contested (both have units) or uncontrolled (neither has units).
+        """
+        p1_adjacent = self.get_units_adjacent_to_objective("player1")
+        p2_adjacent = self.get_units_adjacent_to_objective("player2")
+
+        p1_has_units = len(p1_adjacent) > 0
+        p2_has_units = len(p2_adjacent) > 0
+
+        if p1_has_units and not p2_has_units:
+            return "player1"
+        elif p2_has_units and not p1_has_units:
+            return "player2"
+        else:
+            # Either contested (both have units) or uncontrolled (neither)
+            return None
+
+    def get_total_points(self, player: str) -> float:
+        """
+        Get total point cost of surviving units for a player.
+        Used for tiebreaker at turn 10.
+        """
+        total = 0.0
+        for unit_state in self.get_units_by_owner(player):
+            if unit_state.is_alive:
+                cost = getattr(unit_state.unit, 'cost', 0) or 0
+                total += cost
+        return total
+
     def is_game_over(self) -> bool:
         """Check if the game has ended"""
         return self.game_over or self.check_victory_conditions() is not None
@@ -353,34 +425,42 @@ class GameState:
                 new_p2_units.append(new_unit_state)
         
         # Create new game state
-        new_state = GameState(new_board, new_p1_units, new_p2_units)
+        new_state = GameState(new_board, new_p1_units, new_p2_units,
+                             objective_position=self.objective_position)
         new_state.turn_number = self.turn_number
         new_state.current_phase = self.current_phase
         new_state.active_player = self.active_player
         new_state.action_history = self.action_history.copy()
         new_state.winner = self.winner
         new_state.game_over = self.game_over
-        
+
         return new_state
     
     def get_state_summary(self) -> str:
         """Get a human-readable summary of the game state"""
         p1_units = self.get_units_by_owner("player1")
         p2_units = self.get_units_by_owner("player2")
-        
+
         summary = f"Turn {self.turn_number} - {self.current_phase.upper()} Phase\n"
         summary += f"Active Player: {self.active_player}\n"
+
+        # Objective status
+        obj_q, obj_r = self.objective_position
+        controller = self.check_objective_control()
+        control_str = controller if controller else "contested/none"
+        summary += f"Objective at ({obj_q},{obj_r}): {control_str}\n"
+
         summary += f"\nPlayer 1: {len(p1_units)} units\n"
         for us in p1_units[:5]:  # Show first 5
             summary += f"  - {us.unit.name} at ({us.position[0]},{us.position[1]}) HP:{us.current_health}\n"
-        
+
         summary += f"\nPlayer 2: {len(p2_units)} units\n"
         for us in p2_units[:5]:  # Show first 5
             summary += f"  - {us.unit.name} at ({us.position[0]},{us.position[1]}) HP:{us.current_health}\n"
-        
+
         if self.game_over:
             summary += f"\nGAME OVER - Winner: {self.winner}\n"
-        
+
         return summary
     
     def __str__(self):
