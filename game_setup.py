@@ -612,6 +612,50 @@ class GameSetup:
 
         return board
 
+    def _has_ability(self, unit: Unit, ability_name: str) -> bool:
+        """Check if a unit has a specific ability (case-insensitive)."""
+        abilities = getattr(unit, 'abilities', []) or []
+        return any(ability_name.lower() in a.lower() for a in abilities)
+
+    def _get_edge_hexes(self, board: Board) -> List[Tuple[int, int]]:
+        """Get all hexes on the edge of the battle map."""
+        edge_hexes = []
+        width = self.config.board_width
+        height = self.config.board_height
+
+        for q in range(width):
+            for r in range(height):
+                # Check if on any edge
+                if q == 0 or q == width - 1 or r == 0 or r == height - 1:
+                    hex_obj = board.get_hex(q, r)
+                    if hex_obj and hex_obj.terrain != 'impassable':
+                        edge_hexes.append((q, r))
+        return edge_hexes
+
+    def _get_gliderborne_hexes(self, board: Board, opponent_start_q: int,
+                                is_player1: bool) -> List[Tuple[int, int]]:
+        """Get valid hexes for Gliderborne deployment (anywhere not in opponent's starting area)."""
+        valid_hexes = []
+        width = self.config.board_width
+        height = self.config.board_height
+
+        for q in range(width):
+            for r in range(height):
+                # Check if in opponent's starting area
+                if is_player1:
+                    # Player 1's opponent is player 2 (right side)
+                    if q >= opponent_start_q:
+                        continue
+                else:
+                    # Player 2's opponent is player 1 (left side)
+                    if q <= opponent_start_q + 1:
+                        continue
+
+                hex_obj = board.get_hex(q, r)
+                if hex_obj and hex_obj.terrain != 'impassable':
+                    valid_hexes.append((q, r))
+        return valid_hexes
+
     def place_units(self, board: Board,
                     p1_army: Army, p2_army: Army) -> Tuple[List[UnitState], List[UnitState]]:
         """
@@ -619,9 +663,14 @@ class GameSetup:
 
         Player 1 starts on the west (left) side.
         Player 2 starts on the east (right) side.
+
+        Special deployment rules:
+        - Gliderborne: Deploy in any unoccupied hex not in opponent's starting area
+        - Partisan: Deploy on any unoccupied hex on the edge of the battle map
         """
         p1_unit_states = []
         p2_unit_states = []
+        occupied_hexes = set()
 
         # Player 1 starting zone (left side, columns 1-3)
         p1_start_q = 2
@@ -639,27 +688,78 @@ class GameSetup:
             p2_positions.append((p2_start_q - 1, r))
         random.shuffle(p2_positions)
 
-        # Place player 1 units
-        for i, unit in enumerate(p1_army.units):
-            if i < len(p1_positions):
-                pos = p1_positions[i]
-                defense = getattr(unit, 'defense_front', unit.defense_front)
-                unit_state = UnitState(unit, pos, 'player1', defense)
-                # Vehicles face east (toward enemy)
-                if unit.unit_type == 'Vehicle':
-                    unit_state.facing = 0  # East
-                p1_unit_states.append(unit_state)
+        # Get special deployment hexes
+        edge_hexes = self._get_edge_hexes(board)
+        p1_gliderborne_hexes = self._get_gliderborne_hexes(board, p2_start_q, is_player1=True)
+        p2_gliderborne_hexes = self._get_gliderborne_hexes(board, p1_start_q, is_player1=False)
 
-        # Place player 2 units
-        for i, unit in enumerate(p2_army.units):
-            if i < len(p2_positions):
-                pos = p2_positions[i]
-                defense = getattr(unit, 'defense_front', unit.defense_front)
-                unit_state = UnitState(unit, pos, 'player2', defense)
-                # Vehicles face west (toward enemy)
-                if unit.unit_type == 'Vehicle':
-                    unit_state.facing = 3  # West
-                p2_unit_states.append(unit_state)
+        # Separate units by deployment type
+        def categorize_units(army):
+            normal = []
+            gliderborne = []
+            partisan = []
+            for unit in army.units:
+                if self._has_ability(unit, 'gliderborne'):
+                    gliderborne.append(unit)
+                elif self._has_ability(unit, 'partisan'):
+                    partisan.append(unit)
+                else:
+                    normal.append(unit)
+            return normal, gliderborne, partisan
+
+        p1_normal, p1_gliderborne, p1_partisan = categorize_units(p1_army)
+        p2_normal, p2_gliderborne, p2_partisan = categorize_units(p2_army)
+
+        def create_unit_state(unit, pos, owner):
+            defense = getattr(unit, 'defense_front', unit.defense_front)
+            unit_state = UnitState(unit, pos, owner, defense)
+            # Set facing based on owner
+            if unit.unit_type == 'Vehicle':
+                unit_state.facing = 0 if owner == 'player1' else 3  # East or West
+            occupied_hexes.add(pos)
+            return unit_state
+
+        # Place player 1 normal units
+        pos_idx = 0
+        for unit in p1_normal:
+            if pos_idx < len(p1_positions):
+                p1_unit_states.append(create_unit_state(unit, p1_positions[pos_idx], 'player1'))
+                pos_idx += 1
+
+        # Place player 1 gliderborne units
+        available_gliderborne = [h for h in p1_gliderborne_hexes if h not in occupied_hexes]
+        random.shuffle(available_gliderborne)
+        for i, unit in enumerate(p1_gliderborne):
+            if i < len(available_gliderborne):
+                p1_unit_states.append(create_unit_state(unit, available_gliderborne[i], 'player1'))
+
+        # Place player 1 partisan units (on edge hexes)
+        available_edge = [h for h in edge_hexes if h not in occupied_hexes]
+        random.shuffle(available_edge)
+        for i, unit in enumerate(p1_partisan):
+            if i < len(available_edge):
+                p1_unit_states.append(create_unit_state(unit, available_edge[i], 'player1'))
+
+        # Place player 2 normal units
+        pos_idx = 0
+        for unit in p2_normal:
+            if pos_idx < len(p2_positions):
+                p2_unit_states.append(create_unit_state(unit, p2_positions[pos_idx], 'player2'))
+                pos_idx += 1
+
+        # Place player 2 gliderborne units
+        available_gliderborne = [h for h in p2_gliderborne_hexes if h not in occupied_hexes]
+        random.shuffle(available_gliderborne)
+        for i, unit in enumerate(p2_gliderborne):
+            if i < len(available_gliderborne):
+                p2_unit_states.append(create_unit_state(unit, available_gliderborne[i], 'player2'))
+
+        # Place player 2 partisan units (on edge hexes)
+        available_edge = [h for h in edge_hexes if h not in occupied_hexes]
+        random.shuffle(available_edge)
+        for i, unit in enumerate(p2_partisan):
+            if i < len(available_edge):
+                p2_unit_states.append(create_unit_state(unit, available_edge[i], 'player2'))
 
         return p1_unit_states, p2_unit_states
 

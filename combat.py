@@ -187,7 +187,7 @@ class CombatSystem:
         
         # Get ability modifiers
         attack_mods = self.ability_system.get_attack_modifiers(
-            attacker, target, distance, target_terrain
+            attacker, target, distance, target_terrain, is_rear_attack, target_state
         )
         
         # Check if attack is possible
@@ -231,7 +231,7 @@ class CombatSystem:
         
         # Get defense modifiers
         defense_mods = self.ability_system.get_defense_modifiers(
-            target, target_terrain, is_rear_attack
+            target, target_terrain, is_rear_attack, attacker, distance
         )
         
         # Calculate defense value

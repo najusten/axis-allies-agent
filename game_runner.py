@@ -23,6 +23,14 @@ from game_setup import (
     GameSetup, GameSetupConfig, quick_setup_broad, quick_setup_theater,
     quick_setup_custom, list_theaters, THEATERS
 )
+from mcts import MCTSAgent
+
+# Optional visualization import
+try:
+    from game_visualizer import GameVisualizer, LiveGameVisualizer
+    VISUALIZATION_AVAILABLE = True
+except ImportError:
+    VISUALIZATION_AVAILABLE = False
 
 
 class Agent:
@@ -303,23 +311,26 @@ class GameRunner:
     5. End of Turn (clear disruption from previous turn, check victory)
     """
     
-    def __init__(self, ability_file: str = None, verbose: bool = True):
+    def __init__(self, ability_file: str = None, verbose: bool = True,
+                 visualize: bool = False, viz_output_path: str = "game_view.html"):
         """
         Initialize the game runner.
-        
+
         Args:
             ability_file: Path to abilities CSV (auto-detected if None)
             verbose: If True, print game events
+            visualize: If True, generate HTML visualization after each turn
+            viz_output_path: Path for visualization output file
         """
         import os
-        
+
         # Auto-detect ability file
         if ability_file is None:
             if os.path.exists('Axis_and_Allies_Unit_Data_for_Analysis_-_Special_Abilities.csv'):
                 ability_file = 'Axis_and_Allies_Unit_Data_for_Analysis_-_Special_Abilities.csv'
             else:
                 ability_file = 'Axis and Allies Unit Data for Analysis - Special_Abilities.csv'
-        
+
         self.ability_system = AbilitySystem(ability_file)
         self.movement_system = MovementSystem(self.ability_system)
         self.action_generator = ActionGenerator(
@@ -328,13 +339,40 @@ class GameRunner:
         self.action_executor = ActionExecutor(
             self.movement_system, None, self.ability_system
         )
-        self.initiative_system = InitiativeSystem(self.ability_system)
+        self.initiative_system = InitiativeSystem(
+            self.ability_system, self.movement_system
+        )
         self.verbose = verbose
+
+        # Visualization support
+        self.visualize = visualize and VISUALIZATION_AVAILABLE
+        self.viz_output_path = viz_output_path
+        self._visualizer = None
+        if self.visualize:
+            self._visualizer = GameVisualizer()
     
     def log(self, message: str):
         """Print if verbose mode is on"""
         if self.verbose:
             print(message)
+
+    def update_visualization(self, game_state: GameState, open_browser: bool = False):
+        """
+        Update the game visualization if enabled.
+
+        Args:
+            game_state: Current game state to visualize
+            open_browser: If True, open the visualization in browser
+        """
+        if not self.visualize or not self._visualizer:
+            return
+
+        self._visualizer.generate_html(game_state, output_path=self.viz_output_path)
+
+        if open_browser:
+            import webbrowser
+            import os
+            webbrowser.open(f'file://{os.path.abspath(self.viz_output_path)}')
     
     def run_game(self, game_state: GameState,
                  agent1: Agent, agent2: Agent,
@@ -359,6 +397,14 @@ class GameRunner:
         if isinstance(agent2, GreedyAgent):
             agent2.set_action_executor(self.action_executor)
 
+        # Wire up MCTSAgent instances
+        evaluator = GameStateEvaluator()
+        for agent in [agent1, agent2]:
+            if isinstance(agent, MCTSAgent):
+                agent.set_action_executor(self.action_executor)
+                agent.set_action_generator(self.action_generator)
+                agent.set_evaluator(evaluator)
+
         self.log("=" * 70)
         self.log("GAME START")
         self.log("=" * 70)
@@ -366,9 +412,15 @@ class GameRunner:
         self.log(f"Player 2: {agent2.name}")
         self.log(f"Max turns: {max_turns}")
         self.log("")
-        
+
         turn_history = []
-        
+
+        # === VANGUARD PHASE (pre-game movement) ===
+        # After deployment, units with Vanguard can move at speed 4 before turn 1
+        vanguard_events = self._run_vanguard_phase(game_state, agents)
+        if vanguard_events:
+            turn_history.append({'phase': 'vanguard', 'events': vanguard_events})
+
         while game_state.turn_number <= max_turns:
             turn_events = []
 
@@ -391,38 +443,84 @@ class GameRunner:
                 game_state.current_phase = GamePhase.MOVEMENT
                 game_state.active_player = player
                 agent = agents[player]
-                
+
                 # Reset defensive fire tracking for this phase
                 self.action_executor.reset_defensive_fire_phase()
-                
+
+                # Exert Will: At beginning of movement phase, remove Disrupted from adjacent friendly Soldiers
+                self._apply_exert_will(game_state, player)
+
                 self.log(f"\n--- {player} Movement Phase ---")
-                
+
                 phase_actions = self._run_phase(
                     game_state, agent, player, max_actions=10
                 )
                 turn_events.extend(phase_actions)
-                
+
+                # Hard Charger: At end of movement phase, remove Disrupted from units with this ability
+                self._apply_hard_charger(game_state, player)
+
                 # Check for victory after each phase
                 winner = game_state.check_victory_conditions()
                 if winner:
                     return self._game_result(winner, game_state, turn_history, "elimination")
             
-            # === ASSAULT PHASE ===
+            # === FLIGHT PHASE (Aircraft placement) ===
+            for player in turn_order:
+                game_state.current_phase = GamePhase.FLIGHT
+                game_state.active_player = player
+                agent = agents[player]
+
+                # Check if player has any Aircraft to place
+                player_units = game_state.get_units_by_owner(player)
+                has_aircraft = any(
+                    u.unit.unit_type == 'Aircraft' and not u.is_aircraft_on_map
+                    for u in player_units if u.is_alive
+                )
+
+                if has_aircraft:
+                    self.log(f"\n--- {player} Flight Phase ---")
+                    phase_actions = self._run_phase(
+                        game_state, agent, player, max_actions=5
+                    )
+                    turn_events.extend(phase_actions)
+
+            # === ASSAULT PHASE (ground units) ===
             for player in turn_order:
                 game_state.current_phase = GamePhase.ASSAULT
                 game_state.active_player = player
                 agent = agents[player]
-                
+
                 # Reset casualty tracking for this player's assault phase
                 self.action_executor.reset_assault_phase()
-                
+
                 self.log(f"\n--- {player} Assault Phase ---")
-                
+
                 phase_actions = self._run_phase(
                     game_state, agent, player, max_actions=20
                 )
                 turn_events.extend(phase_actions)
-            
+
+            # === AIRSTRIKE PHASE (Aircraft attacks) ===
+            for player in turn_order:
+                game_state.current_phase = GamePhase.AIRSTRIKE
+                game_state.active_player = player
+                agent = agents[player]
+
+                # Check if player has any Aircraft on map
+                player_units = game_state.get_units_by_owner(player)
+                has_aircraft_on_map = any(
+                    u.unit.unit_type == 'Aircraft' and u.is_aircraft_on_map
+                    for u in player_units if u.is_alive
+                )
+
+                if has_aircraft_on_map:
+                    self.log(f"\n--- {player} Airstrike Phase ---")
+                    phase_actions = self._run_phase(
+                        game_state, agent, player, max_actions=10
+                    )
+                    turn_events.extend(phase_actions)
+
             # === CASUALTY PHASE ===
             self.log(f"\n--- Casualty Phase ---")
             casualty_results = self.action_executor.resolve_casualty_phase(game_state)
@@ -463,6 +561,9 @@ class GameRunner:
             self._end_of_turn(game_state)
             turn_history.append(turn_events)
 
+            # Update visualization if enabled
+            self.update_visualization(game_state, open_browser=(game_state.turn_number == 1))
+
             # Increment turn
             game_state.turn_number += 1
 
@@ -482,7 +583,167 @@ class GameRunner:
             return self._game_result("player2", game_state, turn_history, "points")
         else:
             return self._game_result(None, game_state, turn_history, "draw")
-    
+
+    def _run_vanguard_phase(self, game_state: GameState, agents: dict) -> List[dict]:
+        """
+        Vanguard Phase: After deployment, units with Vanguard can move at speed 4
+        before the first turn begins.
+
+        Returns list of vanguard movement events.
+        """
+        events = []
+
+        # Check if any units have Vanguard ability
+        has_vanguard_units = False
+        for player in ["player1", "player2"]:
+            for unit_state in game_state.get_units_by_owner(player):
+                if not unit_state.is_alive:
+                    continue
+                abilities = getattr(unit_state.unit, 'abilities', []) or []
+                if any(a.lower() == 'vanguard' for a in abilities):
+                    has_vanguard_units = True
+                    break
+            if has_vanguard_units:
+                break
+
+        if not has_vanguard_units:
+            return events
+
+        self.log(f"\n{'='*60}")
+        self.log("VANGUARD PHASE (Pre-Game Movement)")
+        self.log(f"{'='*60}")
+
+        # Both players move their Vanguard units (player 1 first)
+        for player in ["player1", "player2"]:
+            player_units = game_state.get_units_by_owner(player)
+            vanguard_units = []
+
+            for unit_state in player_units:
+                if not unit_state.is_alive:
+                    continue
+                abilities = getattr(unit_state.unit, 'abilities', []) or []
+                if any(a.lower() == 'vanguard' for a in abilities):
+                    vanguard_units.append(unit_state)
+
+            if not vanguard_units:
+                continue
+
+            self.log(f"\n--- {player} Vanguard Movement ---")
+
+            for unit_state in vanguard_units:
+                unit = unit_state.unit
+                q, r = unit_state.position
+
+                # Generate possible moves at speed 4
+                reachable = self.movement_system.get_reachable_hexes(
+                    game_state.board, q, r, unit, max_speed=4
+                )
+
+                if not reachable or len(reachable) <= 1:
+                    continue
+
+                # Let agent choose the move
+                agent = agents[player]
+                move_actions = []
+                for (dest_q, dest_r) in reachable:
+                    if (dest_q, dest_r) != (q, r):
+                        move_action = MoveAction(
+                            unit_id=unit.id,
+                            from_q=q, from_r=r,
+                            to_q=dest_q, to_r=dest_r
+                        )
+                        move_actions.append(move_action)
+
+                if not move_actions:
+                    continue
+
+                # Add pass option (don't move)
+                move_actions.append(PassAction(unit_id=unit.id))
+
+                # Agent chooses action
+                game_state.current_phase = GamePhase.MOVEMENT
+                game_state.active_player = player
+                chosen_action = agent.choose_action(game_state, move_actions, player)
+
+                if isinstance(chosen_action, MoveAction):
+                    # Execute the move
+                    result = self.action_executor.execute(game_state, chosen_action)
+                    if result.success:
+                        self.log(f"  {unit.name} moves from ({q},{r}) to ({chosen_action.to_q},{chosen_action.to_r})")
+                        events.append({
+                            'player': player,
+                            'unit': unit.name,
+                            'action': 'vanguard_move',
+                            'from': (q, r),
+                            'to': (chosen_action.to_q, chosen_action.to_r)
+                        })
+                        # Reset has_moved flag so unit can move again in turn 1
+                        unit_state.has_moved = False
+                else:
+                    self.log(f"  {unit.name} stays at ({q},{r})")
+
+        return events
+
+    def _apply_exert_will(self, game_state: GameState, player: str):
+        """
+        Exert Will: At the beginning of movement phase, remove all Disrupted
+        counters from friendly Soldiers adjacent to units with this ability.
+        """
+        player_units = game_state.get_units_by_owner(player)
+
+        for unit_state in player_units:
+            if not unit_state.is_alive:
+                continue
+
+            unit = unit_state.unit
+            abilities = getattr(unit, 'abilities', []) or []
+            has_exert_will = any(a.lower() == 'exert will' for a in abilities)
+
+            if not has_exert_will:
+                continue
+
+            # Find adjacent friendly Soldiers and remove their Disrupted counters
+            unit_pos = unit_state.position
+            for friendly_state in player_units:
+                if not friendly_state.is_alive:
+                    continue
+                if friendly_state.unit.id == unit.id:
+                    continue
+                if friendly_state.unit.unit_type != 'Soldier':
+                    continue
+                if not friendly_state.is_disrupted:
+                    continue
+
+                # Check if adjacent
+                friendly_pos = friendly_state.position
+                dist = game_state.board.hex_distance(
+                    unit_pos[0], unit_pos[1], friendly_pos[0], friendly_pos[1]
+                )
+                if dist <= 1:
+                    friendly_state.is_disrupted = False
+                    self.log(f"  Exert Will: {friendly_state.unit.name} Disrupted removed by {unit.name}")
+
+    def _apply_hard_charger(self, game_state: GameState, player: str):
+        """
+        Hard Charger: At the end of movement phase, remove any face-up
+        Disrupted counters from units with this ability.
+        """
+        player_units = game_state.get_units_by_owner(player)
+
+        for unit_state in player_units:
+            if not unit_state.is_alive:
+                continue
+            if not unit_state.is_disrupted:
+                continue
+
+            unit = unit_state.unit
+            abilities = getattr(unit, 'abilities', []) or []
+            has_hard_charger = any(a.lower() == 'hard charger' for a in abilities)
+
+            if has_hard_charger:
+                unit_state.is_disrupted = False
+                self.log(f"  Hard Charger: {unit.name} Disrupted removed")
+
     def _run_phase(self, game_state: GameState, agent: Agent,
                    player: str, max_actions: int = 10) -> List[dict]:
         """
@@ -1066,6 +1327,91 @@ def run_all_theaters_test(num_games_per_theater: int = 10,
         print(f"Total RandomAgent wins: {total_random} ({100*total_random/total_games:.1f}%)")
 
     return all_results
+
+
+def run_mcts_vs_greedy(num_games: int = 10,
+                       points: int = 75,
+                       mcts_simulations: int = 300,
+                       verbose: bool = False) -> dict:
+    """
+    Run MCTS vs Greedy comparison.
+
+    Args:
+        num_games: Number of games to run
+        points: Points per side
+        mcts_simulations: MCTS simulations per decision
+        verbose: Print game details
+    """
+    print(f"\n{'='*60}")
+    print(f"MCTS vs GREEDY COMPARISON")
+    print(f"{'='*60}")
+    print(f"MCTS simulations per move: {mcts_simulations}")
+    print(f"Points per side: {points}")
+    print(f"Running {num_games} games...\n")
+
+    results = {
+        'mcts_wins': 0,
+        'greedy_wins': 0,
+        'draw': 0,
+        'total_turns': 0,
+        'by_reason': {}
+    }
+
+    import time
+    total_time = 0
+
+    for i in range(num_games):
+        setup = quick_setup_theater('western_europe', points=points)
+        game_state = setup.create_game(build_method='balanced')
+        game_state.current_phase = GamePhase.MOVEMENT
+
+        # Alternate sides
+        if i % 2 == 0:
+            agent1 = MCTSAgent("MCTS", num_simulations=mcts_simulations)
+            agent2 = GreedyAgent("Greedy")
+            mcts_player = "player1"
+        else:
+            agent1 = GreedyAgent("Greedy")
+            agent2 = MCTSAgent("MCTS", num_simulations=mcts_simulations)
+            mcts_player = "player2"
+
+        start_time = time.time()
+        runner = GameRunner(verbose=verbose)
+        result = runner.run_game(game_state, agent1, agent2, max_turns=10)
+        elapsed = time.time() - start_time
+        total_time += elapsed
+
+        winner = result['winner']
+        reason = result['reason']
+
+        if winner == mcts_player:
+            results['mcts_wins'] += 1
+            outcome = 'MCTS'
+        elif winner == 'draw':
+            results['draw'] += 1
+            outcome = 'DRAW'
+        else:
+            results['greedy_wins'] += 1
+            outcome = 'GREEDY'
+
+        results['total_turns'] += result['turns']
+        results['by_reason'][reason] = results['by_reason'].get(reason, 0) + 1
+
+        mcts_side = "P1" if mcts_player == "player1" else "P2"
+        print(f"Game {i+1}: MCTS={mcts_side}, Winner={outcome} ({reason}) "
+              f"turn {result['turns']} [{elapsed:.1f}s]")
+
+    print(f"\n{'='*50}")
+    print(f"RESULTS: MCTS vs GREEDY")
+    print(f"{'='*50}")
+    print(f"MCTSAgent wins: {results['mcts_wins']} ({100*results['mcts_wins']/num_games:.1f}%)")
+    print(f"GreedyAgent wins: {results['greedy_wins']} ({100*results['greedy_wins']/num_games:.1f}%)")
+    print(f"Draws: {results['draw']} ({100*results['draw']/num_games:.1f}%)")
+    print(f"Average turns: {results['total_turns']/num_games:.1f}")
+    print(f"Total time: {total_time:.1f}s (avg {total_time/num_games:.1f}s/game)")
+    print(f"Victory reasons: {results['by_reason']}")
+
+    return results
 
 
 if __name__ == "__main__":

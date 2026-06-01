@@ -30,12 +30,48 @@ class UnitState:
     owner: str  # 'player1' or 'player2'
     current_health: int
     has_moved: bool = False
-    has_attacked: bool = False
+    has_attacked: bool = False  # Kept for backwards compatibility
+    attacks_this_turn: int = 0  # For Double Shot tracking
+    targets_attacked_this_turn: Set[str] = field(default_factory=set)  # For Coordinated Fire C.A.
     abilities_used: Set[str] = field(default_factory=set)
     is_disrupted: bool = False  # Status effects
     is_damaged: bool = False
     facing: Optional[int] = None  # HexDirection value (0-5) for vehicles, None for soldiers
-    
+    strike_and_fade_available: bool = False  # Enabled after attack if unit has Strike and Fade
+    heavy_armor_used: bool = False  # Heavy Armor: ignore first Damaged counter each game
+    covering_fire_target: bool = False  # True if hit by Covering Fire this turn (can't defensive fire)
+    all_guns_blazing_available: bool = False  # Enabled after attack if unit has All Guns Blazing
+    strafe_available: bool = False  # Enabled after attack if unit has Strafe (attack adjacent Soldier)
+    strafe_target_hex: Optional[Tuple[int, int]] = None  # Hex of original target for Strafe
+    bombs_used: bool = False  # Bombs: once per game special attack
+    speed_boost_used: bool = False  # Speed Boost: once per game, attack vs Aircraft resolves immediately
+    overrun_used_this_phase: bool = False  # Overrun: once per phase, disrupt Soldier when entering hex
+    extra_mg_used: bool = False  # Extra Machine Guns: once per turn, extra attack vs Soldier
+    multiturreted_front_used: bool = False  # Multiturreted: tracks if front-arc attack was used
+    multiturreted_rear_used: bool = False  # Multiturreted: tracks if rear-arc attack was used
+    rapid_fire_used: bool = False  # Rapid Fire: once per turn, extra attack with jam risk
+    rapid_fire_jammed: bool = False  # Rapid Fire: True if disruption was caused by Rapid Fire (sticky)
+    overheat_jammed: bool = False  # Overheat: True if disruption was caused by Overheat (sticky)
+    unreliable_disrupted: bool = False  # Unreliable: True if disruption is sticky (never clears)
+    carried_unit_id: Optional[str] = None  # Transport: ID of soldier being carried
+    carried_by_id: Optional[str] = None  # Soldier: ID of transport carrying this unit
+    smoke_screen_used: bool = False  # Smoke Screen: once per game ability
+    is_deployed: bool = True  # Paratrooper: False if not yet deployed on map
+    is_aircraft_on_map: bool = False  # Aircraft: True when placed during Flight phase
+    shock_troop_used: bool = False  # Shock Troop: True after first attack this game
+    armor_piercing_used: bool = False  # Armor-Piercing Rounds: once per game
+    he_round_used: bool = False  # HE Round: once per game
+    headshot_used: bool = False  # Headshot: once per game
+    lead_the_way_used: bool = False  # Lead the Way: once per turn reroll
+    firepower_used: bool = False  # Firepower: once per turn, extra attack vs unit in same hex
+    remote_control_used: bool = False  # Remote Control: once per game special attack
+    rocket_salvo_used: bool = False  # Rocket Salvo: once per game area attack
+    rockets_8_used: bool = False  # Rockets 8: once per game, 8 dice vs target within 4 hexes
+    top_mounted_rockets_used: bool = False  # Top-Mounted Rockets: once per game area attack
+    additional_hull_cannon_used: bool = False  # Additional Hull-Mounted Cannon: once per turn
+    extra_hull_cannon_used: bool = False  # Extra Hull-Mounted Cannon: once per turn
+    quick_reactions_available: bool = False  # Command Quick Reactions: can change facing after attack
+
     def __post_init__(self):
         # Ensure unit has an ID
         if not hasattr(self.unit, 'id') or not self.unit.id:
@@ -58,24 +94,48 @@ class UnitState:
         """Reset per-turn flags"""
         self.has_moved = False
         self.has_attacked = False
+        self.attacks_this_turn = 0
+        self.strike_and_fade_available = False
+        self.all_guns_blazing_available = False
+        self.strafe_available = False
+        self.strafe_target_hex = None
         self.abilities_used.clear()
+        self.covering_fire_target = False  # Reset Covering Fire effect each turn
+        self.overrun_used_this_phase = False  # Reset Overrun each turn
+        self.extra_mg_used = False  # Reset Extra Machine Guns each turn
+        self.multiturreted_front_used = False  # Reset Multiturreted each turn
+        self.multiturreted_rear_used = False
+        self.rapid_fire_used = False  # Reset Rapid Fire each turn
+        self.lead_the_way_used = False  # Reset Lead the Way each turn
+        self.firepower_used = False  # Reset Firepower each turn
+        self.targets_attacked_this_turn.clear()  # Reset Coordinated Fire C.A. tracking
+        self.quick_reactions_available = False  # Reset Command Quick Reactions
+        self.additional_hull_cannon_used = False  # Reset Additional Hull-Mounted Cannon
+        self.extra_hull_cannon_used = False  # Reset Extra Hull-Mounted Cannon
+        # Note: rapid_fire_jammed is NOT reset here (sticky disruption)
+        # Note: bombs_used is NOT reset (once per game)
+        self.is_aircraft_on_map = False  # Aircraft removed at end of turn
 
 
 class GamePhase:
     """Enumeration of game phases"""
     DEPLOYMENT = "deployment"
     MOVEMENT = "movement"
+    FLIGHT = "flight"  # Aircraft placement
     ASSAULT = "assault"
+    AIRSTRIKE = "airstrike"  # Aircraft attacks
     CONSOLIDATION = "consolidation"
     END = "end"
-    
+
     @staticmethod
     def get_phase_order() -> List[str]:
         """Get phases in order"""
         return [
             GamePhase.DEPLOYMENT,
             GamePhase.MOVEMENT,
+            GamePhase.FLIGHT,
             GamePhase.ASSAULT,
+            GamePhase.AIRSTRIKE,
             GamePhase.CONSOLIDATION,
             GamePhase.END
         ]
@@ -126,6 +186,17 @@ class GameState:
         self.winner: Optional[str] = None
         self.game_over = False
 
+        # Smoke screens on hexes (blocks LOS, removed at end of turn)
+        self.smoke_screens: Set[Tuple[int, int]] = set()
+
+        # Track destroyed units for Fury/Tides of War abilities
+        self.units_destroyed_this_turn: Dict[str, List[str]] = {"player1": [], "player2": []}  # owner -> list of destroyed unit IDs
+        self.units_destroyed_last_turn: Dict[str, List[str]] = {"player1": [], "player2": []}
+
+        # Track destroyed unit wrecks for Improvisation ability
+        # Maps (q, r) -> list of {unit_type, attack_values, name}
+        self.destroyed_unit_wrecks: Dict[Tuple[int, int], List[dict]] = {}
+
         # Objective position (defaults to center of board if not specified)
         if objective_position is not None:
             self.objective_position = objective_position
@@ -147,13 +218,34 @@ class GameState:
         """Remove a unit from the game (death)"""
         if unit_id in self.units:
             unit_state = self.units[unit_id]
-            
-            # Remove from board
+            unit = unit_state.unit
+
+            # Track destroyed unit for Fury/Tides of War abilities
+            owner = unit_state.owner
+            if owner in self.units_destroyed_this_turn:
+                self.units_destroyed_this_turn[owner].append(unit_id)
+
+            # Track wreck for Improvisation ability (only Soldiers and Vehicles)
             q, r = unit_state.position
+            if unit.unit_type in ('Soldier', 'Vehicle'):
+                wreck_data = {
+                    'unit_type': unit.unit_type,
+                    'name': unit.name,
+                    'attack_close': getattr(unit, 'attack_close', 0),
+                    'attack_medium': getattr(unit, 'attack_medium', 0),
+                    'attack_long': getattr(unit, 'attack_long', 0),
+                    'attack_versus_soldier': getattr(unit, 'attack_versus_soldier', None),
+                    'attack_versus_vehicle': getattr(unit, 'attack_versus_vehicle', None),
+                }
+                if (q, r) not in self.destroyed_unit_wrecks:
+                    self.destroyed_unit_wrecks[(q, r)] = []
+                self.destroyed_unit_wrecks[(q, r)].append(wreck_data)
+
+            # Remove from board
             hex_tile = self.board.get_hex(q, r)
             if hex_tile:
                 hex_tile.unit = None
-            
+
             # Remove from units dict
             del self.units[unit_id]
     
@@ -187,7 +279,23 @@ class GameState:
         """Get all enemy units"""
         enemy = "player2" if owner == "player1" else "player1"
         return self.get_units_by_owner(enemy)
-    
+
+    def get_destroyed_wrecks_at_position(self, q: int, r: int) -> List[dict]:
+        """Get destroyed unit wrecks at a position (for Improvisation ability)"""
+        return self.destroyed_unit_wrecks.get((q, r), [])
+
+    def get_units_at_position(self, q: int, r: int) -> List[UnitState]:
+        """Get all units at a specific hex position"""
+        return [us for us in self.units.values() if us.position == (q, r) and us.is_alive]
+
+    def has_smoke(self, q: int, r: int) -> bool:
+        """Check if a hex has smoke screen"""
+        return (q, r) in self.smoke_screens
+
+    def add_smoke(self, q: int, r: int):
+        """Add a smoke screen to a hex"""
+        self.smoke_screens.add((q, r))
+
     def has_unit_moved(self, unit_id: str) -> bool:
         """Check if unit has moved this turn"""
         if unit_id in self.units:
@@ -241,10 +349,41 @@ class GameState:
         
         return False  # Unit still alive
     
-    def mark_unit_attacked(self, unit_id: str):
-        """Mark that a unit has attacked this turn"""
+    def mark_unit_attacked(self, unit_id: str, target_id: str = None):
+        """Mark that a unit has attacked this turn, optionally tracking the target"""
         if unit_id in self.units:
-            self.units[unit_id].has_attacked = True
+            unit_state = self.units[unit_id]
+            unit_state.attacks_this_turn += 1
+            # Track target for Coordinated Fire C.A.
+            if target_id:
+                unit_state.targets_attacked_this_turn.add(target_id)
+            # Keep has_attacked for backwards compatibility
+            # For Double Shot units, has_attacked becomes True after 2 attacks
+            max_attacks = self.get_max_attacks(unit_id)
+            if unit_state.attacks_this_turn >= max_attacks:
+                unit_state.has_attacked = True
+
+    def get_max_attacks(self, unit_id: str) -> int:
+        """Get maximum attacks allowed for a unit (1 normally, 2 with Double Shot/Multiturreted)"""
+        if unit_id not in self.units:
+            return 1
+        unit = self.units[unit_id].unit
+        abilities = getattr(unit, 'abilities', []) or []
+        # Check for Double Shot or Multiturreted ability
+        for ability in abilities:
+            if 'double shot' in ability.lower():
+                return 2
+            if 'multiturreted' in ability.lower():
+                return 2
+        return 1
+
+    def can_unit_attack(self, unit_id: str) -> bool:
+        """Check if unit can still attack this turn"""
+        if unit_id not in self.units:
+            return False
+        unit_state = self.units[unit_id]
+        max_attacks = self.get_max_attacks(unit_id)
+        return unit_state.attacks_this_turn < max_attacks
     
     def mark_ability_used(self, unit_id: str, ability_name: str):
         """Mark that a unit has used an ability this turn"""
@@ -265,15 +404,21 @@ class GameState:
         """End the current turn and start next player's turn"""
         # Switch active player
         self.active_player = "player2" if self.active_player == "player1" else "player1"
-        
+
         # Reset all units for new turn
         for unit_state in self.units.values():
             unit_state.reset_for_turn()
-        
+
+        # Clear smoke screens at end of turn
+        self.smoke_screens.clear()
+
         # If back to player1, increment turn counter
         if self.active_player == "player1":
             self.turn_number += 1
-        
+            # Shift destroyed tracking for new turn (Fury/Tides of War)
+            self.units_destroyed_last_turn = self.units_destroyed_this_turn.copy()
+            self.units_destroyed_this_turn = {"player1": [], "player2": []}
+
         # Reset to first phase
         self.current_phase = GamePhase.MOVEMENT
     
@@ -414,9 +559,32 @@ class GameState:
                 current_health=unit_state.current_health,
                 has_moved=unit_state.has_moved,
                 has_attacked=unit_state.has_attacked,
+                attacks_this_turn=unit_state.attacks_this_turn,
                 abilities_used=unit_state.abilities_used.copy(),
                 is_disrupted=unit_state.is_disrupted,
-                is_damaged=unit_state.is_damaged
+                is_damaged=unit_state.is_damaged,
+                facing=unit_state.facing,
+                strike_and_fade_available=unit_state.strike_and_fade_available,
+                heavy_armor_used=unit_state.heavy_armor_used,
+                covering_fire_target=unit_state.covering_fire_target,
+                all_guns_blazing_available=unit_state.all_guns_blazing_available,
+                strafe_available=unit_state.strafe_available,
+                strafe_target_hex=unit_state.strafe_target_hex,
+                bombs_used=unit_state.bombs_used,
+                speed_boost_used=unit_state.speed_boost_used,
+                overrun_used_this_phase=unit_state.overrun_used_this_phase,
+                extra_mg_used=unit_state.extra_mg_used,
+                multiturreted_front_used=unit_state.multiturreted_front_used,
+                multiturreted_rear_used=unit_state.multiturreted_rear_used,
+                rapid_fire_used=unit_state.rapid_fire_used,
+                rapid_fire_jammed=unit_state.rapid_fire_jammed,
+                overheat_jammed=unit_state.overheat_jammed,
+                unreliable_disrupted=unit_state.unreliable_disrupted,
+                carried_unit_id=unit_state.carried_unit_id,
+                carried_by_id=unit_state.carried_by_id,
+                smoke_screen_used=unit_state.smoke_screen_used,
+                is_deployed=unit_state.is_deployed,
+                is_aircraft_on_map=unit_state.is_aircraft_on_map
             )
             
             if unit_state.owner == "player1":
@@ -433,6 +601,7 @@ class GameState:
         new_state.action_history = self.action_history.copy()
         new_state.winner = self.winner
         new_state.game_over = self.game_over
+        new_state.smoke_screens = self.smoke_screens.copy()
 
         return new_state
     

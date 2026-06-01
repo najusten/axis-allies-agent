@@ -49,15 +49,18 @@ class InitiativeSystem:
     - Winner chooses who goes first (usually themselves)
     """
 
-    def __init__(self, ability_system=None, random_seed: Optional[int] = None):
+    def __init__(self, ability_system=None, movement_system=None,
+                 random_seed: Optional[int] = None):
         """
         Initialize the initiative system.
 
         Args:
             ability_system: AbilitySystem for checking unit abilities
+            movement_system: MovementSystem for LOS checks
             random_seed: Optional seed for reproducible rolls
         """
         self.ability_system = ability_system
+        self.movement_system = movement_system
         if random_seed is not None:
             random.seed(random_seed)
 
@@ -209,6 +212,9 @@ class InitiativeSystem:
         for unit_state in game_state.get_units_by_owner(player):
             if not unit_state.is_alive:
                 continue
+            # Skip undeployed units
+            if not unit_state.is_deployed:
+                continue
 
             unit = unit_state.unit
             abilities = getattr(unit, 'abilities', []) or []
@@ -219,17 +225,25 @@ class InitiativeSystem:
                 for enemy_state in enemy_units:
                     if not enemy_state.is_alive:
                         continue
+                    if not enemy_state.is_deployed:
+                        continue
 
-                    # Simple LOS check - would need proper LOS system
-                    # For now, assume LOS if within 8 hexes and no blocking terrain
-                    distance = game_state.board.hex_distance(
-                        unit_state.position[0], unit_state.position[1],
-                        enemy_state.position[0], enemy_state.position[1]
-                    )
+                    uq, ur = unit_state.position
+                    eq, er = enemy_state.position
 
-                    if distance <= 8:
-                        # Has LOS to at least one enemy
-                        return 1
+                    # Use proper LOS check if movement system is available
+                    if self.movement_system:
+                        has_los, _ = self.movement_system.has_line_of_sight(
+                            game_state.board, unit, uq, ur, eq, er,
+                            smoke_screens=game_state.smoke_screens
+                        )
+                        if has_los:
+                            return 1
+                    else:
+                        # Fallback: simple distance check
+                        distance = game_state.board.hex_distance(uq, ur, eq, er)
+                        if distance <= 8:
+                            return 1
 
         return 0
 

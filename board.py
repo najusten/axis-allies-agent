@@ -24,6 +24,11 @@ class Hex:
     def __hash__(self):
         return hash((self.q, self.r))
 
+    @property
+    def has_road(self) -> bool:
+        """Check if this hex has a road (terrain type is 'road')."""
+        return self.terrain == 'road'
+
 
 class Board:
     """Represents the game board as a hex grid"""
@@ -36,7 +41,10 @@ class Board:
         self.width = width
         self.height = height
         self.hexes = {}  # Dictionary mapping (q,r) -> Hex
-        
+
+        # Edge obstacles (Barbed Wire, etc.) - maps frozenset((q1,r1), (q2,r2)) -> obstacle_type
+        self.edge_obstacles = {}
+
         # Initialize all hexes as open terrain
         for q in range(width):
             for r in range(height):
@@ -66,7 +74,31 @@ class Board:
         hex_tile = self.get_hex(q, r)
         if hex_tile:
             hex_tile.unit = None
-    
+
+    def _edge_key(self, q1: int, r1: int, q2: int, r2: int):
+        """Create a consistent key for an edge between two hexes."""
+        return frozenset(((q1, r1), (q2, r2)))
+
+    def add_edge_obstacle(self, q1: int, r1: int, q2: int, r2: int, obstacle_type: str):
+        """Add an edge obstacle (like Barbed Wire) between two adjacent hexes."""
+        key = self._edge_key(q1, r1, q2, r2)
+        self.edge_obstacles[key] = obstacle_type
+
+    def remove_edge_obstacle(self, q1: int, r1: int, q2: int, r2: int):
+        """Remove an edge obstacle between two hexes."""
+        key = self._edge_key(q1, r1, q2, r2)
+        if key in self.edge_obstacles:
+            del self.edge_obstacles[key]
+
+    def get_edge_obstacle(self, q1: int, r1: int, q2: int, r2: int) -> Optional[str]:
+        """Get the obstacle type on the edge between two hexes, or None."""
+        key = self._edge_key(q1, r1, q2, r2)
+        return self.edge_obstacles.get(key)
+
+    def has_edge_obstacle(self, q1: int, r1: int, q2: int, r2: int) -> bool:
+        """Check if there's an edge obstacle between two hexes."""
+        return self.get_edge_obstacle(q1, r1, q2, r2) is not None
+
     def get_neighbors(self, q, r) -> List[Hex]:
         """Get all six neighboring hexes (axial coordinates)"""
         # The six directions in axial coordinates

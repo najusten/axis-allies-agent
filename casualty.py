@@ -213,9 +213,28 @@ class CasualtySystem:
         }
         
         # Step 1: Clear face-up disrupted from previous turn
+        # Exception: Unreliable, Rapid Fire jammed, Overheat jammed disruption doesn't clear
+        # Green: Must roll 4+ to remove Disrupted counter
+        import random
         for unit_id in list(self._face_up_disrupted):
             unit_state = game_state.get_unit_state(unit_id)
             if unit_state and unit_state.is_disrupted:
+                # Check if disruption is sticky (from Unreliable, Rapid Fire, Overheat)
+                if getattr(unit_state, 'unreliable_disrupted', False):
+                    continue  # Never clears
+                if getattr(unit_state, 'rapid_fire_jammed', False):
+                    continue  # Doesn't clear from Rapid Fire
+                if getattr(unit_state, 'overheat_jammed', False):
+                    continue  # Doesn't clear from Overheat
+
+                # Check for Green ability (must roll 4+ to remove Disrupted)
+                unit_abilities = getattr(unit_state.unit, 'abilities', []) or []
+                has_green = any(a.lower() == 'green' for a in unit_abilities)
+                if has_green:
+                    roll = random.randint(1, 6)
+                    if roll < 4:
+                        continue  # Failed to remove Disrupted
+
                 unit_state.is_disrupted = False
                 results['disruption_cleared'].append(unit_id)
         self._face_up_disrupted.clear()

@@ -45,23 +45,50 @@ class MovementSystem:
         
         return base_cost
     
-    def _get_terrain_cost_with_entry(self, unit, current_terrain: str, previous_terrain: str) -> int:
+    def _get_terrain_cost_with_entry(self, unit, current_terrain: str, previous_terrain: str,
+                                      movement_mods: dict = None) -> int:
         """
         Calculate movement cost considering whether unit is entering terrain or already in it.
-        
+
         For Vehicles:
         - Entering forest/hill from non-forest/hill: 2 movement
         - Moving within forest (forest->forest): 1 movement
         - Moving within hills (hill->hill): 1 movement
-        
+
         For Infantry: Always 1 for forest/hill
+
+        Abilities that modify terrain costs:
+        - Excellent Suspension (ignore_hill_terrain): Hills cost 1
+        - Brushcutters (ignore_forest_terrain): Forests cost 1
+        - Trench Crossing (ignore_stream_terrain): Streams cost 1
+        - Poor Suspension (poor_suspension): Can't enter hills at all (handled elsewhere)
         """
+        movement_mods = movement_mods or {}
+
         # Infantry always pays 1 for forest/hill
         if unit.unit_type == 'Soldier':
             if current_terrain in ['forest', 'hill']:
                 return 1
             return self.BASE_TERRAIN_COSTS.get(current_terrain, 1)
-        
+
+        # Check for terrain-ignoring abilities (Vehicles)
+        if current_terrain == 'hill' and movement_mods.get('ignore_hill_terrain', False):
+            return 1  # Excellent Suspension: treat hills as clear
+
+        if current_terrain == 'forest' and movement_mods.get('ignore_forest_terrain', False):
+            return 1  # Brushcutters: no movement roll for forests
+
+        if current_terrain == 'stream' and movement_mods.get('ignore_stream_terrain', False):
+            return 1  # Trench Crossing: cross streams without roll
+
+        # Water Craft: enter water hexes as clear terrain
+        if current_terrain == 'water' and movement_mods.get('water_craft', False):
+            return 1
+
+        # Amphibious: enter water hexes as double-cost terrain
+        if current_terrain == 'water' and movement_mods.get('amphibious', False):
+            return 2
+
         # Vehicles: Check if entering or staying in same terrain type
         if current_terrain in ['forest', 'hill']:
             # If coming from the same terrain type, cost is 1
@@ -70,24 +97,33 @@ class MovementSystem:
             # If entering from different terrain, cost is 2
             else:
                 return 2
-        
+
         # All other terrain uses base cost
         return self.BASE_TERRAIN_COSTS.get(current_terrain, 1)
     
-    def get_effective_speed(self, unit, ability_mods: dict = None) -> int:
+    def get_effective_speed(self, unit, ability_mods: dict = None, is_disrupted: bool = False) -> int:
         """
-        Get unit's effective speed considering abilities.
+        Get unit's effective speed considering abilities and disruption.
+
+        Args:
+            unit: The unit to check speed for
+            ability_mods: Optional pre-computed ability modifiers
+            is_disrupted: Whether the unit is disrupted (for Robust check)
         """
         base_speed = unit.speed
-        
+
         # Handle aircraft speed 'A'
         if isinstance(base_speed, str):
             return 0  # Aircraft don't use ground movement
-        
+
         if ability_mods:
             base_speed += ability_mods.get('speed_bonus', 0)
             base_speed -= ability_mods.get('speed_penalty', 0)
-        
+
+            # Robust: While disrupted, this unit has speed 1
+            if is_disrupted and ability_mods.get('robust', False):
+                return 1
+
         return max(0, base_speed)
     
     def can_unit_move_and_attack(self, unit) -> bool:
@@ -101,15 +137,20 @@ class MovementSystem:
         movement_mods = self.ability_system.get_movement_modifiers(unit)
         return movement_mods.get('can_move_and_shoot', True)
     
-    def get_reachable_hexes(self, board: Board, start_q: int, start_r: int, 
-                           unit, max_speed: int = None) -> Set[Tuple[int, int]]:
+    def get_reachable_hexes(self, board: Board, start_q: int, start_r: int,
+                           unit, max_speed: int = None, road_only: bool = False,
+                           include_road_bonus: bool = True) -> Set[Tuple[int, int]]:
         """
         Get all hexes reachable from start position with given speed.
         Returns set of (q, r) coordinates.
         Uses breadth-first search with movement costs and ability modifiers.
-        
+
         Important: Forest/Hill entry cost is 2 for vehicles, but moving within
         forest (forest->forest) is only 1.
+
+        Args:
+            road_only: If True, only traverse hexes with roads (for High Gear)
+            include_road_bonus: If True, vehicles get +1 speed when staying on roads
         """
         # Get movement modifiers from abilities
         if self.ability_system:
@@ -144,17 +185,53 @@ class MovementSystem:
             for neighbor in neighbors:
                 nq, nr = neighbor.q, neighbor.r
                 
-                # Skip if terrain is impassable
-                if neighbor.terrain == 'water' or self.BASE_TERRAIN_COSTS.get(neighbor.terrain, 1) >= 99:
+                # Water Craft: can ONLY enter water hexes (as clear terrain)
+                if movement_mods.get('water_craft', False):
+                    if neighbor.terrain != 'water':
+                        continue  # Can only enter water hexes
+                    # Water costs 1 for Water Craft
+                # Skip if terrain is impassable (unless Amphibious)
+                elif neighbor.terrain == 'water':
+                    if not movement_mods.get('amphibious', False):
+                        continue
+                    # Amphibious: water costs 2 movement
+                elif self.BASE_TERRAIN_COSTS.get(neighbor.terrain, 1) >= 99:
                     continue
-                
+
                 # Skip if hex is occupied by another unit
+                # Exception: Obstacles don't count for stacking - any unit can enter
+                # Exception: Vehicles with Overrun can pass through enemy Soldier hexes
                 if neighbor.unit is not None:
+                    is_obstacle = getattr(neighbor.unit, 'unit_type', None) == 'Obstacle'
+                    if not is_obstacle:
+                        # Allow Overrun vehicles to pass through (added to reachable
+                        # for pathfinding, but blocked as final destination below)
+                        unit_abilities = getattr(unit, 'abilities', []) or []
+                        has_overrun = any(a.lower() == 'overrun' for a in unit_abilities)
+                        neighbor_is_soldier = getattr(neighbor.unit, 'unit_type', None) == 'Soldier'
+                        if has_overrun and neighbor_is_soldier and unit.unit_type == 'Vehicle':
+                            pass  # Allow passage through this hex
+                        else:
+                            continue
+
+                # High Gear: road_only mode - can only move through hexes with roads
+                if road_only and not neighbor.has_road:
                     continue
-                
+
+                # Check movement restrictions from abilities
+                # Poor Suspension: can't enter hill hexes except along a road
+                if neighbor.terrain == 'hill' and movement_mods.get('poor_suspension', False):
+                    if not neighbor.has_road:
+                        continue
+
+                # Thin Wheels: can't enter marsh/streams except along a road
+                if neighbor.terrain in ('marsh', 'stream') and movement_mods.get('thin_wheels', False):
+                    if not neighbor.has_road:
+                        continue
+
                 # Calculate terrain cost considering entry vs within-terrain movement
                 terrain_cost = self._get_terrain_cost_with_entry(
-                    unit, neighbor.terrain, prev_terrain
+                    unit, neighbor.terrain, prev_terrain, movement_mods
                 )
                 
                 new_movement = movement - terrain_cost
@@ -164,14 +241,87 @@ class MovementSystem:
                     # Don't revisit the starting position
                     if (nq, nr) == (start_q, start_r):
                         continue
-                    
+
                     # Only add if we haven't been here, or we got here with more movement
                     if (nq, nr) not in visited or visited[(nq, nr)] < new_movement:
                         visited[(nq, nr)] = new_movement
-                        reachable.add((nq, nr))
+                        # Overrun pass-through: add to queue for pathfinding but
+                        # not to reachable (vehicle can't stop in enemy hex)
+                        is_overrun_passthrough = (
+                            neighbor.unit is not None
+                            and getattr(neighbor.unit, 'unit_type', None) == 'Soldier'
+                            and unit.unit_type == 'Vehicle'
+                            and any(a.lower() == 'overrun'
+                                    for a in (getattr(unit, 'abilities', []) or []))
+                        )
+                        if not is_overrun_passthrough:
+                            reachable.add((nq, nr))
                         queue.append((nq, nr, new_movement, neighbor.terrain))
-        
+
+        # Road bonus: Vehicles get +1 speed if entire path stays on roads
+        # This is computed separately - only add hexes reachable via road-only paths
+        if (include_road_bonus and
+            unit.unit_type == 'Vehicle' and
+            not road_only and  # Don't stack road bonus with road_only mode (High Gear)
+            start_hex and start_hex.has_road):
+
+            # Compute additional hexes reachable with +1 speed via roads only
+            road_bonus_hexes = self._get_road_bonus_hexes(
+                board, start_q, start_r, unit, max_speed + 1, movement_mods
+            )
+            reachable.update(road_bonus_hexes)
+
         return reachable
+
+    def _get_road_bonus_hexes(self, board: Board, start_q: int, start_r: int,
+                               unit, bonus_speed: int, movement_mods: dict = None) -> Set[Tuple[int, int]]:
+        # Note: unit and movement_mods params kept for potential future use (ability interactions)
+        _ = unit, movement_mods  # Suppress unused warnings
+        """
+        Get hexes reachable only via road paths with bonus speed.
+        Used for road bonus calculation - vehicles get +1 speed if staying on roads.
+        """
+        road_reachable = set()
+
+        # Queue: (q, r, movement_remaining)
+        queue = deque([(start_q, start_r, bonus_speed)])
+        visited = {(start_q, start_r): bonus_speed}
+
+        while queue:
+            q, r, movement = queue.popleft()
+            current_hex = board.get_hex(q, r)
+
+            # Only continue if current hex has a road
+            if not current_hex or not current_hex.has_road:
+                continue
+
+            neighbors = board.get_neighbors(q, r)
+            for neighbor in neighbors:
+                nq, nr = neighbor.q, neighbor.r
+
+                # Road bonus only applies when staying on roads
+                if not neighbor.has_road:
+                    continue
+
+                # Skip occupied hexes (except obstacles)
+                if neighbor.unit is not None:
+                    is_obstacle = getattr(neighbor.unit, 'unit_type', None) == 'Obstacle'
+                    if not is_obstacle:
+                        continue
+
+                # Roads cost 1 movement
+                new_movement = movement - 1
+
+                if new_movement >= 0:
+                    if (nq, nr) == (start_q, start_r):
+                        continue
+
+                    if (nq, nr) not in visited or visited[(nq, nr)] < new_movement:
+                        visited[(nq, nr)] = new_movement
+                        road_reachable.add((nq, nr))
+                        queue.append((nq, nr, new_movement))
+
+        return road_reachable
     
     def get_assault_move_range(self, unit) -> int:
         """
@@ -396,22 +546,30 @@ class MovementSystem:
         
         return dist < inradius - tolerance
     
-    def has_line_of_sight(self, board: Board, unit, 
-                         q1: int, r1: int, q2: int, r2: int) -> Tuple[bool, List[Hex]]:
+    def has_line_of_sight(self, board: Board, unit,
+                         q1: int, r1: int, q2: int, r2: int,
+                         smoke_screens: set = None) -> Tuple[bool, List[Hex]]:
         """
         Check if there's line of sight between two hexes, considering unit abilities.
-        
+
         LOS Rules (PROPER GEOMETRIC IMPLEMENTATION):
         - LOS is drawn from center of hex to center of target hex
         - If LOS passes through interior of blocking hex: BLOCKED
         - If LOS passes along 1 shared edge (counts as single edge): LOS is VALID
         - If LOS passes along 2+ distinct edges: LOS is BLOCKED
-        
+        - Smoke screens block LOS into, out of, and through their hex
+
         Returns (has_los, blocking_hexes)
         """
+        smoke_screens = smoke_screens or set()
         # Get all hexes along the line
         line_hexes = self._get_line_hexes(board, q1, r1, q2, r2)
-        
+
+        # Check for smoke screens - blocks LOS into, out of, and through
+        for hex_tile in line_hexes:
+            if (hex_tile.q, hex_tile.r) in smoke_screens:
+                return False, [hex_tile]
+
         # Also check hexes adjacent to the line path (to catch edge cases)
         candidate_hexes = set()
         for hex_tile in line_hexes:

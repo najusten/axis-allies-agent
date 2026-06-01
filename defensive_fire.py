@@ -40,7 +40,7 @@ class DefensiveFireOpportunity:
     defender_pos: Tuple[int, int]  # Where defender is located
 
 
-@dataclass 
+@dataclass
 class DefensiveFireResult:
     """Result of a defensive fire attack"""
     defender_id: str
@@ -54,8 +54,11 @@ class DefensiveFireResult:
     cover_roll: Optional[int]    # Cover roll if applicable
     cover_success: bool          # Did cover negate the attack?
     target_disrupted: bool       # Final result: was target disrupted?
-    movement_stopped: bool       # Did target have to stop moving?
-    message: str
+    target_damaged: bool = False # For Double Shot: second hit on vehicle
+    target_destroyed: bool = False  # For Double Shot: second hit on soldier (or already disrupted)
+    movement_stopped: bool = False  # Did target have to stop moving?
+    message: str = ""
+    hits_applied: int = 0        # Number of hits that got through (for Double Shot)
 
 
 class DefensiveFireSystem:
@@ -84,7 +87,127 @@ class DefensiveFireSystem:
     def reset_phase(self):
         """Reset tracking for a new phase. Call at start of each movement phase."""
         self._units_fired_this_phase.clear()
-    
+
+    def check_antiair_defensive_fire(
+        self,
+        game_state: GameState,
+        aircraft_id: str,
+        aircraft_hex: Tuple[int, int]
+    ) -> List['DefensiveFireOpportunity']:
+        """
+        Check for Antiair/Ace defensive fire opportunities when an Aircraft is placed.
+
+        Antiair: Triggers when Aircraft placed in adjacent hex (distance 1)
+        Ace: Triggers when Aircraft placed within 4 hexes
+
+        Args:
+            game_state: Current game state
+            aircraft_id: ID of the placed Aircraft
+            aircraft_hex: Hex where Aircraft is placed
+
+        Returns:
+            List of DefensiveFireOpportunity objects
+        """
+        opportunities = []
+
+        aircraft_state = game_state.get_unit_state(aircraft_id)
+        if not aircraft_state:
+            return opportunities
+
+        aircraft = aircraft_state.unit
+        aircraft_owner = aircraft_state.owner
+
+        # Get enemy units
+        enemy_owner = "player2" if aircraft_owner == "player1" else "player1"
+        enemy_units = game_state.get_units_by_owner(enemy_owner)
+
+        def hex_distance(a: Tuple[int, int], b: Tuple[int, int]) -> int:
+            q1, r1 = a
+            q2, r2 = b
+            return (abs(q1 - q2) + abs(q1 + r1 - q2 - r2) + abs(r1 - r2)) // 2
+
+        for enemy_state in enemy_units:
+            if not enemy_state.is_alive:
+                continue
+
+            enemy = enemy_state.unit
+            enemy_pos = enemy_state.position
+            enemy_id = enemy.id
+
+            # Disrupted units can't make defensive fire
+            if enemy_state.is_disrupted:
+                continue
+
+            # Check abilities for Limited Ammo and Suppressive Fire
+            enemy_abilities = getattr(enemy, 'abilities', []) or []
+
+            # Limited Ammo: can't make defensive fire attacks
+            has_limited_ammo = any(a.lower() == 'limited ammo' for a in enemy_abilities)
+            if has_limited_ammo:
+                continue
+
+            # Each unit can only fire once per phase
+            # Exception: Suppressive Fire allows unlimited defensive fire
+            has_suppressive_fire = any(a.lower() == 'suppressive fire' for a in enemy_abilities)
+            if enemy_id in self._units_fired_this_phase and not has_suppressive_fire:
+                continue
+
+            # Check for Antiair or Ace ability
+            has_antiair = any(a.lower() == 'antiair' for a in enemy_abilities)
+            has_ace = any(a.lower() == 'ace' for a in enemy_abilities)
+
+            # Antiair Support: Gains Antiair when in same hex as friendly Antiair unit
+            has_antiair_support = any(a.lower() == 'antiair support' for a in enemy_abilities)
+            if has_antiair_support and not has_antiair:
+                # Check if there's a friendly Antiair unit in same hex
+                units_in_hex = game_state.get_units_at_position(enemy_pos[0], enemy_pos[1])
+                for hex_unit_state in units_in_hex:
+                    if hex_unit_state.owner == enemy_owner and hex_unit_state.unit.id != enemy_id:
+                        hex_abilities = getattr(hex_unit_state.unit, 'abilities', []) or []
+                        if any(a.lower() == 'antiair' for a in hex_abilities):
+                            has_antiair = True
+                            break
+
+            if not has_antiair and not has_ace:
+                continue
+
+            distance = hex_distance(enemy_pos, aircraft_hex)
+
+            # Antiair: adjacent (distance <= 1)
+            # Ace: within 4 hexes (distance <= 4)
+            can_fire = False
+            if has_antiair and distance <= 1:
+                can_fire = True
+            if has_ace and distance <= 4:
+                can_fire = True
+
+            if not can_fire:
+                continue
+
+            # Check if enemy has attack value vs aircraft (use anti-Soldier values)
+            if distance <= 1:
+                attack_dice = enemy.per_short
+            elif distance <= 4:
+                attack_dice = enemy.per_medium
+            else:
+                attack_dice = enemy.per_long
+
+            if attack_dice <= 0:
+                continue
+
+            opportunity = DefensiveFireOpportunity(
+                defender_id=enemy_id,
+                defender_state=enemy_state,
+                target_id=aircraft_id,
+                target_state=aircraft_state,
+                from_hex=aircraft_hex,  # Aircraft placed here
+                to_hex=aircraft_hex,    # Same hex (not moving)
+                defender_pos=enemy_pos
+            )
+            opportunities.append(opportunity)
+
+        return opportunities
+
     def get_adjacent_hexes(self, q: int, r: int) -> List[Tuple[int, int]]:
         """Get all 6 adjacent hexes for a given position."""
         # Axial coordinate neighbors
@@ -159,21 +282,74 @@ class DefensiveFireSystem:
             # Rule: Disrupted units cannot make defensive fire attacks
             if enemy_state.is_disrupted:
                 continue
-            
+
+            # Check for Limited Ammo - can't make defensive fire attacks
+            enemy_abilities = getattr(enemy_unit, 'abilities', []) or []
+            has_limited_ammo = any(a.lower() == 'limited ammo' for a in enemy_abilities)
+            if has_limited_ammo:
+                continue
+
             # Rule: Each unit can only fire defensively once per phase
-            if enemy_id in self._units_fired_this_phase:
+            # Exception: Suppressive Fire allows unlimited defensive fire
+            has_suppressive_fire = any(a.lower() == 'suppressive fire' for a in enemy_abilities)
+            if enemy_id in self._units_fired_this_phase and not has_suppressive_fire:
+                continue
+
+            # Covering Fire: Units hit by Covering Fire can't make defensive fire this turn
+            if enemy_state.covering_fire_target:
                 continue
             
+            # Check for special abilities
+            has_awareness = any(a.lower() == 'awareness' for a in enemy_abilities)
+            has_overlapping_fire = any(a.lower() == 'overlapping fire' for a in enemy_abilities)
+            has_battlefield_awareness = any(a.lower() == 'battlefield awareness' for a in enemy_abilities)
+
+            # Command Awareness: Vehicles within 2 hexes of Command Awareness unit gain Awareness
+            if enemy_unit.unit_type == 'Vehicle' and not has_awareness:
+                friendly_units = game_state.get_units_by_owner(enemy_state.owner)
+                for friendly_state in friendly_units:
+                    if not friendly_state.is_alive or friendly_state.unit.id == enemy_unit.id:
+                        continue
+                    friendly_abilities = getattr(friendly_state.unit, 'abilities', []) or []
+                    if any(a.lower() == 'command awareness' for a in friendly_abilities):
+                        friendly_pos = friendly_state.position
+                        dist = self.board.hex_distance(
+                            enemy_pos[0], enemy_pos[1], friendly_pos[0], friendly_pos[1]
+                        ) if hasattr(self, 'board') else game_state.board.hex_distance(
+                            enemy_pos[0], enemy_pos[1], friendly_pos[0], friendly_pos[1]
+                        )
+                        if dist <= 2:
+                            has_awareness = True
+                            break
+
             # Rule: Soldiers don't provoke defensive fire from Vehicles
+            # Exception: Overlapping Fire allows Vehicles to fire on Soldiers
             if moving_is_soldier and enemy_unit.unit_type == 'Vehicle':
-                continue
-            
-            # Check adjacency: must be adjacent to BOTH from_hex and to_hex
+                if not has_overlapping_fire:
+                    continue
+
+            # Check adjacency
             adjacent_to_from = self.is_adjacent(enemy_pos, from_hex)
             adjacent_to_to = self.is_adjacent(enemy_pos, to_hex)
-            
-            # Defensive fire triggers when moving between two adjacent hexes
+            entering_enemy_hex = (to_hex == enemy_pos)
+            leaving_adjacent = adjacent_to_from and not adjacent_to_to
+
+            # Determine if defensive fire is triggered
+            can_fire = False
+
+            # Standard rule: moving between two adjacent hexes
             if adjacent_to_from and adjacent_to_to:
+                can_fire = True
+
+            # Awareness: can attack Soldiers entering the unit's hex
+            if has_awareness and moving_is_soldier and entering_enemy_hex:
+                can_fire = True
+
+            # Battlefield Awareness: can attack Vehicles moving OUT of adjacent hexes
+            if has_battlefield_awareness and not moving_is_soldier and leaving_adjacent:
+                can_fire = True
+
+            if can_fire:
                 opportunity = DefensiveFireOpportunity(
                     defender_id=enemy_id,
                     defender_state=enemy_state,
@@ -190,25 +366,25 @@ class DefensiveFireSystem:
     def get_attack_dice(
         self,
         attacker: 'Unit',
-        target: 'Unit', 
+        target: 'Unit',
         distance: int,
         attacker_state: UnitState
-    ) -> int:
+    ) -> Tuple[int, int]:
         """
         Calculate number of attack dice for defensive fire.
-        
+
         Args:
             attacker: The unit making defensive fire
             target: The unit being shot at
             distance: Distance in hexes (0 = same hex, 1 = adjacent)
             attacker_state: State of attacking unit (for disruption check)
-        
+
         Returns:
-            Number of dice to roll
+            Tuple of (number of dice, hit modifier for Gung Ho)
         """
         # Determine which attack value to use based on target type
         target_is_vehicle = target.unit_type == 'Vehicle'
-        
+
         if target_is_vehicle:
             if distance <= 1:
                 dice = attacker.veh_short
@@ -223,50 +399,137 @@ class DefensiveFireSystem:
                 dice = attacker.per_medium
             else:
                 dice = attacker.per_long
-        
+
         # Disrupted/damaged attackers get -1 die (already checked in trigger,
         # but included for completeness if called directly)
         if attacker_state.is_disrupted or attacker_state.is_damaged:
             dice = max(0, dice - 1)
-        
-        return dice
+
+        # Quick Swivel: +1 attack die when making defensive-fire attacks
+        hit_modifier = 0
+        if self.ability_system:
+            attacker_abilities = getattr(attacker, 'abilities', []) or []
+            for ability in attacker_abilities:
+                if ability.lower() == 'quick swivel':
+                    dice += 1
+                    break
+
+            # Gung Ho: +1 on each attack die when making defensive-fire attacks
+            for ability in attacker_abilities:
+                if ability.lower() == 'gung ho':
+                    hit_modifier = -1  # -1 means easier to hit (need 3+ instead of 4+)
+                    break
+
+        return dice, hit_modifier
+
+    def check_stalwart_bonus(self, game_state, attacker_state: UnitState) -> bool:
+        """
+        Check if attacker has a friendly unit with Stalwart adjacent.
+        Stalwart: Friendly Soldiers adjacent get +1 on each attack die for defensive fire.
+        """
+        if attacker_state.unit.unit_type != 'Soldier':
+            return False
+
+        aq, ar = attacker_state.position
+        friendly_units = game_state.get_units_by_owner(attacker_state.owner)
+
+        for friendly_state in friendly_units:
+            if not friendly_state.is_alive:
+                continue
+            if friendly_state.unit.id == attacker_state.unit.id:
+                continue
+
+            # Check if adjacent (distance 1)
+            fq, fr = friendly_state.position
+            dist = game_state.board.hex_distance(aq, ar, fq, fr)
+            if dist > 1:
+                continue
+
+            # Check for Stalwart ability
+            friendly_abilities = getattr(friendly_state.unit, 'abilities', []) or []
+            if any(a.lower() == 'stalwart' for a in friendly_abilities):
+                return True
+
+        return False
     
     def get_defense_value(
         self,
         target: 'Unit',
         target_state: UnitState,
-        is_rear_attack: bool = False
-    ) -> int:
+        is_rear_attack: bool = False,
+        game_state=None
+    ) -> Tuple[int, List[str]]:
         """
-        Get effective defense value for the target.
-        
+        Get effective defense value for the target during defensive fire.
+
         Args:
             target: Target unit
             target_state: Target's current state
             is_rear_attack: Whether this is a rear attack (for vehicles)
-        
+            game_state: Game state (for checking adjacent auras)
+
         Returns:
-            Effective defense value
+            Tuple of (effective defense value, list of notes)
         """
+        notes = []
+
         # Base defense
         if target.unit_type == 'Vehicle' and is_rear_attack:
             defense = target.defense_rear if target.defense_rear else target.defense_front
         else:
             defense = target.defense_front if target.defense_front else target.defense
-        
+
         if defense is None:
             defense = 3  # Default
-        
+
+        # Mobility: +1/+1 defense against defensive-fire attacks
+        if self.ability_system:
+            target_abilities = getattr(target, 'abilities', []) or []
+            for ability in target_abilities:
+                if ability.lower() == 'mobility':
+                    defense += 1
+                    notes.append("Mobility: +1/+1 defense vs defensive fire")
+                    break
+
+        # Elan/Fearless: Friendly Soldiers adjacent get +1/+1 defense vs defensive fire
+        if game_state and target.unit_type == 'Soldier':
+            if self._has_adjacent_elan_fearless(game_state, target_state):
+                defense += 1
+                notes.append("Elan/Fearless: +1/+1 defense vs defensive fire")
+
         # Disrupted: -1 defense
         if target_state.is_disrupted:
             defense = max(1, defense - 1)
-        
+
         # Damaged: -1 defense (doesn't stack with disrupted for penalty purposes,
         # but damaged is a separate state that also gives -1)
         if target_state.is_damaged:
             defense = max(1, defense - 1)
-        
-        return defense
+
+        return defense, notes
+
+    def _has_adjacent_elan_fearless(self, game_state, target_state: UnitState) -> bool:
+        """Check if target has adjacent friendly unit with Elan or Fearless."""
+        tq, tr = target_state.position
+        friendly_units = game_state.get_units_by_owner(target_state.owner)
+
+        for friendly_state in friendly_units:
+            if not friendly_state.is_alive:
+                continue
+            if friendly_state.unit.id == target_state.unit.id:
+                continue
+
+            fq, fr = friendly_state.position
+            dist = game_state.board.hex_distance(tq, tr, fq, fr)
+            if dist > 1:
+                continue
+
+            friendly_abilities = getattr(friendly_state.unit, 'abilities', []) or []
+            for ability in friendly_abilities:
+                if ability.lower() in ['elan', 'fearless']:
+                    return True
+
+        return False
     
     def resolve_defensive_fire(
         self,
@@ -302,10 +565,14 @@ class DefensiveFireSystem:
             return (abs(q1 - q2) + abs(q1 + r1 - q2 - r2) + abs(r1 - r2)) // 2
         
         distance = hex_distance(opportunity.defender_pos, attack_in_hex)
-        
-        # Get attack dice
-        num_dice = self.get_attack_dice(defender, target, distance, defender_state)
-        
+
+        # Get attack dice (includes Quick Swivel bonus and Gung Ho modifier)
+        num_dice, hit_modifier = self.get_attack_dice(defender, target, distance, defender_state)
+
+        # Stalwart: Friendly Soldiers adjacent get +1 on each attack die for defensive fire
+        if self.check_stalwart_bonus(game_state, defender_state):
+            hit_modifier -= 1  # -1 means easier to hit
+
         if num_dice <= 0:
             # Can't attack - no dice
             return DefensiveFireResult(
@@ -327,13 +594,28 @@ class DefensiveFireSystem:
         # Mark this unit as having fired defensively
         self._units_fired_this_phase.add(opportunity.defender_id)
         
-        # Roll attack
+        # Check for Double Shot (makes two attack rolls during defensive fire)
+        defender_abilities = getattr(defender, 'abilities', []) or []
+        has_double_shot = any('double shot' in a.lower() for a in defender_abilities)
+
+        # Roll attack (with Gung Ho hit modifier if applicable)
         attack_result = self.dice_system.roll_attack(
             num_dice=num_dice,
             is_disrupted=defender_state.is_disrupted,
-            is_damaged=defender_state.is_damaged
+            is_damaged=defender_state.is_damaged,
+            ability_modifier=hit_modifier
         )
-        
+
+        # Double Shot: Make a second attack roll (both are resolved separately)
+        attack_result_2 = None
+        if has_double_shot:
+            attack_result_2 = self.dice_system.roll_attack(
+                num_dice=num_dice,
+                is_disrupted=defender_state.is_disrupted,
+                is_damaged=defender_state.is_damaged,
+                ability_modifier=hit_modifier
+            )
+
         # Get target defense
         # For vehicles, determine if this is front or rear based on movement direction
         # Rule: Vehicle faces toward hex it's entering during defensive fire
@@ -350,63 +632,117 @@ class DefensiveFireSystem:
                 opportunity.defender_pos, attack_in_hex, vehicle_facing
             )
             is_rear = not is_front
-        
-        defense = self.get_defense_value(target, target_state, is_rear)
-        
-        # Check if attack hits (successes >= defense)
-        hit = attack_result.successes >= defense
-        
-        # Handle cover
+
+        defense, defense_notes = self.get_defense_value(target, target_state, is_rear, game_state)
+
+        # Check if target hex has cover
+        hex_obj = game_state.board.hexes.get(attack_in_hex)
+        terrain = hex_obj.terrain if hex_obj else 'open'
+        has_cover = terrain in ['forest', 'town', 'hill', 'marsh', 'building']
+
+        # Determine cover roll threshold based on unit type
+        if target.unit_type == 'Vehicle':
+            unit_category = UnitCategory.VEHICLE
+        else:
+            unit_category = UnitCategory.SOLDIER
+
+        # Same hex gives -1 penalty to cover
+        same_hex = (opportunity.defender_pos == attack_in_hex)
+
+        # Resolve first attack
+        hit_1 = attack_result.successes >= defense
         cover_roll = None
-        cover_success = False
-        
-        if hit:
-            # Check if target hex has cover
-            hex_obj = game_state.board.hexes.get(attack_in_hex)
-            terrain = hex_obj.terrain if hex_obj else 'open'
-            has_cover = terrain in ['forest', 'town', 'hill', 'marsh', 'building']
-            
-            if has_cover:
-                # Determine cover roll threshold based on unit type
-                if target.unit_type == 'Vehicle':
-                    unit_category = UnitCategory.VEHICLE
-                else:
-                    unit_category = UnitCategory.SOLDIER
-                
-                # Same hex gives -1 penalty to cover
-                same_hex = (opportunity.defender_pos == attack_in_hex)
-                
-                cover_result = self.dice_system.roll_cover_save(
+        cover_success_1 = False
+
+        if hit_1 and has_cover:
+            cover_result = self.dice_system.roll_cover_save(
+                unit_category=unit_category,
+                attacker_same_hex=same_hex
+            )
+            cover_roll = cover_result.roll
+            cover_success_1 = cover_result.success
+
+        # Resolve second attack (Double Shot)
+        hit_2 = False
+        cover_success_2 = False
+        if attack_result_2 is not None:
+            hit_2 = attack_result_2.successes >= defense
+            if hit_2 and has_cover:
+                cover_result_2 = self.dice_system.roll_cover_save(
                     unit_category=unit_category,
                     attacker_same_hex=same_hex
                 )
-                cover_roll = cover_result.roll
-                cover_success = cover_result.success
-        
-        # Determine final result
-        # Defensive fire special rule: cover success NEGATES attack entirely
-        # (not just reduces to disruption like normal combat)
+                cover_success_2 = cover_result_2.success
+
+        # Count total hits that got through (not negated by cover)
+        hits_applied = 0
+        if hit_1 and not cover_success_1:
+            hits_applied += 1
+        if hit_2 and not cover_success_2:
+            hits_applied += 1
+
+        # Determine final result based on hits applied
+        # Each hit causes a disruption. Two disruptions:
+        # - Soldier: destroyed (healthy->disrupted->destroyed)
+        # - Vehicle: damaged (healthy->disrupted->damaged)
         target_disrupted = False
+        target_damaged = False
+        target_destroyed = False
         movement_stopped = False
-        
-        if hit and not cover_success:
-            target_disrupted = True
+
+        if hits_applied >= 1:
             movement_stopped = True
+            if target_state.is_disrupted:
+                # Already disrupted - next hit is worse
+                if target.unit_type == 'Vehicle':
+                    target_damaged = True
+                else:
+                    target_destroyed = True
+            else:
+                target_disrupted = True
+                # Check for second hit (Double Shot)
+                if hits_applied >= 2:
+                    if target.unit_type == 'Vehicle':
+                        target_damaged = True
+                    else:
+                        target_destroyed = True
+
+        # Use first attack's cover roll for reporting (simplification)
+        cover_success = cover_success_1
         
-        # Build message
+        # Build message with ability notes
+        ability_notes_str = ""
+        if defense_notes or hit_modifier != 0:
+            notes_list = defense_notes.copy()
+            if hit_modifier < 0:
+                notes_list.append("Gung Ho: +1 on attack dice")
+            if has_double_shot:
+                notes_list.append("Double Shot")
+            if notes_list:
+                ability_notes_str = " [" + ", ".join(notes_list) + "]"
+
+        # Build result message
+        any_hit = hit_1 or hit_2
         if num_dice == 0:
             message = f"{defender.name} has no attack against {target.name}"
-        elif not hit:
+        elif hits_applied == 0:
+            if not any_hit:
+                message = (f"{defender.name} defensive fire vs {target.name}: "
+                          f"{attack_result.successes} successes vs defense {defense} - MISS{ability_notes_str}")
+            else:
+                message = (f"{defender.name} defensive fire vs {target.name}: "
+                          f"HIT but cover saves succeeded - NEGATED{ability_notes_str}")
+        elif target_destroyed:
             message = (f"{defender.name} defensive fire vs {target.name}: "
-                      f"{attack_result.successes} successes vs defense {defense} - MISS")
-        elif cover_success:
+                      f"{hits_applied} hits - DESTROYED! Movement stopped.{ability_notes_str}")
+        elif target_damaged:
             message = (f"{defender.name} defensive fire vs {target.name}: "
-                      f"HIT but cover save succeeds (rolled {cover_roll}) - NEGATED")
+                      f"{hits_applied} hits - DISRUPTED and DAMAGED! Movement stopped.{ability_notes_str}")
         else:
             message = (f"{defender.name} defensive fire vs {target.name}: "
                       f"{attack_result.successes} successes vs defense {defense} - "
-                      f"DISRUPTED! Movement stopped.")
-        
+                      f"DISRUPTED! Movement stopped.{ability_notes_str}")
+
         return DefensiveFireResult(
             defender_id=opportunity.defender_id,
             target_id=opportunity.target_id,
@@ -415,12 +751,15 @@ class DefensiveFireSystem:
             rolls=attack_result.rolls,
             successes=attack_result.successes,
             target_defense=defense,
-            hit=hit,
+            hit=any_hit,
             cover_roll=cover_roll,
             cover_success=cover_success,
             target_disrupted=target_disrupted,
+            target_damaged=target_damaged,
+            target_destroyed=target_destroyed,
             movement_stopped=movement_stopped,
-            message=message
+            message=message,
+            hits_applied=hits_applied
         )
     
     def apply_defensive_fire_result(
@@ -430,19 +769,26 @@ class DefensiveFireSystem:
     ) -> Tuple[int, int]:
         """
         Apply the results of defensive fire to the game state.
-        
+
         Args:
             game_state: Game state to modify
             result: The defensive fire result
-        
+
         Returns:
             The hex where the unit ended up (may be different from intended destination)
         """
-        if result.target_disrupted:
-            target_state = game_state.get_unit_state(result.target_id)
-            if target_state:
+        target_state = game_state.get_unit_state(result.target_id)
+        if target_state:
+            if result.target_destroyed:
+                # Unit is destroyed - remove from game
+                game_state.remove_unit(result.target_id)
+            elif result.target_damaged:
+                # Unit is disrupted AND damaged (Double Shot on vehicle)
                 target_state.is_disrupted = True
-        
+                target_state.is_damaged = True
+            elif result.target_disrupted:
+                target_state.is_disrupted = True
+
         # Return the hex where unit stopped
         # If movement was stopped, they stop in the attack hex
         if result.movement_stopped:

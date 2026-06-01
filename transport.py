@@ -11,12 +11,28 @@ class TransportState:
     
     def _get_capacity(self) -> int:
         """Determine transport capacity from abilities"""
-        # Most transports carry 1-2 units
-        # Check abilities for specific capacity
-        if 'Transport' in ' '.join(self.transport.abilities):
-            return 1  # Default capacity
-        if 'Gun Transport' in ' '.join(self.transport.abilities):
-            return 1  # Can carry artillery specifically
+        abilities_str = ' '.join(self.transport.abilities).lower()
+
+        # Heavy Transport: can carry 2 soldiers (including Artillery)
+        if 'heavy transport' in abilities_str:
+            return 2
+
+        # Large Transport: can carry 2 soldiers (one can be Artillery)
+        if 'large transport' in abilities_str:
+            return 2
+
+        # Exposed Transport: can carry 1 soldier (but they can be attacked)
+        if 'exposed transport' in abilities_str:
+            return 1
+
+        # Regular Transport: 1 soldier
+        if 'transport' in abilities_str:
+            return 1
+
+        # Gun Transport: 1 artillery
+        if 'gun transport' in abilities_str:
+            return 1
+
         return 0
     
     def can_load(self, unit) -> Tuple[bool, str]:
@@ -27,30 +43,58 @@ class TransportState:
         # Check capacity
         if len(self.loaded_units) >= self.max_capacity:
             return False, "Transport at capacity"
-        
+
         # Check unit type - only Soldiers can be transported
         if unit.unit_type != 'Soldier':
             return False, "Only Soldier units can be transported"
-        
-        # Check if it's artillery and transport can carry it
-        is_artillery = 'Artillery' in unit.name or unit.speed == 0
-        has_gun_transport = any('Gun Transport' in ability for ability in self.transport.abilities)
-        has_regular_transport = any('Transport' in ability and 'Gun' not in ability 
-                                   for ability in self.transport.abilities)
-        
-        if is_artillery:
-            # Check if it's large artillery (cannot be transported)
-            if 'Large' in ' '.join(unit.abilities):
+
+        abilities_str = ' '.join(self.transport.abilities).lower()
+        unit_abilities_str = ' '.join(getattr(unit, 'abilities', []) or []).lower()
+
+        # Check if it's artillery
+        is_artillery = 'artillery' in unit.name.lower() or unit.speed == 0
+        is_light_artillery = 'light artillery' in unit_abilities_str
+        is_large = 'large' in unit_abilities_str
+
+        # Heavy Transport: can carry 2 soldiers, no Artillery restriction
+        if 'heavy transport' in abilities_str:
+            if is_large:
+                return False, "Large units cannot be transported"
+            return True, "OK"
+
+        # Large Transport: can carry 2 soldiers, one can be Artillery
+        if 'large transport' in abilities_str:
+            if is_large:
+                return False, "Large units cannot be transported"
+            if is_artillery:
+                # Check if we already have an Artillery loaded
+                for loaded in self.loaded_units:
+                    loaded_name = getattr(loaded, 'name', '').lower()
+                    if 'artillery' in loaded_name:
+                        return False, "Large Transport can only carry one Artillery"
+            return True, "OK"
+
+        # Gun Transport: can carry non-large Artillery (Light Artillery)
+        if 'gun transport' in abilities_str:
+            if not is_artillery:
+                return False, "Gun Transport can only carry Artillery"
+            if is_large:
                 return False, "Large Artillery cannot be transported"
-            
-            if not has_gun_transport:
-                return False, "Transport cannot carry artillery (needs Gun Transport ability)"
-        else:
-            # Non-artillery soldier
-            if not (has_regular_transport or has_gun_transport):
-                return False, "Transport ability required"
-        
-        return True, "OK"
+            return True, "OK"
+
+        # Light Towing: can transport Light Artillery
+        if 'light towing' in abilities_str:
+            if not is_light_artillery:
+                return False, "Light Towing can only carry Light Artillery"
+            return True, "OK"
+
+        # Regular Transport: only non-Artillery Soldiers
+        if 'transport' in abilities_str:
+            if is_artillery:
+                return False, "Regular Transport cannot carry Artillery"
+            return True, "OK"
+
+        return False, "Transport ability required"
     
     def load_unit(self, unit) -> bool:
         """Load a unit onto the transport"""
@@ -70,13 +114,22 @@ class TransportState:
     def has_fighting_platform(self) -> bool:
         """
         Check if transport has Fighting Platform ability.
-        
+
         NOTE: Fighting Platform is SEPARATE from Transport ability.
         - Transport ability = can carry soldiers
         - Fighting Platform = passengers can attack while aboard
         A transport without Fighting Platform can still carry units, they just can't attack.
         """
         return any('Fighting Platform' in ability for ability in self.transport.abilities)
+
+    def has_exposed_transport(self) -> bool:
+        """
+        Check if transport has Exposed Transport ability.
+
+        Exposed Transport means passengers can be attacked while boarded.
+        """
+        abilities_str = ' '.join(self.transport.abilities).lower()
+        return 'exposed transport' in abilities_str
     
     def can_passengers_attack(self, transport_moved_this_phase: bool) -> bool:
         """

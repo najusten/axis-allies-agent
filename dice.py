@@ -102,7 +102,11 @@ class DiceSystem:
     def roll_d6(self) -> int:
         """Roll a single d6"""
         return random.randint(1, 6)
-    
+
+    def roll_single_die(self) -> int:
+        """Alias for roll_d6"""
+        return self.roll_d6()
+
     def roll_dice(self, num_dice: int) -> List[int]:
         """Roll multiple d6s and return the results"""
         return [self.roll_d6() for _ in range(num_dice)]
@@ -210,28 +214,32 @@ class DiceSystem:
             success=success
         )
     
-    def calculate_hits(self, successes: int, defense: int) -> int:
+    def calculate_hits(self, successes: int, defense: int, superior_armor: int = 0) -> int:
         """
         Calculate number of hits based on successes vs defense.
-        
+
         Args:
             successes: Number of successful attack dice
             defense: Target's defense value
-        
+            superior_armor: Superior Armor X value (need to exceed by X for 2 hits)
+
         Returns:
             Number of hits (0, 1, 2, or 3)
             - 0 hits: successes < defense
             - 1 hit: successes == defense (disrupted)
-            - 2 hits: successes == defense + 1 (damaged/destroyed)
+            - 2 hits: successes >= defense + X where X is superior_armor or 1 (damaged/destroyed)
             - 3 hits: successes >= defense * 2 (destroyed)
         """
+        # Minimum threshold to score 2 hits (normally 1, but Superior Armor increases it)
+        two_hit_threshold = superior_armor if superior_armor > 0 else 1
+
         if successes < defense:
             return 0
         elif successes >= defense * 2:
             return 3
-        elif successes >= defense + 1:
+        elif successes >= defense + two_hit_threshold:
             return 2
-        else:  # successes == defense
+        else:  # successes >= defense but < defense + two_hit_threshold
             return 1
     
     def resolve_soldier_damage(self, hits: int, 
@@ -548,6 +556,23 @@ class DiceSystem:
             'damage_result': damage_result,
             'target_destroyed': damage_result.new_status == UnitStatus.DESTROYED
         }
+
+    def roll_movement(self, ability_modifier: int = 0) -> Tuple[int, bool]:
+        """
+        Roll a movement roll (for entering difficult terrain).
+
+        Movement rolls succeed on 4+ by default.
+
+        Args:
+            ability_modifier: Modifier from abilities like Robust (+1) or Mountaineering (+1)
+
+        Returns:
+            Tuple of (roll_result, success)
+        """
+        roll = self.roll_d6()
+        threshold = 4 - ability_modifier  # 4+ normally, 3+ with +1 modifier
+        success = roll >= threshold
+        return roll, success
 
 
 def get_unit_category(unit) -> UnitCategory:

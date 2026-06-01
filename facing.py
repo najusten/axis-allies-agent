@@ -178,6 +178,42 @@ def is_front_arc_attack(
     return attack_dir in front_arc
 
 
+def is_target_in_front_arc(
+    attacker_pos: Tuple[int, int],
+    target_pos: Tuple[int, int],
+    attacker_facing: HexDirection
+) -> bool:
+    """
+    Determine if a target is within the attacker's front arc.
+    Used for No Turret ability - vehicles can only attack targets in front.
+
+    Args:
+        attacker_pos: Position of attacking unit
+        target_pos: Position of target unit
+        attacker_facing: Direction the attacker is facing
+
+    Returns:
+        True if target is in attacker's front arc, False otherwise
+    """
+    # Same hex - can always attack (close assault)
+    if attacker_pos == target_pos:
+        return True
+
+    # Get direction from attacker to target
+    dq = target_pos[0] - attacker_pos[0]
+    dr = target_pos[1] - attacker_pos[1]
+
+    # Adjacent check
+    attack_direction = VECTOR_TO_DIRECTION.get((dq, dr))
+    if attack_direction is None:
+        # Non-adjacent - approximate direction
+        attack_direction = _approximate_direction(dq, dr)
+
+    # Check if direction to target is in front arc
+    front_arc = get_front_arc_directions(attacker_facing)
+    return attack_direction in front_arc
+
+
 def _approximate_direction(dq: int, dr: int) -> HexDirection:
     """
     Approximate the hex direction for non-adjacent positions.

@@ -27,9 +27,12 @@ class MoveAction(Action):
     to_r: int
     path: list[Tuple[int, int]]  # Full path including intermediate hexes
     movement_cost: int
-    
-    def __init__(self, unit_id: str, from_q: int, from_r: int, to_q: int, to_r: int, 
-                 path: list[Tuple[int, int]] = None, movement_cost: int = 0):
+    is_strike_and_fade: bool  # True if this is a Strike and Fade move (after attacking)
+    is_relocate: bool  # True if this is a Relocate move (assault phase movement)
+
+    def __init__(self, unit_id: str, from_q: int, from_r: int, to_q: int, to_r: int,
+                 path: list[Tuple[int, int]] = None, movement_cost: int = 0,
+                 is_strike_and_fade: bool = False, is_relocate: bool = False):
         super().__init__(unit_id, "move")
         self.from_q = from_q
         self.from_r = from_r
@@ -37,9 +40,16 @@ class MoveAction(Action):
         self.to_r = to_r
         self.path = path or [(from_q, from_r), (to_q, to_r)]
         self.movement_cost = movement_cost
-    
+        self.is_strike_and_fade = is_strike_and_fade
+        self.is_relocate = is_relocate
+
     def __str__(self):
-        return f"Move {self.unit_id}: ({self.from_q},{self.from_r}) → ({self.to_q},{self.to_r}) [cost: {self.movement_cost}]"
+        suffix = ""
+        if self.is_strike_and_fade:
+            suffix = " [Strike&Fade]"
+        elif self.is_relocate:
+            suffix = " [Relocate]"
+        return f"Move {self.unit_id}: ({self.from_q},{self.from_r}) → ({self.to_q},{self.to_r}){suffix}"
 
 
 @dataclass
@@ -53,10 +63,12 @@ class AttackAction(Action):
     range_category: str  # 'short', 'medium', 'long'
     distance: int
     has_los: bool
-    
+    improvised_attack: Optional[dict] = None  # For Improvisation ability: {attack_close, attack_medium, attack_long, etc.}
+
     def __init__(self, unit_id: str, attacker_q: int, attacker_r: int,
                  target_id: str, target_q: int, target_r: int,
-                 range_category: str, distance: int, has_los: bool = True):
+                 range_category: str, distance: int, has_los: bool = True,
+                 improvised_attack: Optional[dict] = None):
         super().__init__(unit_id, "attack")
         self.attacker_q = attacker_q
         self.attacker_r = attacker_r
@@ -66,9 +78,11 @@ class AttackAction(Action):
         self.range_category = range_category
         self.distance = distance
         self.has_los = has_los
-    
+        self.improvised_attack = improvised_attack
+
     def __str__(self):
-        return f"Attack {self.unit_id} → {self.target_id} at range {self.distance} ({self.range_category})"
+        suffix = " [Improvised]" if self.improvised_attack else ""
+        return f"Attack {self.unit_id} → {self.target_id} at range {self.distance} ({self.range_category}){suffix}"
 
 
 @dataclass
@@ -111,12 +125,76 @@ class UseAbilityAction(Action):
 
 
 @dataclass
+class BoardTransportAction(Action):
+    """Represents a soldier boarding a transport"""
+    transport_id: str
+    position_q: int
+    position_r: int
+
+    def __init__(self, unit_id: str, transport_id: str, position_q: int, position_r: int):
+        super().__init__(unit_id, "board_transport")
+        self.transport_id = transport_id
+        self.position_q = position_q
+        self.position_r = position_r
+
+    def __str__(self):
+        return f"Board {self.unit_id} → Transport {self.transport_id}"
+
+
+@dataclass
+class DismountTransportAction(Action):
+    """Represents a soldier dismounting from a transport"""
+    transport_id: str
+    to_q: int
+    to_r: int
+
+    def __init__(self, unit_id: str, transport_id: str, to_q: int, to_r: int):
+        super().__init__(unit_id, "dismount_transport")
+        self.transport_id = transport_id
+        self.to_q = to_q
+        self.to_r = to_r
+
+    def __str__(self):
+        return f"Dismount {self.unit_id} from {self.transport_id} → ({self.to_q},{self.to_r})"
+
+
+@dataclass
+class DeployAction(Action):
+    """Represents deploying a Paratrooper unit onto the map"""
+    to_q: int
+    to_r: int
+
+    def __init__(self, unit_id: str, to_q: int, to_r: int):
+        super().__init__(unit_id, "deploy")
+        self.to_q = to_q
+        self.to_r = to_r
+
+    def __str__(self):
+        return f"Deploy {self.unit_id} at ({self.to_q},{self.to_r})"
+
+
+@dataclass
+class PlaceAircraftAction(Action):
+    """Represents placing an Aircraft on the map during Flight phase"""
+    to_q: int
+    to_r: int
+
+    def __init__(self, unit_id: str, to_q: int, to_r: int):
+        super().__init__(unit_id, "place_aircraft")
+        self.to_q = to_q
+        self.to_r = to_r
+
+    def __str__(self):
+        return f"Place Aircraft {self.unit_id} at ({self.to_q},{self.to_r})"
+
+
+@dataclass
 class PassAction(Action):
     """Represents passing/doing nothing this turn"""
-    
+
     def __init__(self, unit_id: str = "player"):
         super().__init__(unit_id, "pass")
-    
+
     def __str__(self):
         return f"Pass turn"
 
@@ -156,30 +234,52 @@ class ActionValidator:
     
     def validate_move(self, action: MoveAction, unit, game_state) -> ActionValidation:
         """Validate a move action"""
-        # Check if unit has already moved this turn
-        if game_state.has_unit_moved(unit.id):
-            return ActionValidation(False, "Unit has already moved this turn")
-        
+        # Strike and Fade moves have different validation
+        is_strike_and_fade = getattr(action, 'is_strike_and_fade', False)
+        is_relocate = getattr(action, 'is_relocate', False)
+
+        if is_strike_and_fade:
+            # Strike and Fade: check if the unit has the ability enabled
+            unit_state = game_state.get_unit_state(unit.id)
+            if not unit_state or not unit_state.strike_and_fade_available:
+                return ActionValidation(False, "Strike and Fade not available")
+        elif is_relocate:
+            # Relocate: allowed during assault phase even if moved in movement phase
+            # But can only relocate once per turn
+            unit_state = game_state.get_unit_state(unit.id)
+            if not unit_state:
+                return ActionValidation(False, "Unit not found")
+            # Check if already moved this turn (prevents multiple relocates)
+            if unit_state.has_moved:
+                return ActionValidation(False, "Unit has already moved/relocated this turn")
+        else:
+            # Normal move: check if unit has already moved this turn
+            if game_state.has_unit_moved(unit.id):
+                return ActionValidation(False, "Unit has already moved this turn")
+
         # Check if destination is reachable
         reachable = self.movement_system.get_reachable_hexes(
             self.board, action.from_q, action.from_r, unit
         )
-        
+
         if (action.to_q, action.to_r) not in reachable:
             return ActionValidation(False, f"Hex ({action.to_q},{action.to_r}) is not reachable")
-        
+
         # Check if destination is occupied
+        # Obstacles don't count for stacking - any unit can enter obstacle hexes
         dest_hex = self.board.get_hex(action.to_q, action.to_r)
         if dest_hex and dest_hex.unit is not None:
-            return ActionValidation(False, "Destination hex is occupied")
-        
+            dest_is_obstacle = getattr(dest_hex.unit, 'unit_type', None) == 'Obstacle'
+            if not dest_is_obstacle:
+                return ActionValidation(False, "Destination hex is occupied")
+
         return ActionValidation(True)
     
     def validate_attack(self, action: AttackAction, unit, target, game_state) -> ActionValidation:
         """Validate an attack action"""
-        # Check if unit has already attacked this turn
-        if game_state.has_unit_attacked(unit.id):
-            return ActionValidation(False, "Unit has already attacked this turn")
+        # Check if unit can still attack (supports Double Shot - allows 2 attacks)
+        if not game_state.can_unit_attack(unit.id):
+            return ActionValidation(False, "Unit has already used all attacks this turn")
         
         # Check range - calculate max range from attack values
         # Long range is 5-8 hexes, so max theoretical range is 8
