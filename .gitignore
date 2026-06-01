@@ -1,0 +1,13 @@
+# Data files — kept local only (copyright protection)
+*.csv
+
+# macOS
+.DS_Store
+
+# Generated HTML output
+*.html
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
