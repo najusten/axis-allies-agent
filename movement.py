@@ -208,18 +208,13 @@ class MovementSystem:
                         and not movement_mods.get('amphibious', False):
                     continue
 
-                # Occupancy: obstacles and friendlies are passable; enemies block
-                # (Overrun vehicles may pass through enemy Soldiers but not stop there)
+                # Occupancy never blocks movement (rulebook "Stacking While Moving":
+                # you may move through full hexes, even enemy ones — a hex holds up
+                # to two units of each army). The generator/validator enforce the
+                # stacking limit at the destination; defensive fire punishes passing
+                # enemies. Enemy Vehicles can't share a hex with a Vehicle, but that
+                # is a destination rule too.
                 passthrough_only = False
-                if neighbor.unit is not None:
-                    is_obstacle = getattr(neighbor.unit, 'unit_type', None) == 'Obstacle'
-                    is_friendly = friendly_positions is not None and (nq, nr) in friendly_positions
-                    if not is_obstacle and not is_friendly:
-                        neighbor_is_soldier = 'Soldier' in (getattr(neighbor.unit, 'unit_type', None) or '')
-                        if has_overrun and neighbor_is_soldier:
-                            passthrough_only = True
-                        else:
-                            continue
 
                 if road_only and not along_road:
                     continue
