@@ -120,19 +120,31 @@ initiative_system = InitiativeSystem(ability_system, movement_system)
 
 ---
 
+## Rules source
+The official **Advanced Rulebook** is in `document.pdf` (local only, gitignored). Everything below marked "rulebook" was checked against it on 2026-09-12. The engine follows these original rules, not the 2008 Expanded Rules.
+
 ## Known issues / open rules questions
 
 - Special attacks (rockets, hull cannons, remote control, bombs) roll their own dice outside `_resolve_attack_full`: no cover roll, no facing, no rerolls. They now at least record pending counters correctly. Should be unified.
-- `dice.resolve_soldier_damage`: a cover-saved hit on an *already disrupted* soldier does nothing. Rulebook says a second Disrupted result destroys — verify with a scenario.
-- Defensive fire applies its result immediately and destroys an already-disrupted target (`defensive_fire.py:690`). Rulebook: defensive fire "can only disrupt"? — verify.
-- Forest bog roll threshold is 4+ in the engine; the roll itself is confirmed by forum posts, the number is not. The 2008 Expanded Rules reportedly changed forests to double movement cost and "soft cover −1" — this engine follows the original rules.
+- Hex-side terrain (hedges 5+ to cross, streams need a movement roll, bluffs/cliffs), shell holes, and "road through forest/stream" (roads are their own terrain type here) are not modelled.
+- Speed-1 Vehicle "Minimum Movement" exception (may enter double-cost terrain in the movement phase) not implemented.
+- Defensive fire is automatic (rulebook: optional, and the defender chooses which of the two hexes to fire into).
+- Heavy Armor's "ignore the first Damaged counter" is no longer applied in simultaneous mode (counters are placed from raw hits).
+- Aircraft: flight/airstrike phases run for AI, but the UI has no placement controls; random armies for the UI exclude Aircraft.
 
-### Rules confirmed from rulebook/forums (Sep 2026)
-- Assault phase: attack **or** move; a unit that moved in the movement phase may move again ([axisandallies.org thread](https://www.axisandallies.org/forums/topic/16481/question-from-a-new-player-re-aa-miniatures), starter review).
-- Hindering terrain with cover roll: towns, forests, hills, swamps (soldiers 4+, vehicles 5+; success ⇒ result reduced to Disrupted).
-- Vehicle hits: successes = defense → disrupted, > defense → damaged, ≥ 2×defense → destroyed.
-- Road bonus only if the unit "stays on the road from start to finish"; vehicles make a movement roll to enter forest.
-- Spotter Q&A: a unit only counts as a Spotter if it doesn't move in the assault phase ([aamcardbase Q&A](http://www.aamcardbase.com/special_abilities_aam.aspx)).
+### Implemented straight from the rulebook (Sep 2026)
+- Sequence of play; assault phase = each unit moves (as in the movement phase) **or** attacks; a unit may move in both phases.
+- How to Win: objective control at the end of turn 7 and every turn after; from turn 10 the higher point total; ties keep playing.
+- Movement rolls (4+) to enter forest (Vehicles); failure stops the unit in the hex it was leaving, facing the hex it tried to enter; a failed roll never provokes defensive fire. Vehicles pay 2 per forest/hill hex; can't enter marsh/water. Road bonus: first road hex per phase free for Vehicles. Vehicles may change facing as a zero-hex move; disrupted units can't change facing.
+- Stacking: 2 friendly units per hex, 1 Vehicle; can't be forced to stop overstacked (retrace).
+- LOS: towns, hills, forests block; attacker's and target's hexes never block; edge-graze rules.
+- Facing: front arc = 3 front hex sides; side and same-hex attacks use rear defense.
+- Cover: forest/hill/town for all, marsh for Soldiers; soldiers 4+, vehicles 5+, −1 in the same hex; success ⇒ one face-down Disrupted counter (never a second); cover save **negates** defensive fire.
+- Counters: 1st = Disrupted, 2nd = Damaged (Vehicle) / Destroyed (Soldier, Aircraft), 3rd = Destroyed; placed face-down, applied in the casualty phase; a damaged Vehicle receiving another Damaged counter is destroyed.
+- Disrupted: −1 attack die, −1 defense, can't move, no defensive fire. Damaged: −1 attack die, −1 defense, −1 speed; both at once = penalties applied once.
+- Defensive fire: disrupt-only, immediate, once per unit per phase; Soldiers don't provoke it from Vehicles.
+- Historical Army Limits and year restriction (New Game options).
+- Spotter Q&A ([aamcardbase](http://www.aamcardbase.com/special_abilities_aam.aspx)): a Spotter that moves in the assault phase doesn't count.
 - Artillery assault-only movement, half-hexes, hex-side terrain: not implemented.
 - Ability activation UI missing for Aggression, Gliderborne, Partisan, AVRE, Improved Indirect Fire.
 - Log/coordinates are axial (q, r); the UI's coords toggle shows the same. Fine for debugging, may want offset (col,row) for players.
