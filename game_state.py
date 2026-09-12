@@ -38,7 +38,8 @@ class UnitState:
     is_disrupted: bool = False  # Status effects
     is_damaged: bool = False
     facing: Optional[int] = None  # HexDirection value (0-5) for vehicles, None for soldiers
-    strike_and_fade_available: bool = False  # Enabled after attack if unit has Strike and Fade
+    strike_and_fade_available: bool = False
+    assault_moved: bool = False  # moved (instead of attacking) in this turn's assault phase  # Enabled after attack if unit has Strike and Fade
     heavy_armor_used: bool = False  # Heavy Armor: ignore first Damaged counter each game
     covering_fire_target: bool = False  # True if hit by Covering Fire this turn (can't defensive fire)
     all_guns_blazing_available: bool = False  # Enabled after attack if unit has All Guns Blazing
@@ -108,6 +109,7 @@ class UnitState:
             'carried_unit_id': self.carried_unit_id,
             'carried_by_id': self.carried_by_id,
             'strike_and_fade_available': self.strike_and_fade_available,
+            'assault_moved': self.assault_moved,
             'card': self.unit.to_dict(),
         }
 
@@ -117,6 +119,7 @@ class UnitState:
         self.movement_used = 0
         self.has_attacked = False
         self.attacks_this_turn = 0
+        self.assault_moved = False
         self.strike_and_fade_available = False
         self.all_guns_blazing_available = False
         self.strafe_available = False

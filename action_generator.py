@@ -118,6 +118,8 @@ class ActionGenerator:
             if not unit_state.is_alive:
                 continue
 
+            if unit_state.assault_moved:
+                continue   # Q&A: a unit only counts as a Spotter if it doesn't move in the assault phase
             spotter_q, spotter_r = unit_state.position
             distance = game_state.board.hex_distance(spotter_q, spotter_r, target_q, target_r)
 
@@ -920,8 +922,10 @@ class ActionGenerator:
             # Exception: units with Aggression/move-and-attack abilities
             can_attack = game_state.can_unit_attack(unit.id)
             if can_attack and unit_state.has_moved:
-                # Only allow attack after move if unit has move-and-attack ability
+                # Some abilities forbid shooting after moving (can_move_and_shoot)
                 can_attack = self.movement_system.can_unit_move_and_attack(unit)
+            if unit_state.assault_moved:
+                can_attack = False   # assault phase is attack OR move
             if can_attack:
                 actions.extend(self._get_attack_actions(
                     game_state, unit, unit_state, (q, r), enemy_units
@@ -944,10 +948,11 @@ class ActionGenerator:
                     game_state, unit, unit_state
                 ))
 
-            # Assault phase movement: any unit that hasn't attacked can move
-            # at full speed instead of attacking (move OR attack, not both).
-            # Units with Relocate ability use their Relocate speed instead.
-            if not unit_state.has_attacked and not unit_state.has_moved:
+            # Assault phase movement: any unit that hasn't attacked this phase
+            # may move at full speed instead of attacking — even if it already
+            # moved in the movement phase (rulebook: "may either fire at the
+            # enemy or move again"). Units with Relocate use that speed.
+            if not unit_state.has_attacked and not unit_state.assault_moved:
                 relocate_speed = self._get_relocate_speed(unit)
                 if relocate_speed > 0:
                     actions.extend(self._get_relocate_moves(

@@ -14,7 +14,7 @@ const TERRAIN_COLORS = {
   open: '#e8e4c9', forest: '#2f8f3a', building: '#8a8a8a', water: '#4a7fe1', road: '#a0522d',
   hill: '#9fbf8f', marsh: '#5a6b2f', town: '#cd853f', ruins: '#6f6f6f', stream: '#7fb2e5', impassable: '#222',
 };
-const COVER = new Set(['forest', 'building', 'hill', 'town', 'ruins']);
+const COVER = new Set(['forest', 'building', 'hill', 'town', 'ruins', 'marsh']);
 const PLAYER = {
   player1: { fill: '#3b82f6', light: '#bfdbfe' },
   player2: { fill: '#ef4444', light: '#fecaca' },

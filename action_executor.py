@@ -704,6 +704,7 @@ class ActionExecutor:
                 message = f"{unit.name} fades to ({action.to_q}, {action.to_r})"
             elif is_relocate:
                 unit_state.has_moved = True  # Relocate uses all remaining movement
+                unit_state.assault_moved = True
                 message = f"{unit.name} relocates to ({action.to_q}, {action.to_r})"
 
             # Update facing for vehicles

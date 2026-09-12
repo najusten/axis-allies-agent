@@ -1,0 +1,20 @@
+name: unit-may-move-again-in-assault-phase
+source: "Rulebook (starter review): 'each player gets an assault phase wherein they may either fire at the enemy or move again'; forum: 'If you haven't attacked with a unit during the assault phase, then you can move it anytime in the assault phase'"
+board: {width: 10, height: 8}
+units:
+  - {id: rifles, owner: player1, at: [1,3], stats: {unit_type: Soldier, defense: "4", speed: 2, per: [7,5,3]}}
+  - {id: enemy, owner: player2, at: [9,3], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+phase: movement
+active_player: player1
+actions:
+  - {type: move, unit: rifles, to: [3,3]}
+  - {type: set_phase, phase: assault, active_player: player1}
+  - {type: move, unit: rifles, to: [5,3]}          # second move, instead of attacking
+  - {type: move, unit: rifles, to: [6,3]}          # no third move
+expect:
+  results:
+    0: {success: true}
+    2: {success: true}
+    3: {success: false}
+  units:
+    rifles: {at: [5,3], assault_moved: true}

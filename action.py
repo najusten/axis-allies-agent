@@ -248,14 +248,15 @@ class ActionValidator:
             if not unit_state or not unit_state.strike_and_fade_available:
                 return ActionValidation(False, "Strike and Fade not available")
         elif is_relocate:
-            # Relocate: allowed during assault phase even if moved in movement phase
-            # But can only relocate once per turn
+            # Assault-phase move: allowed even if the unit moved in the movement
+            # phase, but only once per assault phase and not after attacking
             unit_state = game_state.get_unit_state(unit.id)
             if not unit_state:
                 return ActionValidation(False, "Unit not found")
-            # Check if already moved this turn (prevents multiple relocates)
-            if unit_state.has_moved:
-                return ActionValidation(False, "Unit has already moved/relocated this turn")
+            if unit_state.assault_moved:
+                return ActionValidation(False, "Unit has already moved in this assault phase")
+            if unit_state.has_attacked:
+                return ActionValidation(False, "Unit attacked this phase; it may attack or move, not both")
         else:
             # Normal move: check if unit has already moved this turn
             if game_state.has_unit_moved(unit.id):

@@ -1,0 +1,17 @@
+name: marsh-is-hindering-terrain-with-cover
+source: "Rulebook: hindering terrain (towns, forests, hills, or swamps) allows a cover roll — soldiers 4+, vehicles 5+"
+board: {width: 10, height: 8, terrain: {marsh: [[5,3]]}}
+units:
+  - {id: rifles, owner: player1, at: [5,3], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+  - {id: mg, owner: player2, at: [7,3], stats: {unit_type: Soldier, defense: "4", per: [10,8,6]}}
+phase: assault
+active_player: player2
+dice: [6,6,6,6,6,6,6,6, 4]
+actions:
+  - {type: attack, unit: mg, target: rifles}
+  - {type: casualty}
+expect:
+  events:
+    - {type: cover_save, unit: rifles, roll: 4, success: true}
+  units:
+    rifles: {status: disrupted, alive: true}

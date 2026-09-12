@@ -41,9 +41,9 @@ class Board:
     TERRAIN_TYPES = ['open', 'forest', 'building', 'water', 'road', 'hill', 'town',
                      'marsh', 'ruins', 'stream', 'impassable']
     # Terrain that grants cover saves (single source of truth for all systems).
-    # Marsh is difficult terrain but not cover; ruins are treated like buildings.
-    # TODO(rules): confirm ruins/marsh against the rulebook via a scenario test.
-    COVER_TERRAIN = frozenset({'forest', 'building', 'hill', 'town', 'ruins'})
+    # Rulebook: "hindering terrain (towns, forests, hills, or swamps)" gives a
+    # cover roll; ruins are treated like buildings.
+    COVER_TERRAIN = frozenset({'forest', 'building', 'hill', 'town', 'ruins', 'marsh'})
     
     def __init__(self, width=15, height=15):
         """
