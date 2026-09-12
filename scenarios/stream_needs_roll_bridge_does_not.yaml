@@ -1,0 +1,24 @@
+name: stream-needs-movement-roll-road-bridge-does-not
+source: "Rulebook p.24: 'A unit can't cross a stream without succeeding at a movement roll'; 'A unit doesn't need to make movement rolls when moving along a road even if it crosses a stream'"
+board:
+  width: 10
+  height: 8
+  terrain: {road: [[2,2],[3,2]]}
+  edge_obstacles:
+    - {a: [2,2], b: [3,2], type: stream}    # stream under the road = bridge
+    - {a: [2,4], b: [3,4], type: stream}
+units:
+  - {id: onroad, owner: player1, at: [2,2], facing: SE, stats: {unit_type: Vehicle, defense: "4/3", speed: 3, veh: [6,4,2], per: [6,4,2]}}
+  - {id: wader, owner: player1, at: [2,4], stats: {unit_type: Soldier, defense: "4", speed: 2, per: [7,5,3]}}
+  - {id: enemy, owner: player2, at: [9,0], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+phase: movement
+active_player: player1
+dice: [2]
+actions:
+  - {type: move, unit: onroad, to: [3,2]}    # bridge: no roll
+  - {type: move, unit: wader, to: [3,4]}     # stream: roll 2 → stays
+expect:
+  dice_consumed: 1
+  units:
+    onroad: {at: [3,2]}
+    wader: {at: [2,4], has_moved: true}

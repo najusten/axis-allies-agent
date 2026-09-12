@@ -114,11 +114,22 @@ export class BoardRenderer {
       const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
       const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy);
       const px = -dy / len * SIZE * 0.45, py = dx / len * SIZE * 0.45;
+      const style = {
+        'barbed wire': { stroke: '#f59e0b', width: 4, dash: '3 3' },
+        'destroyed_bridge': { stroke: '#4a7fe1', width: 5, dash: '2 4' },
+        'stream': { stroke: '#4a7fe1', width: 5, dash: '' },
+        'hedge': { stroke: '#166534', width: 5, dash: '' },
+        'hedgerow': { stroke: '#166534', width: 5, dash: '' },
+      }[eo.type] || { stroke: '#8b5cf6', width: 4, dash: '' };
       const line = el('line', { x1: mx - px, y1: my - py, x2: mx + px, y2: my + py,
-        stroke: eo.type.includes('wire') ? '#f59e0b' : '#8b5cf6', 'stroke-width': 4,
-        'stroke-dasharray': eo.type.includes('wire') ? '3 3' : '' });
+        stroke: style.stroke, 'stroke-width': style.width, 'stroke-dasharray': style.dash, 'stroke-linecap': 'round' });
       const t = el('title'); t.textContent = eo.type; line.appendChild(t);
       g.appendChild(line);
+      // a road crossing a stream is a bridge
+      if (eo.type === 'stream' && eo.bridge) {
+        g.appendChild(el('line', { x1: a.x + dx * .3, y1: a.y + dy * .3, x2: a.x + dx * .7, y2: a.y + dy * .7,
+          stroke: '#7a4a1f', 'stroke-width': 7, 'stroke-linecap': 'butt' }));
+      }
     }
     // smoke
     for (const [q, r] of game.smoke || []) {

@@ -509,18 +509,20 @@ class ActionExecutor:
         roll_bonus = movement_mods.get('movement_roll_bonus', 0)
         movement_roll_note = ""   # successful rolls, for the message
 
-        def movement_roll(reason: str, allow_lead_the_way: bool = True):
-            """Roll 4+ (with Robust/Mountaineering bonus); Lead the Way rerolls once per turn."""
-            roll, success = self.dice.roll_movement(roll_bonus)
+        def movement_roll(reason: str, allow_lead_the_way: bool = True, modifier: int = 0):
+            """Roll 4+ (with Robust/Mountaineering bonus and a per-feature modifier);
+            Lead the Way rerolls once per turn."""
+            bonus = roll_bonus + modifier
+            roll, success = self.dice.roll_movement(bonus)
             rerolled = False
             if not success and allow_lead_the_way:
                 has_lead_the_way = any(a.lower() == 'lead the way' for a in unit_abilities)
                 if has_lead_the_way and not unit_state.lead_the_way_used:
-                    roll, success = self.dice.roll_movement(roll_bonus)
+                    roll, success = self.dice.roll_movement(bonus)
                     unit_state.lead_the_way_used = True
                     rerolled = True
             move_events.append({'type': 'movement_roll', 'unit': unit.id, 'name': unit.name,
-                                'reason': reason, 'roll': roll, 'needed': 4 - roll_bonus,
+                                'reason': reason, 'roll': roll, 'needed': 4 - bonus,
                                 'success': success, 'reroll': rerolled})
             return roll, success
 
@@ -582,14 +584,24 @@ class ActionExecutor:
                 else:
                     lower = edge_obstacle.lower()
                     name = None
+                    modifier = 0
+                    from_obj = game_state.board.get_hex(*step_from)
+                    along_road = bool(from_obj and from_obj.has_road and hex_obj.has_road)
                     if lower == 'barbed wire' and 'Soldier' in (unit.unit_type or ''):
                         name = 'Barbed Wire'
                     elif lower == 'destroyed_bridge':
                         name = 'stream (destroyed bridge)'
+                    elif lower in Board.EDGE_STREAM and not along_road \
+                            and not movement_mods.get('ignore_stream_terrain', False):
+                        name = 'stream'
+                    elif lower in Board.EDGE_HEDGE and not along_road:
+                        name = 'hedge'
+                        # hedges: roll at -1 (5+); Brushcutters at +1 (3+)
+                        modifier = 1 if movement_mods.get('ignore_forest_terrain', False) else -1
                     if name:
-                        roll, ok = movement_roll(name, allow_lead_the_way=False)
+                        roll, ok = movement_roll(name, allow_lead_the_way=False, modifier=modifier)
                         if not ok:
-                            return False, f"failed movement roll to cross {name} (rolled {roll}, needed {4 - roll_bonus}+)"
+                            return False, f"failed movement roll to cross {name} (rolled {roll}, needed {4 - roll_bonus - modifier}+)"
             # Tank Obstacle units in the hex (AVRE destroys instead)
             if is_vehicle:
                 for dest_unit_state in game_state.get_units_at_position(*step_to):
@@ -1856,8 +1868,15 @@ class ActionExecutor:
 
         result['defense'] = base_defense
 
-        # Check cover (marsh covers Soldiers only)
+        # Check cover (marsh covers Soldiers only); a hedge on the target's hex
+        # side that the sight line passes through also gives cover
         has_cover = Board.gives_cover(target_terrain, target.unit_type)
+        if not has_cover and game_state.board.edge_obstacles:
+            if self.movement_system.hex_side_effects(game_state.board, attacker_state.position[0],
+                                                     attacker_state.position[1], target_state.position[0],
+                                                     target_state.position[1])['cover']:
+                has_cover = True
+                result['notes'].append("Hedge: target has cover")
         ignore_cover = attack_mods.get('ignore_cover', False)
 
         # Low Silhouette: gets cover in clear terrain (succeeds on 6)

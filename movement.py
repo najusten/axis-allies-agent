@@ -620,6 +620,9 @@ class MovementSystem:
         Returns (has_los, blocking_hexes)
         """
         smoke_screens = smoke_screens or set()
+        # Hex-side terrain (hedges) crossed by the sight line
+        if board.edge_obstacles and self.hex_side_effects(board, q1, r1, q2, r2)['blocked']:
+            return False, []
         # Get all hexes along the line
         line_hexes = self._get_line_hexes(board, q1, r1, q2, r2)
 
@@ -696,6 +699,69 @@ class MovementSystem:
         
         return has_los, all_blocking if not has_los else []
     
+    _shared_edge_cache: Dict[Tuple[int, int, int, int], object] = {}
+
+    @staticmethod
+    def _shared_edge(qa: int, ra: int, qb: int, rb: int):
+        """The edge segment two adjacent hexes share (cartesian, same frame as _get_hex_edges)."""
+        key = (qa, ra, qb, rb)
+        cache = MovementSystem._shared_edge_cache
+        if key in cache:
+            return cache[key]
+        cache[key] = MovementSystem._compute_shared_edge(qa, ra, qb, rb)
+        return cache[key]
+
+    @staticmethod
+    def _compute_shared_edge(qa: int, ra: int, qb: int, rb: int):
+        ea = MovementSystem._get_hex_edges(qa, ra)
+        eb = MovementSystem._get_hex_edges(qb, rb)
+        va = {(round(x, 4), round(y, 4)) for e in ea for (x, y) in e}
+        vb = {(round(x, 4), round(y, 4)) for e in eb for (x, y) in e}
+        common = list(va & vb)
+        return (common[0], common[1]) if len(common) == 2 else None
+
+    @staticmethod
+    def _segments_cross(p1, p2, p3, p4, tol: float = 1e-6) -> bool:
+        """Proper intersection of segments p1-p2 and p3-p4 (touching an endpoint counts)."""
+        def orient(a, b, c):
+            v = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+            return 0 if abs(v) < tol else (1 if v > 0 else -1)
+        o1, o2 = orient(p1, p2, p3), orient(p1, p2, p4)
+        o3, o4 = orient(p3, p4, p1), orient(p3, p4, p2)
+        if o1 == 0 and o2 == 0:
+            return False   # collinear: running along a hedge doesn't cross it
+        return o1 != o2 and o3 != o4
+
+    def hex_side_effects(self, board: Board, q1: int, r1: int, q2: int, r2: int) -> dict:
+        """
+        Hex-side terrain along the sight line from (q1,r1) to (q2,r2).
+        Rulebook: hedges the line crosses block LOS, except hedges on the
+        attacker's or target's own hex sides — a hedge on the target's hex
+        side that the line passes through gives the target cover instead.
+        Returns {'blocked': bool, 'cover': bool}.
+        """
+        x1 = q1 + r1 * 0.5; y1 = r1 * (3 ** 0.5 / 2)
+        x2 = q2 + r2 * 0.5; y2 = r2 * (3 ** 0.5 / 2)
+        blocked = cover = False
+        # Only hedges within the line's bounding box (in hex distance) can matter
+        span = board.hex_distance(q1, r1, q2, r2)
+        for key, kind in board.edge_obstacles.items():
+            if kind not in Board.EDGE_LOS_BLOCKING:
+                continue
+            (qa, ra), (qb, rb) = tuple(key)
+            if board.hex_distance(q1, r1, qa, ra) > span + 1 or board.hex_distance(q2, r2, qa, ra) > span + 1:
+                continue
+            seg = self._shared_edge(qa, ra, qb, rb)
+            if seg is None or not self._segments_cross((x1, y1), (x2, y2), seg[0], seg[1]):
+                continue
+            touches_attacker = (q1, r1) in key
+            touches_target = (q2, r2) in key
+            if touches_target:
+                cover = True
+            elif not touches_attacker:
+                blocked = True
+        return {'blocked': blocked, 'cover': cover}
+
     @staticmethod
     def _get_line_hexes(board: Board, q1: int, r1: int, 
                        q2: int, r2: int) -> List[Hex]:

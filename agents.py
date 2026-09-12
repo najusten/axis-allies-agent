@@ -316,7 +316,7 @@ class HeuristicAgent:
     def _los(self, gs: GameState, unit, a: Tuple[int, int], b: Tuple[int, int]) -> bool:
         if self.movement is None:
             return True
-        key = (a, b)
+        key = (a, b) if a <= b else (b, a)     # LOS works in both directions
         if key not in self._los_cache:
             ok, _ = self.movement.has_line_of_sight(gs.board, unit, a[0], a[1], b[0], b[1],
                                                     smoke_screens=gs.smoke_screens)

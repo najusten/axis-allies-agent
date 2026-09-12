@@ -279,6 +279,11 @@ class ActionValidator:
         reach_kwargs = {'friendly_positions': friendly_positions}
         if getattr(action, 'max_speed', None):
             reach_kwargs['max_speed'] = action.max_speed
+        if not is_relocate and not is_strike_and_fade:
+            # movement phase: speed-1 Vehicles may enter one double-cost hex
+            reach_kwargs['minimum_movement'] = True
+        if us is not None:
+            reach_kwargs['is_damaged'] = us.is_damaged
         reachable = self.movement_system.get_reachable_hexes(
             self.board, action.from_q, action.from_r, unit, **reach_kwargs
         )

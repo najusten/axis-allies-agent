@@ -677,6 +677,23 @@ class GameSetup:
                     road_row -= 1
             road_row = max(1, min(H - 2, road_row))
 
+        # A stream: a continuous line of hex sides between two columns, bridged
+        # wherever the road crosses it (moving along a road needs no roll)
+        if random.random() < 0.7:
+            col = random.choice([W // 3, W // 3 + 1, 2 * W // 3 - 1, 2 * W // 3])
+            for row in range(H):
+                q, r = A(col, row)
+                for nb in board.get_neighbors(q, r):
+                    if Board.axial_to_offset(nb.q, nb.r)[0] == col + 1:
+                        board.add_edge_obstacle(q, r, nb.q, nb.r, 'stream')
+
+        # Hedges: field boundaries around towns
+        for (q, r) in list(town_hexes):
+            nbs = [nb for nb in board.get_neighbors(q, r) if nb.terrain not in ('town', 'road')]
+            for nb in random.sample(nbs, min(len(nbs), random.choice([1, 2]))):
+                if not board.get_edge_obstacle(q, r, nb.q, nb.r):
+                    board.add_edge_obstacle(q, r, nb.q, nb.r, 'hedge')
+
         # Balance cover terrain across both sides of the board
         self._balance_cover(board)
 

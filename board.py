@@ -114,7 +114,9 @@ class Board:
             'height': self.height,
             'hexes': [{'q': h.q, 'r': h.r, 'terrain': h.terrain} for h in self.hexes.values()],
             'edge_obstacles': [
-                {'a': list(sorted(key)[0]), 'b': list(sorted(key)[1]), 'type': kind}
+                {'a': list(sorted(key)[0]), 'b': list(sorted(key)[1]), 'type': kind,
+                 'bridge': bool(kind == 'stream' and all(
+                     self.hexes.get(h) is not None and self.hexes[h].has_road for h in key))}
                 for key, kind in self.edge_obstacles.items()
             ],
         }
@@ -153,6 +155,23 @@ class Board:
     def _edge_key(self, q1: int, r1: int, q2: int, r2: int):
         """Create a consistent key for an edge between two hexes."""
         return frozenset(((q1, r1), (q2, r2)))
+
+    # Hex-side terrain (rulebook p.23-24): streams need a movement roll to cross
+    # (4+), hedges need 5+ and block line of sight / give cover when crossed.
+    # 'bridge' is a stream crossed by a road: no roll. Obstacles: 'barbed wire'
+    # (Soldiers roll), 'destroyed_bridge' (everyone rolls).
+    EDGE_STREAM = frozenset({'stream', 'destroyed_bridge'})
+    EDGE_HEDGE = frozenset({'hedge', 'hedgerow'})
+    EDGE_LOS_BLOCKING = EDGE_HEDGE
+
+    def edges_of(self, q: int, r: int):
+        """[(neighbor_q, neighbor_r, type)] for every hex-side feature on this hex."""
+        out = []
+        for key, kind in self.edge_obstacles.items():
+            if (q, r) in key:
+                other = next(h for h in key if h != (q, r))
+                out.append((other[0], other[1], kind))
+        return out
 
     def add_edge_obstacle(self, q1: int, r1: int, q2: int, r2: int, obstacle_type: str):
         """Add an edge obstacle (like Barbed Wire) between two adjacent hexes."""

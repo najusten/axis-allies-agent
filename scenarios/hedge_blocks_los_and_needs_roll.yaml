@@ -1,0 +1,28 @@
+name: hedge-blocks-los-gives-cover-and-needs-5-plus-to-cross
+source: "Rulebook p.24-25: hedges need a movement roll at -1 (5+); a sight line crossing a hedge is blocked, except a hedge on the target's hex side gives cover instead"
+board:
+  width: 10
+  height: 8
+  edge_obstacles:
+    - {a: [4,3], b: [5,3], type: hedge}     # hedge between the mg and hexes east of it
+    - {a: [2,5], b: [3,5], type: hedge}
+units:
+  - {id: mg, owner: player1, at: [3,3], stats: {unit_type: Soldier, defense: "4", speed: 2, per: [10,8,6]}}
+  - {id: far, owner: player2, at: [7,3], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}     # line (3,3)->(7,3) crosses the hedge at 4|5: blocked
+  - {id: near, owner: player2, at: [5,3], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}    # hedge on the target's own side: cover, not blocked
+  - {id: walker, owner: player1, at: [2,5], stats: {unit_type: Soldier, defense: "4", speed: 2, per: [7,5,3]}}
+phase: assault
+active_player: player1
+dice: [6,6,6,6,6,6,6,6, 3, 4]    # attack on near: 8 hits; cover roll 3 fails. Then walker crosses hedge: 4 < 5 fails
+actions:
+  - {type: attack, unit: mg, target: near}
+  - {type: set_phase, phase: movement}
+  - {type: move, unit: walker, to: [3,5]}
+expect:
+  legal:
+    - {type: attack, unit: mg, target: far, allowed: false}
+  events:
+    - {type: cover_save, unit: near, roll: 3, success: false}
+    - {type: movement_roll, unit: walker, reason: hedge, roll: 4, needed: 5, success: false}
+  units:
+    walker: {at: [2,5]}
