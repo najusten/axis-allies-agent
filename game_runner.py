@@ -340,7 +340,8 @@ class GameRunner:
             self.movement_system, None, self.ability_system
         )
         self.initiative_system = InitiativeSystem(
-            self.ability_system, self.movement_system
+            self.ability_system, self.movement_system,
+            dice=self.action_executor.dice
         )
         self.verbose = verbose
 
@@ -445,7 +446,7 @@ class GameRunner:
                 agent = agents[player]
 
                 # Reset defensive fire tracking for this phase
-                self.action_executor.reset_defensive_fire_phase()
+                self.action_executor.reset_defensive_fire_phase(game_state)
 
                 # Exert Will: At beginning of movement phase, remove Disrupted from adjacent friendly Soldiers
                 self._apply_exert_will(game_state, player)
@@ -491,8 +492,8 @@ class GameRunner:
                 game_state.active_player = player
                 agent = agents[player]
 
-                # Reset casualty tracking for this player's assault phase
-                self.action_executor.reset_assault_phase()
+                # Pending (face-down) hits persist across both assault phases
+                # and are resolved in the casualty phase — no reset here.
 
                 self.log(f"\n--- {player} Assault Phase ---")
 

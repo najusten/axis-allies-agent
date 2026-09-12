@@ -9,9 +9,9 @@ Manages the complete game state including:
 - Victory conditions
 """
 
-from typing import Dict, List, Tuple, Optional, Set, TYPE_CHECKING
-from dataclasses import dataclass, field
-from copy import deepcopy
+from typing import Dict, List, Tuple, Optional, Set, Any, TYPE_CHECKING
+from dataclasses import dataclass, field, fields
+from copy import copy, deepcopy
 import uuid
 
 from board import Board, Hex
@@ -191,6 +191,20 @@ class GameState:
         # Smoke screens on hexes (blocks LOS, removed at end of turn)
         self.smoke_screens: Set[Tuple[int, int]] = set()
 
+        # Combat bookkeeping that used to live on the executor. Kept here so
+        # that clone() carries it and lookahead on a cloned state never
+        # touches the live game.
+        #   pending_hits: unit_id -> casualty.PendingHits (face-down counters)
+        #   face_up_disrupted/damaged: units whose counters flipped face-up
+        #       last casualty phase (disrupted clears next casualty phase)
+        #   defensive_fire_used: units that already fired defensively this phase
+        self.pending_hits: Dict[str, Any] = {}
+        self.face_up_disrupted: Set[str] = set()
+        self.face_up_damaged: Set[str] = set()
+        self.defensive_fire_used: Set[str] = set()
+        # Seed used to build this game's DiceSystem (None = unseeded)
+        self.rng_seed: Optional[int] = None
+
         # Track destroyed units for Fury/Tides of War abilities
         self.units_destroyed_this_turn: Dict[str, List[str]] = {"player1": [], "player2": []}  # owner -> list of destroyed unit IDs
         self.units_destroyed_last_turn: Dict[str, List[str]] = {"player1": [], "player2": []}
@@ -273,6 +287,10 @@ class GameState:
             return self.units[unit_id].owner
         return None
     
+    def get_all_alive_units(self) -> List[UnitState]:
+        """All living units, both players."""
+        return [us for us in self.units.values() if us.is_alive]
+
     def get_units_by_owner(self, owner: str) -> List[UnitState]:
         """Get all units owned by a player"""
         return [us for us in self.units.values() if us.owner == owner]
@@ -566,78 +584,48 @@ class GameState:
     
     def clone(self) -> 'GameState':
         """
-        Create a deep copy of the game state.
-        Useful for look-ahead search and AI planning.
+        Deep-enough copy for lookahead/undo: independent board, unit states
+        and bookkeeping. `Unit` objects (static stats) are shared, never
+        copied — nothing mutates them after creation.
+
+        Every UnitState field is copied via dataclasses.fields so new fields
+        are never silently dropped.
         """
-        # Create new board
-        new_board = Board(self.board.width, self.board.height)
-        
-        # Copy terrain
-        for q in range(self.board.width):
-            for r in range(self.board.height):
-                old_hex = self.board.get_hex(q, r)
-                if old_hex:
-                    new_board.set_terrain(q, r, old_hex.terrain)
-        
-        # Deep copy units
-        new_p1_units = []
-        new_p2_units = []
-        
+        new_board = self.board.clone()
+
+        new_units = []
         for unit_state in self.units.values():
-            new_unit = deepcopy(unit_state.unit)
-            new_unit_state = UnitState(
-                unit=new_unit,
-                position=unit_state.position,
-                owner=unit_state.owner,
-                current_health=unit_state.current_health,
-                has_moved=unit_state.has_moved,
-                has_attacked=unit_state.has_attacked,
-                attacks_this_turn=unit_state.attacks_this_turn,
-                abilities_used=unit_state.abilities_used.copy(),
-                is_disrupted=unit_state.is_disrupted,
-                is_damaged=unit_state.is_damaged,
-                facing=unit_state.facing,
-                strike_and_fade_available=unit_state.strike_and_fade_available,
-                heavy_armor_used=unit_state.heavy_armor_used,
-                covering_fire_target=unit_state.covering_fire_target,
-                all_guns_blazing_available=unit_state.all_guns_blazing_available,
-                strafe_available=unit_state.strafe_available,
-                strafe_target_hex=unit_state.strafe_target_hex,
-                bombs_used=unit_state.bombs_used,
-                speed_boost_used=unit_state.speed_boost_used,
-                overrun_used_this_phase=unit_state.overrun_used_this_phase,
-                extra_mg_used=unit_state.extra_mg_used,
-                multiturreted_front_used=unit_state.multiturreted_front_used,
-                multiturreted_rear_used=unit_state.multiturreted_rear_used,
-                rapid_fire_used=unit_state.rapid_fire_used,
-                rapid_fire_jammed=unit_state.rapid_fire_jammed,
-                overheat_jammed=unit_state.overheat_jammed,
-                unreliable_disrupted=unit_state.unreliable_disrupted,
-                carried_unit_id=unit_state.carried_unit_id,
-                carried_by_id=unit_state.carried_by_id,
-                smoke_screen_used=unit_state.smoke_screen_used,
-                is_deployed=unit_state.is_deployed,
-                is_aircraft_on_map=unit_state.is_aircraft_on_map
-            )
-            
-            if unit_state.owner == "player1":
-                new_p1_units.append(new_unit_state)
-            else:
-                new_p2_units.append(new_unit_state)
-        
-        # Create new game state
-        new_state = GameState(new_board, new_p1_units, new_p2_units,
-                             objective_position=self.objective_position)
+            kwargs = {}
+            for f in fields(UnitState):
+                value = getattr(unit_state, f.name)
+                if isinstance(value, (set, list, dict)):
+                    value = copy(value)
+                kwargs[f.name] = value
+            new_units.append(UnitState(**kwargs))
+
+        new_state = GameState.__new__(GameState)
+        new_state.board = new_board
         new_state.turn_number = self.turn_number
         new_state.current_phase = self.current_phase
         new_state.active_player = self.active_player
-        new_state.action_history = self.action_history.copy()
+        new_state.units = {}
+        for unit_state in new_units:
+            new_state.add_unit(unit_state)
+        new_state.action_history = list(self.action_history)
         new_state.winner = self.winner
         new_state.game_over = self.game_over
-        new_state.smoke_screens = self.smoke_screens.copy()
-
+        new_state.smoke_screens = set(self.smoke_screens)
+        new_state.pending_hits = deepcopy(self.pending_hits)
+        new_state.face_up_disrupted = set(self.face_up_disrupted)
+        new_state.face_up_damaged = set(self.face_up_damaged)
+        new_state.defensive_fire_used = set(self.defensive_fire_used)
+        new_state.rng_seed = self.rng_seed
+        new_state.units_destroyed_this_turn = {k: list(v) for k, v in self.units_destroyed_this_turn.items()}
+        new_state.units_destroyed_last_turn = {k: list(v) for k, v in self.units_destroyed_last_turn.items()}
+        new_state.destroyed_unit_wrecks = {k: [dict(d) for d in v] for k, v in self.destroyed_unit_wrecks.items()}
+        new_state.objective_position = self.objective_position
         return new_state
-    
+
     def get_state_summary(self) -> str:
         """Get a human-readable summary of the game state"""
         p1_units = self.get_units_by_owner("player1")

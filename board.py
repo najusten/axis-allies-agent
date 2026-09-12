@@ -53,6 +53,16 @@ class Board:
     def get_hex(self, q, r) -> Optional[Hex]:
         """Get hex at coordinates (q, r)"""
         return self.hexes.get((q, r))
+
+    def clone(self) -> 'Board':
+        """Copy terrain and edge obstacles. Hex.unit references are not copied;
+        GameState.clone() re-places units."""
+        new = Board.__new__(Board)
+        new.width = self.width
+        new.height = self.height
+        new.hexes = {key: Hex(h.q, h.r, h.terrain) for key, h in self.hexes.items()}
+        new.edge_obstacles = dict(self.edge_obstacles)
+        return new
     
     def set_terrain(self, q, r, terrain):
         """Set terrain type for a hex"""

@@ -69,7 +69,7 @@ class DefensiveFireSystem:
     provoke defensive fire from enemy units.
     """
     
-    def __init__(self, ability_system=None, random_seed: int = None):
+    def __init__(self, ability_system=None, random_seed: int = None, dice=None):
         """
         Initialize the defensive fire system.
         
@@ -78,15 +78,13 @@ class DefensiveFireSystem:
             random_seed: Optional seed for reproducible dice rolls
         """
         self.ability_system = ability_system
-        self.dice_system = DiceSystem(random_seed)
-        
-        # Track which units have already fired defensively this phase
-        # Reset this at the start of each movement phase
-        self._units_fired_this_phase: Set[str] = set()
-    
-    def reset_phase(self):
+        self.dice_system = dice if dice is not None else DiceSystem(random_seed=random_seed)
+        # "Which units already fired defensively this phase" is tracked on
+        # GameState.defensive_fire_used so it is cloned with the state.
+
+    def reset_phase(self, game_state: GameState):
         """Reset tracking for a new phase. Call at start of each movement phase."""
-        self._units_fired_this_phase.clear()
+        game_state.defensive_fire_used.clear()
 
     def check_antiair_defensive_fire(
         self,
@@ -149,7 +147,7 @@ class DefensiveFireSystem:
             # Each unit can only fire once per phase
             # Exception: Suppressive Fire allows unlimited defensive fire
             has_suppressive_fire = any(a.lower() == 'suppressive fire' for a in enemy_abilities)
-            if enemy_id in self._units_fired_this_phase and not has_suppressive_fire:
+            if enemy_id in game_state.defensive_fire_used and not has_suppressive_fire:
                 continue
 
             # Check for Antiair or Ace ability
@@ -292,7 +290,7 @@ class DefensiveFireSystem:
             # Rule: Each unit can only fire defensively once per phase
             # Exception: Suppressive Fire allows unlimited defensive fire
             has_suppressive_fire = any(a.lower() == 'suppressive fire' for a in enemy_abilities)
-            if enemy_id in self._units_fired_this_phase and not has_suppressive_fire:
+            if enemy_id in game_state.defensive_fire_used and not has_suppressive_fire:
                 continue
 
             # Covering Fire: Units hit by Covering Fire can't make defensive fire this turn
@@ -592,7 +590,7 @@ class DefensiveFireSystem:
             )
         
         # Mark this unit as having fired defensively
-        self._units_fired_this_phase.add(opportunity.defender_id)
+        game_state.defensive_fire_used.add(opportunity.defender_id)
         
         # Check for Double Shot (makes two attack rolls during defensive fire)
         defender_abilities = getattr(defender, 'abilities', []) or []

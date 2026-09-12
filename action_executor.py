@@ -61,17 +61,26 @@ class ActionExecutor:
                  combat_system,  # Can be old or new CombatSystem
                  ability_system: AbilitySystem,
                  random_seed: Optional[int] = None,
-                 use_simultaneous_combat: bool = True):
+                 use_simultaneous_combat: bool = True,
+                 dice: Optional[DiceSystem] = None):
         self.movement_system = movement_system
         self.combat_system = combat_system
         self.ability_system = ability_system
-        self.dice = DiceSystem(random_seed)
-        self.defensive_fire = DefensiveFireSystem(ability_system, random_seed)
-        self.casualty_system = CasualtySystem()
+        # One DiceSystem is shared by every subsystem that rolls, so a single
+        # seed (or a ScriptedDice) controls the whole game.
+        self.dice = dice if dice is not None else DiceSystem(random_seed=random_seed)
+        self.defensive_fire = DefensiveFireSystem(ability_system, dice=self.dice)
+        self.casualty_system = CasualtySystem(dice=self.dice)
         self.use_simultaneous_combat = use_simultaneous_combat
         self.validator = ActionValidator(
             None, movement_system, combat_system, ability_system
         )
+
+    def set_dice(self, dice: DiceSystem):
+        """Swap the dice source for this executor and all its subsystems."""
+        self.dice = dice
+        self.defensive_fire.dice_system = dice
+        self.casualty_system.dice = dice
 
     def _has_strike_and_fade(self, unit) -> bool:
         """Check if a unit has the Strike and Fade ability."""
@@ -273,19 +282,20 @@ class ActionExecutor:
 
         return None
 
-    def reset_defensive_fire_phase(self):
+    def reset_defensive_fire_phase(self, game_state: GameState):
         """
         Reset defensive fire tracking for a new phase.
         Call this at the start of each movement phase.
         """
-        self.defensive_fire.reset_phase()
-    
-    def reset_assault_phase(self):
+        self.defensive_fire.reset_phase(game_state)
+
+    def reset_assault_phase(self, game_state: GameState):
         """
-        Reset casualty system for a new assault phase.
-        Call this at the start of each assault phase.
+        Discard pending hits. NOT part of the normal turn: face-down counters
+        must persist across both players' assault phases until the casualty
+        phase resolves them. Only for abandoning a simulated phase.
         """
-        self.casualty_system.reset_phase()
+        self.casualty_system.reset_phase(game_state)
     
     def resolve_casualty_phase(self, game_state: GameState) -> Dict:
         """
@@ -1425,6 +1435,7 @@ class ActionExecutor:
             if self.use_simultaneous_combat and other_result['hits'] > 0:
                 # Record hits as pending
                 self.casualty_system.record_hits(
+                    game_state,
                     other_state.unit.id,
                     other_state.unit.unit_type,
                     other_result['hits']
@@ -1462,13 +1473,14 @@ class ActionExecutor:
         if use_simultaneous and result['hits'] > 0:
             # Record hits as face-down counters (don't apply yet)
             counter_types = self.casualty_system.record_hits(
+                game_state,
                 action.target_id,
                 target.unit_type,
                 result['hits']
             )
 
             # Check if unit will be destroyed (for message purposes)
-            will_destroy = self.casualty_system.unit_has_pending_destroyed(action.target_id)
+            will_destroy = self.casualty_system.unit_has_pending_destroyed(game_state, action.target_id)
 
             if will_destroy:
                 message = f"{attacker.name} vs {target.name}:{dice_detail}{cover_detail} - {result['outcome'].upper()}! (pending){notes_str}"

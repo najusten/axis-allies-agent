@@ -89,19 +89,26 @@ class DiceSystem:
     SOLDIER_COVER_THRESHOLD = 4  # Save on 4, 5, 6
     VEHICLE_COVER_THRESHOLD = 5  # Save on 5, 6
     
-    def __init__(self, random_seed: Optional[int] = None):
+    def __init__(self, random_seed: Optional[int] = None,
+                 rng: Optional[random.Random] = None):
         """
         Initialize the dice system.
-        
+
         Args:
-            random_seed: Optional seed for reproducible results (useful for testing)
+            random_seed: Optional seed for a private RNG (reproducible results)
+            rng: Optional random.Random instance to share with other systems.
+                 Takes precedence over random_seed.
         """
-        if random_seed is not None:
-            random.seed(random_seed)
-    
+        if rng is not None:
+            self.rng = rng
+        elif random_seed is not None:
+            self.rng = random.Random(random_seed)
+        else:
+            self.rng = random.Random()
+
     def roll_d6(self) -> int:
         """Roll a single d6"""
-        return random.randint(1, 6)
+        return self.rng.randint(1, 6)
 
     def roll_single_die(self) -> int:
         """Alias for roll_d6"""
@@ -620,6 +627,41 @@ def get_unit_status(unit_state) -> UnitStatus:
 
 
 # Demo/Test
+
+class ScriptedDice(DiceSystem):
+    """
+    DiceSystem whose d6 results come from a queue of forced values.
+
+    Used by scenario tests: `ScriptedDice([6, 6, 3])` yields 6, 6, 3 for the
+    next three rolls, then falls back to the underlying RNG. Every roll is
+    appended to `self.log` so a test can assert what was consumed.
+    """
+
+    def __init__(self, script: Optional[List[int]] = None,
+                 random_seed: Optional[int] = None,
+                 rng: Optional[random.Random] = None):
+        super().__init__(random_seed=random_seed, rng=rng)
+        self.queue: List[int] = list(script or [])
+        self.log: List[int] = []
+
+    def push(self, *values: int):
+        """Append forced values to the queue."""
+        self.queue.extend(values)
+
+    def roll_d6(self) -> int:
+        if self.queue:
+            value = self.queue.pop(0)
+        else:
+            value = self.rng.randint(1, 6)
+        if not 1 <= value <= 6:
+            raise ValueError(f"Scripted die value out of range: {value}")
+        self.log.append(value)
+        return value
+
+    @property
+    def remaining(self) -> int:
+        return len(self.queue)
+
 if __name__ == "__main__":
     print("=" * 70)
     print("AXIS & ALLIES MINIATURES - DICE SYSTEM TEST")

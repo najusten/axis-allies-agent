@@ -1401,7 +1401,7 @@ def test_casualty_status_abilities():
         green_state.is_disrupted = True
         game_state.add_unit(green_state)
         # Register as face-up disrupted (from previous turn)
-        casualty_system._face_up_disrupted.add(unit_green.id)
+        game_state.face_up_disrupted.add(unit_green.id)
         result = casualty_system.resolve_casualty_phase(game_state)
         if unit_green.id in result.get('disruption_cleared', []):
             cleared += 1
@@ -1422,7 +1422,7 @@ def test_casualty_status_abilities():
         unr_state.is_disrupted = True
         unr_state.unreliable_disrupted = True  # Set the sticky flag
         game_state.add_unit(unr_state)
-        casualty_system._face_up_disrupted.add(unit_unr.id)
+        game_state.face_up_disrupted.add(unit_unr.id)
         result = casualty_system.resolve_casualty_phase(game_state)
         if unit_unr.id in result.get('disruption_cleared', []):
             cleared_unr += 1
@@ -1441,7 +1441,7 @@ def test_casualty_status_abilities():
         oh_state.is_disrupted = True
         oh_state.overheat_jammed = True  # Set the sticky flag
         game_state.add_unit(oh_state)
-        casualty_system._face_up_disrupted.add(unit_oh.id)
+        game_state.face_up_disrupted.add(unit_oh.id)
         result = casualty_system.resolve_casualty_phase(game_state)
         if unit_oh.id in result.get('disruption_cleared', []):
             cleared_oh += 1

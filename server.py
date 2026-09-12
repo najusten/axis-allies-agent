@@ -54,7 +54,8 @@ class GameSession:
         self.movement_system = MovementSystem(self.ability_system)
         self.action_generator = ActionGenerator(self.movement_system, None, self.ability_system)
         self.action_executor = ActionExecutor(self.movement_system, None, self.ability_system)
-        self.initiative_system = InitiativeSystem(self.ability_system, self.movement_system)
+        self.initiative_system = InitiativeSystem(self.ability_system, self.movement_system,
+                                                  dice=self.action_executor.dice)
 
         self.human_player = 'player1'
         self.ai_player = 'player2'
@@ -205,7 +206,7 @@ class GameSession:
         self._apply_phase()
 
         # Reset action executor phase tracking
-        self.action_executor.reset_defensive_fire_phase()
+        self.action_executor.reset_defensive_fire_phase(self.game_state)
 
         # Advance past any AI / empty phases until human has actions
         self._run_until_human_turn()
@@ -309,7 +310,7 @@ class GameSession:
     def _run_ai_phase(self, player: str, phase: str):
         self.events.append(f"  AI {phase.lower()} phase:")
         if phase == GamePhase.MOVEMENT:
-            self.action_executor.reset_defensive_fire_phase()
+            self.action_executor.reset_defensive_fire_phase(self.game_state)
 
         for _ in range(30):  # cap iterations per phase
             legal = self._get_phase_actions(player)
@@ -568,7 +569,7 @@ class GameSession:
             if not us.is_alive:
                 continue
             # Get pending hit info from casualty system
-            pending = self.action_executor.casualty_system.get_pending_hits_summary(uid)
+            pending = self.action_executor.casualty_system.get_pending_hits_summary(self.game_state, uid)
             pending_count = pending.get('total', 0) if pending else 0
             unit_actions[uid] = {
                 'valid_moves': [], 'valid_attacks': [],

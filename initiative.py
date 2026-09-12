@@ -8,7 +8,6 @@ Handles the initiative phase at the start of each turn.
 - Winner chooses who goes first
 """
 
-import random
 from typing import Tuple, Optional, Dict, List
 from dataclasses import dataclass
 
@@ -50,7 +49,7 @@ class InitiativeSystem:
     """
 
     def __init__(self, ability_system=None, movement_system=None,
-                 random_seed: Optional[int] = None):
+                 random_seed: Optional[int] = None, dice=None):
         """
         Initialize the initiative system.
 
@@ -58,11 +57,13 @@ class InitiativeSystem:
             ability_system: AbilitySystem for checking unit abilities
             movement_system: MovementSystem for LOS checks
             random_seed: Optional seed for reproducible rolls
+            dice: Optional DiceSystem to share (e.g. the executor's), so all
+                  rolls in a game come from one RNG / one dice script
         """
+        from dice import DiceSystem
         self.ability_system = ability_system
         self.movement_system = movement_system
-        if random_seed is not None:
-            random.seed(random_seed)
+        self.dice = dice if dice is not None else DiceSystem(random_seed=random_seed)
 
     def roll_initiative(self, game_state, player: str,
                        use_organization: bool = True) -> InitiativeResult:
@@ -78,7 +79,7 @@ class InitiativeSystem:
             InitiativeResult with all roll details
         """
         # Roll 2d6
-        dice = (random.randint(1, 6), random.randint(1, 6))
+        dice = (self.dice.roll_d6(), self.dice.roll_d6())
         base_total = dice[0] + dice[1]
 
         # Check for Organization ability (reroll option)
@@ -88,7 +89,7 @@ class InitiativeSystem:
         if has_organization and use_organization:
             # AI decision: reroll if below average (7)
             if base_total < 7:
-                dice = (random.randint(1, 6), random.randint(1, 6))
+                dice = (self.dice.roll_d6(), self.dice.roll_d6())
                 base_total = dice[0] + dice[1]
                 used_organization = True
 
