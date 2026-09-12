@@ -237,7 +237,7 @@ class GameState:
         if objective_position is not None:
             self.objective_position = objective_position
         else:
-            self.objective_position = (board.width // 2, board.height // 2)
+            self.objective_position = board.center()
     
     def add_unit(self, unit_state: UnitState):
         """Add a unit to the game state"""
@@ -708,9 +708,9 @@ def create_test_game_state(board_size: int = 15) -> GameState:
     board = Board(width=board_size, height=board_size)
     
     # Add some terrain
-    for q in range(6, 9):
-        for r in range(6, 9):
-            board.set_terrain(q, r, 'forest')
+    for col in range(6, 9):
+        for row in range(6, 9):
+            board.set_terrain(*board.offset_to_axial(col, row), 'forest')
     
     # Load units
     all_units = load_units()

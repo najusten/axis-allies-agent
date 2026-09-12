@@ -849,18 +849,14 @@ class ActionGenerator:
                 continue
 
             # Aircraft can be placed in any hex on the map
-            for q in range(game_state.board.width):
-                for r in range(game_state.board.height):
-                    hex_tile = game_state.board.get_hex(q, r)
-                    if not hex_tile:
-                        continue
-                    # Aircraft ignore terrain restrictions
+            for (q, r), hex_tile in list(game_state.board.hexes.items()):
+                # Aircraft ignore terrain restrictions
 
-                    actions.append(PlaceAircraftAction(
-                        unit_id=unit_state.unit.id,
-                        to_q=q,
-                        to_r=r
-                    ))
+                actions.append(PlaceAircraftAction(
+                    unit_id=unit_state.unit.id,
+                    to_q=q,
+                    to_r=r
+                ))
 
         return actions
 
@@ -1235,26 +1231,22 @@ class ActionGenerator:
                 continue
 
             # Generate deploy action for each valid hex
-            for q in range(game_state.board.width):
-                for r in range(game_state.board.height):
-                    hex_tile = game_state.board.get_hex(q, r)
-                    if not hex_tile:
-                        continue
-                    # Can't deploy in impassable terrain
-                    if hex_tile.terrain == 'impassable':
-                        continue
-                    # Can't deploy adjacent to enemies
-                    if (q, r) in enemy_adjacent_hexes:
-                        continue
-                    # Can't deploy on occupied hex
-                    if hex_tile.unit is not None:
-                        continue
+            for (q, r), hex_tile in list(game_state.board.hexes.items()):
+                # Can't deploy in impassable terrain
+                if hex_tile.terrain == 'impassable':
+                    continue
+                # Can't deploy adjacent to enemies
+                if (q, r) in enemy_adjacent_hexes:
+                    continue
+                # Can't deploy on occupied hex
+                if hex_tile.unit is not None:
+                    continue
 
-                    actions.append(DeployAction(
-                        unit_id=unit_state.unit.id,
-                        to_q=q,
-                        to_r=r
-                    ))
+                actions.append(DeployAction(
+                    unit_id=unit_state.unit.id,
+                    to_q=q,
+                    to_r=r
+                ))
 
         return actions
 

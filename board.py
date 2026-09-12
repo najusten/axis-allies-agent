@@ -42,7 +42,14 @@ class Board:
     COVER_TERRAIN = frozenset({'forest', 'building', 'hill', 'town', 'ruins'})
     
     def __init__(self, width=15, height=15):
-        """Create a board with given dimensions"""
+        """
+        Create a rectangular board of `width` columns x `height` rows.
+
+        Hexes are addressed by axial (q, r) everywhere in the engine. The
+        rectangle is defined in "even-q" offset coordinates (col, row) so the
+        map looks like a real map sheet rather than a parallelogram; use
+        offset_to_axial / axial_to_offset to convert.
+        """
         self.width = width
         self.height = height
         self.hexes = {}  # Dictionary mapping (q,r) -> Hex
@@ -51,9 +58,37 @@ class Board:
         self.edge_obstacles = {}
 
         # Initialize all hexes as open terrain
-        for q in range(width):
-            for r in range(height):
+        for col in range(width):
+            for row in range(height):
+                q, r = self.offset_to_axial(col, row)
                 self.hexes[(q, r)] = Hex(q, r, 'open')
+
+    # -- coordinate helpers -------------------------------------------------
+
+    @staticmethod
+    def offset_to_axial(col: int, row: int) -> Tuple[int, int]:
+        """even-q offset (col, row) -> axial (q, r)"""
+        return col, row - (col - (col & 1)) // 2
+
+    @staticmethod
+    def axial_to_offset(q: int, r: int) -> Tuple[int, int]:
+        """axial (q, r) -> even-q offset (col, row)"""
+        return q, r + (q - (q & 1)) // 2
+
+    def column(self, col: int) -> List[Tuple[int, int]]:
+        """Axial coords of every hex in offset column `col`, top to bottom."""
+        return [self.offset_to_axial(col, row) for row in range(self.height)
+                if self.offset_to_axial(col, row) in self.hexes]
+
+    def all_coords(self) -> List[Tuple[int, int]]:
+        return list(self.hexes.keys())
+
+    def is_edge(self, q: int, r: int) -> bool:
+        col, row = self.axial_to_offset(q, r)
+        return col in (0, self.width - 1) or row in (0, self.height - 1)
+
+    def center(self) -> Tuple[int, int]:
+        return self.offset_to_axial(self.width // 2, self.height // 2)
     
     def get_hex(self, q, r) -> Optional[Hex]:
         """Get hex at coordinates (q, r)"""
