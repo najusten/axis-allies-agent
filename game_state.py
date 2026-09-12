@@ -435,11 +435,10 @@ class GameState:
             # Track target for Coordinated Fire C.A.
             if target_id:
                 unit_state.targets_attacked_this_turn.add(target_id)
-            # Keep has_attacked for backwards compatibility
-            # For Double Shot units, has_attacked becomes True after 2 attacks
-            max_attacks = self.get_max_attacks(unit_id)
-            if unit_state.attacks_this_turn >= max_attacks:
-                unit_state.has_attacked = True
+            # The unit has committed to attacking this phase (rulebook: attack OR
+            # move). Double Shot etc. still get their extra attack via
+            # attacks_this_turn < get_max_attacks().
+            unit_state.has_attacked = True
 
     def get_max_attacks(self, unit_id: str) -> int:
         """Get maximum attacks allowed for a unit (1 normally, 2 with Double Shot/Multiturreted)"""

@@ -1,0 +1,22 @@
+name: double-shot-unit-cannot-move-after-its-first-attack
+source: "Rulebook p.11: each unit either moves or attacks in the assault phase; Double Shot grants a second attack, not a move"
+board: {width: 10, height: 8}
+units:
+  - {id: mg, owner: player1, at: [3,3], stats: {unit_type: Soldier, defense: "4", speed: 2, per: [10,8,6], abilities: "Double Shot"}}
+  - {id: enemy, owner: player2, at: [5,3], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+phase: assault
+active_player: player1
+dice: [1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1]
+actions:
+  - {type: attack, unit: mg, target: enemy}
+  - {type: move, unit: mg, to: [3,4]}          # not allowed: already attacking
+  - {type: attack, unit: mg, target: enemy}    # second shot is allowed
+  - {type: attack, unit: mg, target: enemy}    # third is not
+expect:
+  results:
+    0: {success: true}
+    1: {success: false}
+    2: {success: true}
+    3: {success: false}
+  legal:
+    - {type: move, unit: mg, allowed: false}
