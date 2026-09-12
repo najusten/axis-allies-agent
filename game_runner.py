@@ -103,14 +103,11 @@ class AggressiveRandomAgent(Agent):
             else:
                 return random.choice(moves)
         
-        # Filter out ability uses that don't help (just clutter the log)
-        non_ability_actions = [a for a in legal_actions 
-                              if not isinstance(a, type(legal_actions[0]).__class__) 
-                              or not hasattr(a, 'ability_name')]
-        
-        if non_ability_actions:
-            return random.choice(non_ability_actions)
-
+        # No attacks or moves left: prefer passing over random ability use
+        # (random abilities just clutter the log and waste once-per-game uses).
+        passes = [a for a in legal_actions if isinstance(a, PassAction)]
+        if passes:
+            return passes[0]
         return random.choice(legal_actions)
 
 

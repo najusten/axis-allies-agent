@@ -280,6 +280,19 @@ class ActionValidator:
             self.board, action.from_q, action.from_r, unit, **reach_kwargs
         )
 
+        # High Gear X: extra speed when the whole move stays on roads
+        # (mirrors ActionGenerator's road-only union)
+        if self.ability_system is not None and (action.to_q, action.to_r) not in reachable:
+            high_gear = self.ability_system.get_movement_modifiers(unit).get('high_gear_bonus', 0)
+            if high_gear > 0:
+                base = getattr(unit, 'speed', 0)
+                base = base if isinstance(base, int) else 0
+                hg_speed = (action.max_speed or base) + high_gear
+                reachable = reachable | self.movement_system.get_reachable_hexes(
+                    self.board, action.from_q, action.from_r, unit,
+                    max_speed=hg_speed, road_only=True,
+                    friendly_positions=friendly_positions)
+
         if (action.to_q, action.to_r) not in reachable:
             return ActionValidation(False, f"Hex ({action.to_q},{action.to_r}) is not reachable")
 
