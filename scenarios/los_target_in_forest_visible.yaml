@@ -1,0 +1,16 @@
+name: los-target-inside-forest-is-visible
+source: "LOS rules: a unit inside a forest hex can be seen (and gets cover); only hexes between block"
+board: {width: 12, height: 10, terrain: {forest: [[6,5]]}}
+units:
+  - {id: mg, owner: player1, at: [3,5], stats: {unit_type: Soldier, defense: "4", per: [10,8,6]}}
+  - {id: inforest, owner: player2, at: [6,5], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+phase: assault
+active_player: player1
+dice: [6,6,6,6,6,6,6,6, 2]     # 8 dice (medium range), then a failed cover roll
+actions:
+  - {type: attack, unit: mg, target: inforest}
+expect:
+  results:
+    0: {success: true}
+  events:
+    - {type: cover_save, unit: inforest, roll: 2, success: false}

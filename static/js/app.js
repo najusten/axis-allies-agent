@@ -32,6 +32,7 @@ class App {
     });
     this._setupZoomPan();
     $('chk-coords').onchange = (e) => this.renderer.setCoords(e.target.checked);
+    $('chk-los').onchange = () => this.updateLos();
     $('chk-fast').onchange = (e) => { this.renderer.setFast(e.target.checked); localStorage.setItem('aa_fast', e.target.checked ? '1' : ''); };
     if (localStorage.getItem('aa_fast')) { $('chk-fast').checked = true; this.renderer.setFast(true); }
     document.addEventListener('click', () => this.renderer.skipAnimation(), true);
@@ -84,6 +85,7 @@ class App {
     this.ui.renderLog(this.state.log);
     this.renderer.setSelection(this.selected);
     this.renderer.setHighlights(this.highlightsFor(this.selected));
+    this.renderer.setLosShade([]);
   }
 
   highlightsFor(id) {
@@ -92,7 +94,7 @@ class App {
     if (!ua) return [];
     const out = [];
     for (const [q, r] of ua.moves) out.push({ q, r, kind: 'move', data: { type: 'move', unit_id: id, to_q: q, to_r: r } });
-    for (const a of ua.attacks) out.push({ q: a.q, r: a.r, kind: 'attack', label: '⚔', data: { type: 'attack', unit_id: id, target_id: a.target_id, target_q: a.q, target_r: a.r } });
+    for (const a of ua.attacks) out.push({ q: a.q, r: a.r, kind: a.indirect ? 'indirect' : 'attack', label: a.indirect ? 'IDF' : '⚔', data: { type: 'attack', unit_id: id, target_id: a.target_id, target_q: a.q, target_r: a.r } });
     for (const b of ua.board) out.push({ q: b.q, r: b.r, kind: 'board', label: 'BOARD', data: { type: 'board_transport', unit_id: id, transport_id: b.transport_id, pos_q: b.q, pos_r: b.r } });
     for (const d of ua.dismount) out.push({ q: d.q, r: d.r, kind: 'dismount', label: 'OUT', data: { type: 'dismount', unit_id: id, transport_id: d.transport_id, to_q: d.q, to_r: d.r } });
     return out;
@@ -101,6 +103,15 @@ class App {
   select(id) {
     this.selected = id;
     this.render();
+    this.updateLos();
+  }
+
+  async updateLos() {
+    if (!$('chk-los').checked || !this.selected) { this.renderer.setLosShade([]); return; }
+    try {
+      const res = await api.los(this.selected);
+      if (res.unit === this.selected) this.renderer.setLosShade(res.blocked);
+    } catch (e) { this.renderer.setLosShade([]); }
   }
 
   // ------------------------------------------------------------ input
@@ -183,6 +194,7 @@ class App {
       try { await this.applyState(await api.state(), []); } catch (_) { /* ignore */ }
     } finally {
       this.busy = false;
+      this.updateLos();
     }
   }
 

@@ -65,6 +65,8 @@ button { font: inherit; }
 .hl-move:hover { fill: rgba(34,197,94,.6); }
 .hl-attack { fill: rgba(239,68,68,.35); stroke: #ef4444; stroke-width: 2; }
 .hl-attack:hover { fill: rgba(239,68,68,.6); }
+.hl-indirect { fill: rgba(249,115,22,.35); stroke: #fb923c; stroke-width: 2; stroke-dasharray: 5 3; }
+.hl-indirect:hover { fill: rgba(249,115,22,.6); }
 .hl-board { fill: rgba(250,204,21,.35); stroke: #facc15; stroke-width: 2; }
 .hl-dismount { fill: rgba(249,115,22,.35); stroke: #f97316; stroke-width: 2; }
 .hl-ability { fill: rgba(167,139,250,.35); stroke: #a78bfa; stroke-width: 2; }

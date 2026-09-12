@@ -1,0 +1,16 @@
+name: vehicle-road-bonus-only-along-roads
+source: "Terrain rules: a Vehicle that starts on a road and moves only along road hexes gets +1 speed; off-road it moves at normal speed"
+board: {width: 12, height: 10, terrain: {road: [[1,5],[2,5],[3,5],[4,5],[5,5],[6,5],[7,5]]}}
+units:
+  - {id: truck, owner: player1, at: [1,5], facing: SE, stats: {unit_type: Vehicle, defense: "3/2", speed: 3, veh: [0,0,0], per: [6,4,2]}}
+  - {id: enemy, owner: player2, at: [11,0], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+phase: movement
+active_player: player1
+actions: []
+expect:
+  legal:
+    - {type: move, unit: truck, to: [4,5], allowed: true}     # 3 along the road: normal speed
+    - {type: move, unit: truck, to: [5,5], allowed: true}     # 4th road hex: +1 road bonus
+    - {type: move, unit: truck, to: [6,5], allowed: false}    # 5 hexes: beyond even the bonus
+    - {type: move, unit: truck, to: [1,9], allowed: false}    # 4 hexes off-road: no bonus off road
+    - {type: move, unit: truck, to: [1,8], allowed: true}     # 3 hexes off-road: normal speed

@@ -1,0 +1,18 @@
+name: los-blocked-by-intervening-forest
+source: "LOS rules: forest, building and hill hexes between attacker and target block line of sight; the target's own hex never blocks"
+board: {width: 12, height: 10, terrain: {forest: [[5,5],[7,5]]}}
+units:
+  - {id: mg, owner: player1, at: [3,5], stats: {unit_type: Soldier, defense: "4", per: [10,8,6]}}
+  - {id: behind, owner: player2, at: [8,5], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}   # forest at 5,5 in between
+  - {id: inforest, owner: player2, at: [7,5], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}} # stands in forest: visible? (5,5 also in the way)
+  - {id: open, owner: player2, at: [3,2], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}     # clear line
+phase: assault
+active_player: player1
+actions:
+  - {type: attack, unit: mg, target: behind}
+expect:
+  results:
+    0: {success: false}
+  legal:
+    - {type: attack, unit: mg, target: behind, allowed: false}
+    - {type: attack, unit: mg, target: open, allowed: true}

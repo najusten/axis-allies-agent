@@ -66,6 +66,7 @@ class AttackAction(Action):
     distance: int
     has_los: bool
     improvised_attack: Optional[dict] = None  # For Improvisation ability: {attack_close, attack_medium, attack_long, etc.}
+    indirect_fire: bool = False  # LOS granted by a Spotter (Indirect Fire); set by the generator
 
     def __init__(self, unit_id: str, attacker_q: int, attacker_r: int,
                  target_id: str, target_q: int, target_r: int,
@@ -80,6 +81,7 @@ class AttackAction(Action):
         self.range_category = range_category
         self.distance = distance
         self.has_los = has_los
+        self.indirect_fire = False
         self.improvised_attack = improvised_attack
 
     def __str__(self):

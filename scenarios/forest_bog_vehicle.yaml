@@ -1,0 +1,24 @@
+name: vehicle-forest-bog-check
+source: "Terrain rules: a Vehicle entering a forest hex must roll 4+ or it stays put (movement used). Soldiers never roll."
+board: {width: 10, height: 10, terrain: {forest: [[5,4]]}}
+units:
+  - {id: tank, owner: player1, at: [4,4], facing: SE, stats: {unit_type: Vehicle, defense: "5/3", speed: 3, veh: [10,8,6], per: [8,6,4]}}
+  - {id: tank2, owner: player1, at: [4,6], facing: SE, stats: {unit_type: Vehicle, defense: "5/3", speed: 3, veh: [10,8,6], per: [8,6,4]}}
+  - {id: rifles, owner: player1, at: [4,5], stats: {unit_type: Soldier, defense: "4", speed: 2, per: [7,5,3]}}
+  - {id: enemy, owner: player2, at: [9,9], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+phase: movement
+active_player: player1
+dice: [2, 5]          # tank fails (2 < 4), tank2 passes (5)
+actions:
+  - {type: move, unit: tank, to: [5,4]}
+  - {type: move, unit: tank2, to: [5,4]}
+  - {type: move, unit: rifles, to: [5,5]}
+expect:
+  dice_consumed: 2
+  events:
+    - {type: movement_roll, unit: tank, reason: forest, roll: 2, needed: 4, success: false}
+    - {type: movement_roll, unit: tank2, reason: forest, roll: 5, needed: 4, success: true}
+  units:
+    tank: {at: [4,4], has_moved: true}
+    tank2: {at: [5,4]}
+    rifles: {at: [5,5]}

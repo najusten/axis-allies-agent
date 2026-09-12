@@ -1,0 +1,18 @@
+name: indirect-fire-without-spotter-is-blocked
+source: "Indirect Fire only ignores LOS when a friendly Spotter within 8 hexes has LOS to the target; otherwise normal LOS applies"
+board: {width: 14, height: 10, terrain: {forest: [[5,5],[5,4],[5,6]]}}
+units:
+  - {id: mortar, owner: player1, at: [3,5], stats: {unit_type: "Soldier Artillery", defense: "3", speed: 0, per: [6,6,6], veh: [2,2,2], abilities: "Indirect Fire, Enhanced Range 16"}}
+  - {id: rifles, owner: player1, at: [7,2], stats: {unit_type: Soldier, defense: "4", speed: 2, per: [6,4,2]}}   # sees the target but is NOT a Spotter
+  - {id: target, owner: player2, at: [8,5], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+  - {id: visible, owner: player2, at: [3,1], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+phase: assault
+active_player: player1
+actions:
+  - {type: attack, unit: mortar, target: target}
+expect:
+  results:
+    0: {success: false}
+  legal:
+    - {type: attack, unit: mortar, target: target, allowed: false}
+    - {type: attack, unit: mortar, target: visible, allowed: true}

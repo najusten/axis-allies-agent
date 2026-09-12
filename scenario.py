@@ -242,6 +242,84 @@ def build_action(game_state: GameState, data: dict,
     return None
 
 
+SPECIAL_FLAGS = ('is_rocket_salvo', 'is_rockets_8', 'is_top_mounted_rockets', 'is_bombs',
+                 'is_remote_control', 'is_additional_hull_cannon', 'is_extra_hull_cannon',
+                 'is_strike_and_fade', 'is_relocate')
+
+
+def find_legal_action(legal: List[Action], data: dict,
+                      aliases: Optional[Dict[str, str]] = None) -> Optional[Action]:
+    """
+    Pick the generator-produced action that a request describes, so that
+    flags the generator computed (has_los, indirect_fire, special attack
+    kinds, movement paths) are trusted rather than re-derived from the
+    request. Returns None when the request matches nothing legal.
+    """
+    aliases = aliases or {}
+    ali = lambda v: aliases.get(v, v) if isinstance(v, str) else v
+    kind = data.get('type')
+    unit_id = ali(data.get('unit') or data.get('unit_id'))
+    special = data.get('special')
+
+    def dest():
+        if data.get('to') is not None:
+            return int(data['to'][0]), int(data['to'][1])
+        if data.get('to_q') is not None:
+            return int(data['to_q']), int(data['to_r'])
+        return None
+
+    for a in legal:
+        if getattr(a, 'unit_id', None) != unit_id:
+            continue
+        if kind == 'move' and isinstance(a, MoveAction):
+            if (a.to_q, a.to_r) == dest():
+                return a
+        elif kind == 'attack' and isinstance(a, AttackAction):
+            target_id = ali(data.get('target') or data.get('target_id'))
+            if target_id and a.target_id != target_id:
+                continue
+            if not target_id and data.get('target_q') is not None and \
+                    (a.target_q, a.target_r) != (int(data['target_q']), int(data['target_r'])):
+                continue
+            flags = [f for f in SPECIAL_FLAGS if getattr(a, f, False) and f not in ('is_strike_and_fade', 'is_relocate')]
+            if special:
+                if f"is_{special}" not in flags:
+                    continue
+            elif flags or getattr(a, 'improvised_attack', None):
+                continue    # plain attack requested; skip special variants
+            return a
+        elif kind in ('board', 'board_transport') and isinstance(a, BoardTransportAction):
+            tid = ali(data.get('transport') or data.get('transport_id'))
+            if not tid or a.transport_id == tid:
+                return a
+        elif kind == 'dismount' and isinstance(a, DismountTransportAction):
+            tid = ali(data.get('transport') or data.get('transport_id'))
+            if (not tid or a.transport_id == tid) and (a.to_q, a.to_r) == dest():
+                return a
+        elif kind == 'use_ability' and isinstance(a, UseAbilityAction):
+            name = data.get('ability') or data.get('ability_name')
+            if a.ability_name != name:
+                continue
+            tid = ali(data.get('target_id') if data.get('target_id') else
+                      (data.get('target') if isinstance(data.get('target'), str) else None))
+            if tid and a.target_id != tid:
+                continue
+            thex = None
+            if isinstance(data.get('target'), (list, tuple)):
+                thex = (int(data['target'][0]), int(data['target'][1]))
+            elif data.get('target_q') is not None:
+                thex = (int(data['target_q']), int(data['target_r']))
+            if thex and (a.target_q, a.target_r) != thex:
+                continue
+            params = data.get('parameters') or {}
+            if data.get('facing') is not None:
+                params = {**params, 'new_facing': parse_facing(data['facing'])}
+            if params and (a.parameters or {}) != params:
+                continue
+            return a
+    return None
+
+
 def _unit_at(game_state: GameState, pos: Tuple[int, int], prefer_enemy_of: str = None) -> Optional[str]:
     first = None
     for uid, us in game_state.units.items():
@@ -315,11 +393,20 @@ class Scenario:
                 gs.turn_number += 1
                 steps.append(StepResult(i, spec, None, None, [{'type': 'turn_start', 'turn': gs.turn_number}]))
                 continue
-            action = build_action(gs, spec, self.aliases)
-            if action is None:
-                raise ValueError(f"{self.name}: action #{i} could not be built: {spec}")
             if spec.get('active_player'):
                 gs.active_player = spec['active_player']
+            if spec.get('force'):
+                action = build_action(gs, spec, self.aliases)
+            else:
+                player = spec.get('active_player') or gs.active_player
+                action = find_legal_action(self.legal_actions(player), spec, self.aliases)
+                if action is None:
+                    # Not offered by the generator: record a failed step so
+                    # expectations can assert on it (results: {i: {success: false}}).
+                    built = build_action(gs, spec, self.aliases)
+                    msg = "Not a legal action" if built is not None else f"could not build action: {spec}"
+                    steps.append(StepResult(i, spec, built, ActionResult(False, msg), []))
+                    continue
             result = ex.execute_action(gs, action)
             steps.append(StepResult(i, spec, action, result, list(result.events)))
         return steps

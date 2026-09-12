@@ -33,7 +33,7 @@ from evaluation import GameStateEvaluator
 from game_runner import AggressiveRandomAgent, GreedyAgent, RandomAgent
 from game_setup import load_all_units, GameSetup, GameSetupConfig
 from game_state import GameState, GamePhase, UnitState
-from scenario import build_action, build_systems, load_scenario, ABILITY_CSV
+from scenario import build_action, build_systems, find_legal_action, load_scenario, ABILITY_CSV
 from turn_controller import TurnController, format_event, VANGUARD_PHASE
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
@@ -48,8 +48,8 @@ PHASE_LABELS = {
     'airstrike': 'Airstrike', 'deployment': 'Deployment', VANGUARD_PHASE: 'Vanguard',
 }
 PHASE_HINTS = {
-    'movement': 'Select a unit, then click a green hex to move. Yellow = board transport, orange = dismount, purple = ability.',
-    'assault': 'Select a unit, then click a red hex to attack. Blue = relocate. End Phase when done.',
+    'movement': 'Select a unit, then click a green hex to move. Yellow = board transport, orange OUT = dismount, purple = ability. Vehicles roll 4+ to enter forest.',
+    'assault': 'Select a unit: red ⚔ = attack, orange IDF = indirect fire via spotter (no LOS needed), green = move instead of attacking. LOS checkbox shades what the unit cannot see.',
     'flight': 'Place aircraft on the board.',
     'airstrike': 'Aircraft attack.',
     VANGUARD_PHASE: 'Pre-game Vanguard move (speed 4).',
@@ -235,8 +235,14 @@ class GameSession:
             elif isinstance(action, MoveAction):
                 entry['moves'].append([action.to_q, action.to_r])
             elif isinstance(action, AttackAction):
+                if getattr(action, 'improvised_attack', None) or any(
+                        getattr(action, f, False) for f in ('is_rocket_salvo', 'is_rockets_8', 'is_top_mounted_rockets',
+                                                           'is_bombs', 'is_remote_control', 'is_additional_hull_cannon',
+                                                           'is_extra_hull_cannon')):
+                    continue   # special attack variants: not exposed in the UI yet
                 entry['attacks'].append({'q': action.target_q, 'r': action.target_r,
-                                         'target_id': action.target_id, 'distance': action.distance})
+                                         'target_id': action.target_id, 'distance': action.distance,
+                                         'indirect': bool(getattr(action, 'indirect_fire', False))})
             elif isinstance(action, BoardTransportAction):
                 entry['board'].append({'q': action.position_q, 'r': action.position_r,
                                        'transport_id': action.transport_id})
@@ -323,9 +329,11 @@ class GameSession:
             self.controller.run_until_human()
             return {'success': True, 'events': self.controller.events[start:]}
 
-        action = build_action(self.game_state, data)
+        # Only actions the generator offered are executed (this is what
+        # enforces LOS, range, arcs, once-per-game abilities server-side).
+        action = find_legal_action(self.controller.legal_actions(), data)
         if action is None:
-            return {'error': 'Could not build action from request'}
+            return {'error': 'That action is not legal right now'}
 
         self._push_undo()
         result = self.controller.apply(action)
@@ -434,6 +442,27 @@ def api_new_game():
             traceback.print_exc()
             return jsonify({'error': f'Could not start game: {e}'}), 400
         return jsonify({'success': True, 'state': _session.state_payload()})
+
+
+@app.route('/api/los')
+def api_los():
+    """Hexes visible from a unit's position: {visible: [[q,r]], blocked: [[q,r]]} (debug aid)."""
+    with _session_lock:
+        session = _get_session()
+        gs = session.game_state
+        us = gs.get_unit_state(request.args.get('unit', ''))
+        if not us:
+            return jsonify({'error': 'unknown unit'}), 400
+        q, r = us.position
+        visible, blocked = [], []
+        for (tq, tr) in gs.board.hexes:
+            if (tq, tr) == (q, r):
+                visible.append([tq, tr])
+                continue
+            ok, _ = session.systems.movement.has_line_of_sight(
+                gs.board, us.unit, q, r, tq, tr, smoke_screens=gs.smoke_screens)
+            (visible if ok else blocked).append([tq, tr])
+        return jsonify({'unit': us.unit.id, 'from': [q, r], 'visible': visible, 'blocked': blocked})
 
 
 @app.route('/api/abilities')

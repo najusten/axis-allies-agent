@@ -1025,21 +1025,11 @@ class AbilitySystem:
         Check if LOS is blocked considering unit abilities.
         Returns True if blocked, False if unit can see through.
         """
-        los_abilities = self.unit_has_any_ability_in_category(unit, 'los')
-
-        # Check if unit has abilities to see through obstacles
-        for ability in los_abilities:
-            description = self.get_ability_description(ability)
-            if not description:
-                continue
-            description_lower = description.lower()
-
-            if 'indirect' in description_lower:
-                return False  # Indirect fire ignores LOS
-
-            if 'spotter' in description_lower:
-                # Some spotter abilities let you see through one obstacle
-                return len(blocking_hexes) > 1
+        # NOTE: Indirect Fire does NOT grant line of sight here. It lets the
+        # attack ignore LOS only when a friendly Spotter (or U.S. Commander for
+        # Improved Indirect Fire) has LOS to the target — that rule lives in
+        # ActionGenerator._get_attack_actions. Treating "indirect" as
+        # see-through-everything let mortars/Hummels shoot anything in range.
 
         # Superior Optics: While in a hill hex, ignore terrain in any ONE blocking hex
         for ability in (unit.abilities or []):

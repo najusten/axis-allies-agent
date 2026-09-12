@@ -300,6 +300,16 @@ export class BoardRenderer {
 
   setSelection(id) { this.selected = id; this._drawSelectionRing(); }
 
+  // Shade hexes not visible from the selected unit (LOS debug overlay)
+  setLosShade(blocked) {
+    let g = this.layers.markers.querySelector('.los-shade');
+    if (g) g.remove();
+    if (!blocked || !blocked.length) return;
+    g = el('g', {}, 'los-shade');
+    for (const [q, r] of blocked) g.appendChild(el('polygon', { points: polygonPoints(q, r), fill: 'rgba(0,0,0,.45)', 'pointer-events': 'none' }));
+    this.layers.markers.appendChild(g);
+  }
+
   _drawSelectionRing() {
     const old = this.layers.overlay.querySelector('.sel-ring');
     if (old) old.remove();

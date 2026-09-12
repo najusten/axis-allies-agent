@@ -2573,14 +2573,15 @@ class ActionGenerator:
             # Soldier and has line of sight to it, this unit's attack against that
             # Soldier ignores line of sight."
             # Improved Indirect Fire: Also allows U.S. Commanders within 4 hexes to act as spotters.
+            indirect = False
             if not has_los:
                 # Can only ignore LOS with Indirect Fire + Spotter + Soldier target
                 if (has_indirect_fire or has_improved_indirect_fire) and 'Soldier' in (enemy.unit_type or ''):
                     owner = game_state.get_unit_owner(unit.id)
                     check_improved = has_improved_indirect_fire
                     if self._has_friendly_spotter_for_target(game_state, owner, enemy_q, enemy_r, check_improved):
-                        has_los = True  # Spotter/Commander allows Indirect Fire to work
-                if not has_los:
+                        indirect = True  # Spotter/Commander allows Indirect Fire to work
+                if not indirect:
                     continue
 
             # Get range category
@@ -2608,9 +2609,9 @@ class ActionGenerator:
                 target_r=enemy_r,
                 range_category=range_cat,
                 distance=distance,
-                has_los=has_los
+                has_los=has_los or indirect
             )
-
+            attack_action.indirect_fire = indirect
             actions.append(attack_action)
 
             # Improvisation: If unit has Improvisation and is in a hex with a destroyed
