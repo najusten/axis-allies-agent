@@ -57,17 +57,22 @@ DIRECTION_VECTORS = {
 VECTOR_TO_DIRECTION = {v: k for k, v in DIRECTION_VECTORS.items()}
 
 
+# Compass names as seen on the flat-top board the UI draws (y grows downward):
+#   (1,0) points down-right, (1,-1) up-right, (0,-1) up, (-1,0) up-left,
+#   (-1,1) down-left, (0,1) down. The enum member names are legacy.
+SCREEN_NAMES = {
+    HexDirection.EAST: "SE",
+    HexDirection.SOUTHEAST: "NE",
+    HexDirection.SOUTHWEST: "N",
+    HexDirection.WEST: "NW",
+    HexDirection.NORTHWEST: "SW",
+    HexDirection.NORTHEAST: "S",
+}
+
+
 def get_direction_name(direction: HexDirection) -> str:
-    """Get human-readable name for a direction"""
-    names = {
-        HexDirection.EAST: "East",
-        HexDirection.SOUTHEAST: "Southeast", 
-        HexDirection.SOUTHWEST: "Southwest",
-        HexDirection.WEST: "West",
-        HexDirection.NORTHWEST: "Northwest",
-        HexDirection.NORTHEAST: "Northeast",
-    }
-    return names.get(direction, "Unknown")
+    """Human-readable compass name matching the on-screen board orientation."""
+    return SCREEN_NAMES.get(direction, "Unknown")
 
 
 def get_opposite_direction(direction: HexDirection) -> HexDirection:

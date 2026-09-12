@@ -487,8 +487,8 @@ class GameSetupConfig:
     max_units_per_side: int = 6
 
     # Board setup
-    board_width: int = 15
-    board_height: int = 15
+    board_width: int = 18
+    board_height: int = 12
 
     # Objective
     objective_position: Tuple[int, int] = None  # None = center of board

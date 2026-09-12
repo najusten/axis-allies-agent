@@ -68,7 +68,8 @@ ABILITY_CSV = (
     else 'Axis and Allies Unit Data for Analysis - Special_Abilities.csv'
 )
 
-FACING_NAMES = {'E': 0, 'SE': 1, 'SW': 2, 'W': 3, 'NW': 4, 'NE': 5}
+# Screen compass names (flat-top board, see facing.SCREEN_NAMES) -> HexDirection index
+FACING_NAMES = {'SE': 0, 'NE': 1, 'N': 2, 'NW': 3, 'SW': 4, 'S': 5}
 PHASES = {
     'deployment': GamePhase.DEPLOYMENT, 'movement': GamePhase.MOVEMENT,
     'flight': GamePhase.FLIGHT, 'assault': GamePhase.ASSAULT,

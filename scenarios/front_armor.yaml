@@ -2,7 +2,7 @@ name: front-armor-attack
 source: "Rulebook: attacks from the front arc use the front defense value"
 board: {width: 10, height: 10}
 units:
-  - {id: tank, owner: player1, at: [4,4], facing: E,
+  - {id: tank, owner: player1, at: [4,4], facing: SE,
      stats: {unit_type: Vehicle, defense: "5/3", speed: 3, per: [8,6,4], veh: [10,8,6]}}
   - {id: at_gun, owner: player2, at: [6,4],
      stats: {unit_type: Soldier, defense: "4", speed: 2, per: [7,5,3], veh: [9,7,5]}}

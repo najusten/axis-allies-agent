@@ -971,14 +971,16 @@ class ActionGenerator:
                     game_state, unit, unit_state, (q, r), enemy_units
                 ))
 
+            # Once-per-game 'instead of a normal attack' abilities: only when the
+            # unit still has an attack available this turn.
             # Generate Bombs attack (once per game, same hex only)
-            if self._has_bombs(unit) and not unit_state.bombs_used:
+            if can_attack and self._has_bombs(unit) and not unit_state.bombs_used:
                 actions.extend(self._get_bombs_attacks(
                     game_state, unit, unit_state, (q, r), enemy_units
                 ))
 
             # Generate Speed Boost attacks vs Aircraft (once per game)
-            if self._has_speed_boost(unit) and not unit_state.speed_boost_used:
+            if can_attack and self._has_speed_boost(unit) and not unit_state.speed_boost_used:
                 actions.extend(self._get_speed_boost_attacks(
                     game_state, unit, unit_state, (q, r), enemy_units
                 ))
@@ -1020,25 +1022,25 @@ class ActionGenerator:
                 ))
 
             # Generate Remote Control attacks (once per game, roll 2 dice vs range then attack)
-            if self._has_remote_control(unit) and not unit_state.remote_control_used:
+            if can_attack and self._has_remote_control(unit) and not unit_state.remote_control_used:
                 actions.extend(self._get_remote_control_attacks(
                     game_state, unit, unit_state, (q, r), enemy_units
                 ))
 
             # Generate Rocket Salvo attacks (once per game, area attack vs target and adjacent units)
-            if self._has_rocket_salvo(unit) and not unit_state.rocket_salvo_used:
+            if can_attack and self._has_rocket_salvo(unit) and not unit_state.rocket_salvo_used:
                 actions.extend(self._get_rocket_salvo_attacks(
                     game_state, unit, unit_state, (q, r), enemy_units
                 ))
 
             # Generate Rockets 8 attacks (once per game, 8 dice vs target within 4 hexes)
-            if self._has_rockets_8(unit) and not unit_state.rockets_8_used:
+            if can_attack and self._has_rockets_8(unit) and not unit_state.rockets_8_used:
                 actions.extend(self._get_rockets_8_attacks(
                     game_state, unit, unit_state, (q, r), enemy_units
                 ))
 
             # Generate Top-Mounted Rockets attacks (once per game, area attack)
-            if self._has_top_mounted_rockets(unit) and not unit_state.top_mounted_rockets_used:
+            if can_attack and self._has_top_mounted_rockets(unit) and not unit_state.top_mounted_rockets_used:
                 actions.extend(self._get_top_mounted_rockets_attacks(
                     game_state, unit, unit_state, (q, r), enemy_units
                 ))

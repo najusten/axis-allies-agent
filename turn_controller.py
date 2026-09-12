@@ -19,6 +19,7 @@ Everything that happens is appended to self.events as plain dicts (see
 _emit) so a frontend can animate it and a log can be derived from it.
 """
 
+from enum import Enum
 from typing import Dict, List, Optional, Tuple, Any
 
 from game_state import GameState, GamePhase
@@ -27,6 +28,21 @@ from action import (Action, MoveAction, AttackAction, PassAction, EndPhaseAction
 
 VANGUARD_PHASE = "vanguard"
 OBJECTIVE_CHECK_TURN = 7
+
+
+def jsonable(value):
+    """Recursively convert enums/sets/tuples so an event can be JSON-encoded."""
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, dict):
+        return {str(k): jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return [jsonable(v) for v in value]
+    if hasattr(value, 'unit') and hasattr(value, 'position'):   # UnitState
+        return getattr(value.unit, 'id', str(value))
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
 
 
 def _unit_name(game_state: GameState, unit_id: str) -> str:
@@ -451,12 +467,12 @@ class TurnController:
         extra = getattr(result, 'events', None)
         if extra:
             ev['events'] = list(extra)
-        self.events.append(ev)
+        self.events.append(jsonable(ev))
 
     def _emit(self, type_: str, **fields):
         ev = {'type': type_}
         ev.update(fields)
-        self.events.append(ev)
+        self.events.append(jsonable(ev))
 
 
 # ----------------------------------------------------------------------

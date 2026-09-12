@@ -1,0 +1,258 @@
+// Controller: holds the current state payload, wires the renderer and UI,
+// turns clicks into /api/action calls, and animates the returned events.
+import { api } from './api.js';
+import { BoardRenderer } from './renderer.js';
+import { UI } from './ui.js';
+
+const $ = (id) => document.getElementById(id);
+
+class App {
+  constructor() {
+    this.state = null;
+    this.selected = null;
+    this.busy = false;
+    this.lastHumanPlayer = null;
+
+    this.renderer = new BoardRenderer($('board'), {
+      onHexClick: (q, r) => this.onHexClick(q, r),
+      onUnitClick: (id) => this.onUnitClick(id),
+      onHighlightClick: (hl) => this.onHighlightClick(hl),
+      onHover: (unitId, hl) => this.onBoardHover(unitId, hl),
+    });
+    this.ui = new UI({
+      onSelectUnit: (id) => this.select(id === this.selected ? null : id),
+      onAbility: (a) => this.useAbility(a),
+      onHoverAbility: (a) => this.hoverAbility(a),
+      onEndPhase: () => this.endPhase(),
+      onUndo: () => this.send({ type: 'undo' }),
+      onRedo: () => this.send({ type: 'redo' }),
+      onNewGame: (opts) => this.newGame(opts),
+      onHoverUnit: (id) => this.hoverUnit(id),
+      listScenarios: () => api.scenarios(),
+    });
+    this._setupZoomPan();
+    $('chk-coords').onchange = (e) => this.renderer.setCoords(e.target.checked);
+    $('chk-fast').onchange = (e) => { this.renderer.setFast(e.target.checked); localStorage.setItem('aa_fast', e.target.checked ? '1' : ''); };
+    if (localStorage.getItem('aa_fast')) { $('chk-fast').checked = true; this.renderer.setFast(true); }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') this.select(null);
+      if (e.key === 'e' && !e.metaKey && !e.ctrlKey && document.activeElement.tagName !== 'INPUT') this.endPhase();
+    });
+  }
+
+  async start() {
+    try { this.ui.setAbilityDescriptions(await api.abilities()); } catch (e) { /* optional */ }
+    const state = await api.state();
+    await this.applyState(state, []);
+    if (!this.userZoomed) this.fitBoard();
+  }
+
+  // ------------------------------------------------------------ state
+  async applyState(state, events) {
+    const prev = this.state;
+    this.state = state;
+    // Animate what happened before showing the final state.
+    if (events && events.length) {
+      this.renderer.setHighlights([]);
+      $('ability-panel').hidden = true;
+      await this.renderer.playEvents(events);
+    }
+    // Hot-seat: hide the board between two different humans.
+    const s = state.session;
+    if (s.mode === 'hotseat' && s.is_human_turn && this.lastHumanPlayer && this.lastHumanPlayer !== s.current_player && !s.game_over) {
+      await this.ui.showHandoff(s.current_player);
+    }
+    if (s.is_human_turn) this.lastHumanPlayer = s.current_player;
+
+    if (this.selected && !state.game.units.some(u => u.id === this.selected && u.is_alive)) this.selected = null;
+    this.render();
+    if (s.pending_facing) {
+      this.renderer.showFacingPicker(s.pending_facing, (f) => this.send({ type: 'set_facing', unit_id: s.pending_facing, facing: f }));
+    } else {
+      this.renderer.hideFacingPicker();
+    }
+    if (s.game_over && (!prev || !prev.session.game_over)) this.ui.showGameOver(s.result);
+  }
+
+  render() {
+    this.renderer.render(this.state);
+    this.ui.renderTop(this.state, this.selected);
+    this.ui.renderSidebar(this.state, this.selected);
+    this.ui.renderCard(this.state, this.selected);
+    this.ui.renderAbilityPanel(this.state, this.selected);
+    this.ui.renderLog(this.state.log);
+    this.renderer.setSelection(this.selected);
+    this.renderer.setHighlights(this.highlightsFor(this.selected));
+  }
+
+  highlightsFor(id) {
+    if (!id || !this.state.session.is_human_turn) return [];
+    const ua = this.state.unit_actions[id];
+    if (!ua) return [];
+    const out = [];
+    for (const [q, r] of ua.moves) out.push({ q, r, kind: 'move', data: { type: 'move', unit_id: id, to_q: q, to_r: r } });
+    for (const a of ua.attacks) out.push({ q: a.q, r: a.r, kind: 'attack', label: '⚔', data: { type: 'attack', unit_id: id, target_id: a.target_id, target_q: a.q, target_r: a.r } });
+    for (const b of ua.board) out.push({ q: b.q, r: b.r, kind: 'board', label: 'BOARD', data: { type: 'board_transport', unit_id: id, transport_id: b.transport_id, pos_q: b.q, pos_r: b.r } });
+    for (const d of ua.dismount) out.push({ q: d.q, r: d.r, kind: 'dismount', label: 'OUT', data: { type: 'dismount', unit_id: id, transport_id: d.transport_id, to_q: d.q, to_r: d.r } });
+    return out;
+  }
+
+  select(id) {
+    this.selected = id;
+    this.render();
+  }
+
+  // ------------------------------------------------------------ input
+  onUnitClick(id) {
+    if (this.busy) return;
+    const u = this.state.game.units.find(x => x.id === id);
+    if (!u) return;
+    // Clicking an enemy while a unit with an attack on that hex is selected = attack
+    if (this.selected && this.selected !== id) {
+      const hl = this.highlightsFor(this.selected).find(h => h.q === u.position[0] && h.r === u.position[1]);
+      if (hl) { this.onHighlightClick(hl); return; }
+    }
+    this.select(this.selected === id ? null : id);
+  }
+
+  onHexClick(q, r) {
+    if (this.busy) return;
+    if (q === null) { this.select(null); return; }
+    const hl = this.highlightsFor(this.selected).find(h => h.q === q && h.r === r);
+    if (hl) this.onHighlightClick(hl);
+    else {
+      // select a friendly unit standing there, if any
+      const s = this.state.session;
+      const u = this.state.game.units.find(x => x.is_alive && !x.carried_by_id && x.position[0] === q && x.position[1] === r && x.owner === s.current_player);
+      this.select(u ? u.id : null);
+    }
+  }
+
+  onHighlightClick(hl) {
+    if (this.busy || !hl.data) return;
+    this.send(hl.data);
+  }
+
+  onBoardHover(unitId, hl) {
+    if (hl && hl.kind === 'attack' && this.selected) {
+      const from = this.state.game.units.find(u => u.id === this.selected);
+      if (from) this.renderer.showLos(from.position, [hl.q, hl.r]);
+    } else {
+      this.renderer.hideLos();
+    }
+  }
+
+  hoverUnit(id) { /* sidebar hover: could highlight on board; keep minimal */ }
+
+  hoverAbility(a) {
+    if (a && a.target) this.renderer.setHighlights([...this.highlightsFor(this.selected), { q: a.target[0], r: a.target[1], kind: 'ability', label: '★' }]);
+    else if (a && a.target_id) {
+      const t = this.state.game.units.find(u => u.id === a.target_id);
+      if (t) this.renderer.setHighlights([...this.highlightsFor(this.selected), { q: t.position[0], r: t.position[1], kind: 'ability', label: '★' }]);
+    } else this.renderer.setHighlights(this.highlightsFor(this.selected));
+  }
+
+  useAbility(a) {
+    const data = { type: 'use_ability', unit_id: this.selected, ability_name: a.ability, target_id: a.target_id };
+    if (a.target) { data.target_q = a.target[0]; data.target_r = a.target[1]; }
+    if (a.parameters) data.parameters = a.parameters;
+    this.send(data);
+  }
+
+  endPhase() {
+    const s = this.state && this.state.session;
+    if (!s || this.busy) return;
+    if (s.mode === 'ai_vs_ai') { this.send({ type: 'step' }); return; }
+    if (!s.is_human_turn || s.pending_facing) return;
+    this.send({ type: 'pass' });
+  }
+
+  // ------------------------------------------------------------ network
+  async send(data) {
+    if (this.busy) return;
+    this.busy = true;
+    this.ui.busy(true, data.type === 'pass' || data.type === 'step' ? 'Playing…' : 'Resolving…');
+    try {
+      const res = await api.action(data);
+      this.ui.busy(false);
+      await this.applyState(res.state, res.events || []);
+    } catch (e) {
+      this.ui.busy(false);
+      this.ui.toast(e.message, true);
+      try { await this.applyState(await api.state(), []); } catch (_) { /* ignore */ }
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  async newGame(opts) {
+    this.busy = true;
+    this.ui.busy(true, 'Setting up…');
+    try {
+      const res = await api.newGame(opts);
+      this.selected = null;
+      this.lastHumanPlayer = null;
+      this.renderer.boardKey = null;
+      this.renderer.unitEls.forEach(g => g.remove());
+      this.renderer.unitEls.clear();
+      this.ui.busy(false);
+      await this.applyState(res.state, []);
+      this.fitBoard();
+      this.ui.toast(`New game — seed ${res.state.session.seed}`);
+    } catch (e) {
+      this.ui.busy(false);
+      this.ui.toast(e.message, true);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  // ------------------------------------------------------------ zoom/pan
+  _setupZoomPan() {
+    const c = $('board-container'), b = $('board');
+    const stored = parseFloat(localStorage.getItem('aa_zoom'));
+    let zoom = stored || 1;
+    this.userZoomed = !!stored;
+    const apply = () => { this.renderer.setZoom(zoom); };
+    const setZoom = (z, persist = true) => {
+      zoom = Math.max(0.3, Math.min(3, z));
+      apply();
+      if (persist) { localStorage.setItem('aa_zoom', zoom); this.userZoomed = true; }
+    };
+    const fit = () => {
+      setZoom(this.renderer.fitZoom(c.clientWidth, c.clientHeight), false);
+      localStorage.removeItem('aa_zoom');
+      this.userZoomed = false;
+    };
+    this.fitBoard = fit;
+    $('zoom-in').onclick = () => setZoom(zoom * 1.15);
+    $('zoom-out').onclick = () => setZoom(zoom / 1.15);
+    $('zoom-reset').onclick = () => fit();
+    c.addEventListener('wheel', (e) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      setZoom(zoom * (e.deltaY < 0 ? 1.1 : 0.9));
+    }, { passive: false });
+    window.addEventListener('resize', () => { if (!this.userZoomed) fit(); });
+    let panning = false, sx = 0, sy = 0, sl = 0, st = 0, moved = false;
+    c.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      if (e.target.closest('.unit') || e.target.closest('.hl') || e.target.closest('.facing-btn')) return;
+      panning = true; moved = false; sx = e.clientX; sy = e.clientY; sl = c.scrollLeft; st = c.scrollTop;
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!panning) return;
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      if (Math.abs(dx) + Math.abs(dy) > 4) { moved = true; c.classList.add('panning'); }
+      c.scrollLeft = sl - dx; c.scrollTop = st - dy;
+    });
+    window.addEventListener('mouseup', () => { panning = false; c.classList.remove('panning'); });
+    // swallow the click that ends a drag so it doesn't deselect
+    c.addEventListener('click', (e) => { if (moved) { e.stopPropagation(); moved = false; } }, true);
+    apply();
+  }
+}
+
+const app = new App();
+window.app = app;
+app.start().catch(e => { console.error(e); document.body.insertAdjacentHTML('beforeend', `<pre style="color:#f88;padding:20px">${e.stack || e}</pre>`); });
