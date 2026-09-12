@@ -221,6 +221,13 @@ export class UI {
         <option value="aggressive">Aggressive (random-ish, easy)</option>
         <option value="greedy">Greedy (old evaluator)</option>
         <option value="random">Random</option></select></div>
+      <div class="row"><label>Armies</label><select id="ng-armies">
+        <option value="showcase">Showcase (fixed, ability-rich)</option>
+        <option value="random">Random armies (points budget)</option></select></div>
+      <div class="row"><label>Points/side</label><input id="ng-points" value="100" inputmode="numeric"></div>
+      <div class="row"><label>Max year</label><select id="ng-year"><option value="">any</option>
+        ${[1939,1940,1941,1942,1943,1944,1945].map(y => `<option value="${y}">${y}</option>`).join('')}</select></div>
+      <div class="row"><label>Historical</label><label style="width:auto"><input type="checkbox" id="ng-hist"> enforce historical army limits (rulebook p.27)</label></div>
       <div class="row"><label>Seed</label><input id="ng-seed" placeholder="random" inputmode="numeric"></div>
       <div class="row"><label>Scenario</label><select id="ng-scenario"><option value="">Showcase armies (default)</option>
         ${scenarios.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('')}</select></div>
@@ -233,6 +240,10 @@ export class UI {
         ai: box.querySelector('#ng-ai').value,
         seed: box.querySelector('#ng-seed').value.trim(),
         scenario: box.querySelector('#ng-scenario').value,
+        armies: box.querySelector('#ng-armies').value,
+        points: parseInt(box.querySelector('#ng-points').value, 10) || 100,
+        max_year: box.querySelector('#ng-year').value,
+        historical: box.querySelector('#ng-hist').checked,
       };
       this.closeModal();
       this.h.onNewGame(opts);

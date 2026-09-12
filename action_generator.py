@@ -584,6 +584,10 @@ class ActionGenerator:
             unit = unit_state.unit
             q, r = unit_state.position
 
+            # Aircraft don't move on the map (placed in the flight phase)
+            if 'Aircraft' in (unit.unit_type or '') or not isinstance(getattr(unit, 'speed', 0), int):
+                continue
+
             # Skip if fully moved (has_moved = True means all movement spent)
             if unit_state.has_moved:
                 continue

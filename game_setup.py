@@ -482,9 +482,16 @@ class GameSetupConfig:
     # Year filtering
     year_range: Tuple[int, int] = None  # None = no year filter
 
+    # Rulebook "Historical Army Limits": each army is drawn from one group of
+    # nations that actually fought together (see HISTORICAL_GROUPS)
+    historical: bool = False
+
+    # Exclude Aircraft (the browser UI has no flight/airstrike controls yet)
+    exclude_aircraft: bool = False
+
     # Army constraints
     points_per_side: int = 100
-    max_units_per_side: int = 6
+    max_units_per_side: int = 10
 
     # Board setup
     board_width: int = 18
@@ -492,6 +499,21 @@ class GameSetupConfig:
 
     # Objective
     objective_position: Tuple[int, int] = None  # None = center of board
+
+
+# Rulebook p.27 "Historical Army Limits" (Commonwealth forces grouped with the UK)
+HISTORICAL_GROUPS = {
+    'axis': [
+        {'Germany', 'Italy', 'Romania', 'Hungary', 'Finland', 'Slovakia', 'Croatia', 'Bulgaria'},
+        {'Japan'},
+    ],
+    'allies': [
+        {'US', 'UK', 'France', 'Canada', 'Australia', 'NZ New Zealand', 'SA South Africa', 'Belgium', 'Greece'},
+        {'USSR'},
+        {'China'},
+        {'Poland'},
+    ],
+}
 
 
 class GameSetup:
@@ -526,16 +548,29 @@ class GameSetup:
             else:  # broad mode, p2 = axis by default
                 nations = AXIS_NATIONS
 
+        # Historical limits: restrict to one group of nations that fought together.
+        # Groups are picked at random, weighted by how many units they offer.
+        if config.historical and not (config.nations_p1 if side == 'player1' else config.nations_p2):
+            groups = HISTORICAL_GROUPS['allies' if side == 'player1' else 'axis']
+            candidates = [g & nations for g in groups if g & nations]
+            if candidates:
+                pool = self.unit_filter.filter(nations=nations, year_range=config.year_range, require_combat=True)
+                weights = [max(1, sum(1 for u in pool if u.nation in g)) for g in candidates]
+                nations = random.choices(candidates, weights=weights, k=1)[0]
+
         # Determine year range
         year_range = config.year_range
         if year_range is None and config.mode == 'theater' and config.theater:
             year_range = THEATERS[config.theater].year_range
 
-        return self.unit_filter.filter(
+        units = self.unit_filter.filter(
             nations=nations,
             year_range=year_range,
             require_combat=True
         )
+        if config.exclude_aircraft:
+            units = [u for u in units if 'Aircraft' not in (u.unit_type or '')]
+        return units
 
     def build_armies(self,
                      build_method: str = 'balanced') -> Tuple[Army, Army]:

@@ -67,10 +67,12 @@ class GameSession:
 
     def __init__(self, mode: str = 'vs_ai', ai_type: str = 'heuristic',
                  points: int = 100, seed: Optional[int] = None,
-                 scenario: Optional[str] = None):
+                 scenario: Optional[str] = None, armies: str = 'showcase',
+                 max_year: Optional[int] = None, historical: bool = False):
         self.mode = mode
         self.ai_type = ai_type
         self.seed = seed if seed is not None else random.randrange(1, 10 ** 6)
+        self.setup_info = {'armies': armies, 'points': points, 'max_year': max_year, 'historical': historical}
         random.seed(self.seed)
 
         if scenario:
@@ -80,7 +82,13 @@ class GameSession:
             self.scenario_name = sc.name
         else:
             self.systems = build_systems(seed=self.seed)
-            game_state = self._create_showcase_game()
+            if armies == 'random':
+                cfg = GameSetupConfig(points_per_side=points, historical=historical,
+                                      year_range=(1939, max_year) if max_year else None,
+                                      exclude_aircraft=True)
+                game_state = GameSetup(cfg).create_game()
+            else:
+                game_state = self._create_showcase_game()
             self.scenario_name = None
         game_state.rng_seed = self.seed
 
@@ -189,6 +197,7 @@ class GameSession:
                 'ai': self.ai_type if self.mode != 'hotseat' else None,
                 'seed': self.seed,
                 'scenario': self.scenario_name,
+                'setup': self.setup_info,
                 'human_players': [p for p, a in self.players.items() if a is None],
                 'current_player': player,
                 'current_phase': phase,
@@ -442,6 +451,9 @@ def api_new_game():
                 points=int(data.get('points', 100)),
                 seed=int(data['seed']) if data.get('seed') not in (None, '') else None,
                 scenario=data.get('scenario') or None,
+                armies=data.get('armies', 'showcase'),
+                max_year=int(data['max_year']) if data.get('max_year') not in (None, '') else None,
+                historical=bool(data.get('historical', False)),
             )
         except Exception as e:
             import traceback
