@@ -258,6 +258,10 @@ class GameState:
         if unit_id in self.units:
             unit_state = self.units[unit_id]
             unit = unit_state.unit
+            # Face-down counters die with the unit
+            self.pending_hits.pop(unit_id, None)
+            self.face_up_disrupted.discard(unit_id)
+            self.face_up_damaged.discard(unit_id)
 
             # Track destroyed unit for Fury/Tides of War abilities
             owner = unit_state.owner

@@ -241,7 +241,7 @@ class CasualtySystem:
         # Note: face-up Damaged is NOT cleared (persists until destroyed)
         
         # Step 2 & 3 & 4: Process pending hits
-        for unit_id, pending in game_state.pending_hits.items():
+        for unit_id, pending in list(game_state.pending_hits.items()):
             unit_state = game_state.get_unit_state(unit_id)
             if not unit_state:
                 continue
