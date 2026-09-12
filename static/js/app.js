@@ -49,6 +49,13 @@ class App {
     const state = await api.state();
     await this.applyState(state, []);
     if (!this.userZoomed) this.fitBoard();
+    this._afterRequest();
+  }
+
+  _afterRequest() {
+    const f = this._followUp;
+    this._followUp = null;
+    if (f) this.send(f);
   }
 
   // ------------------------------------------------------------ state
@@ -75,10 +82,25 @@ class App {
     } else {
       this.renderer.hideFacingPicker();
     }
+    // Decisions the rules ask of the player between phases. The answer is
+    // sent after the current request has fully finished (see _afterRequest).
     if (s.pending_initiative && !s.game_over) {
       const first = await this.ui.showInitiativeChoice(s.pending_initiative, state);
-      await this.send({ type: 'choose_order', first });
+      this._followUp = { type: 'choose_order', first };
       return;
+    }
+    if (s.pending_deploy_order && !s.game_over) {
+      const first = await this.ui.showDeployOrderChoice(s.pending_deploy_order);
+      this._followUp = { type: 'choose_deploy_order', first };
+      return;
+    }
+    // Deployment: auto-select the next unit to place so clicks go straight to the map
+    if (s.current_phase === 'deployment' && s.is_human_turn) {
+      const sel = this.selected && state.game.units.find(u => u.id === this.selected);
+      if (!sel || sel.is_deployed || sel.owner !== s.current_player) {
+        const next = state.game.units.find(u => u.owner === s.current_player && !u.is_deployed && (state.unit_actions[u.id] || {}).deploy?.length);
+        if (next) this.select(next.id);
+      }
     }
     if (s.game_over && (!prev || !prev.session.game_over)) this.ui.showGameOver(s.result);
   }
@@ -110,6 +132,7 @@ class App {
     for (const b of ua.board) out.push({ q: b.q, r: b.r, kind: 'board', label: 'BOARD', data: { type: 'board_transport', unit_id: id, transport_id: b.transport_id, pos_q: b.q, pos_r: b.r } });
     for (const d of ua.dismount) out.push({ q: d.q, r: d.r, kind: 'dismount', label: 'OUT', data: { type: 'dismount', unit_id: id, transport_id: d.transport_id, to_q: d.q, to_r: d.r } });
     for (const [q, r] of (ua.place || [])) out.push({ q, r, kind: 'place', data: { type: 'place', unit_id: id, to_q: q, to_r: r } });
+    for (const [q, r] of (ua.deploy || [])) out.push({ q, r, kind: 'place', data: { type: 'deploy', unit_id: id, to_q: q, to_r: r } });
     return out;
   }
 
@@ -209,6 +232,7 @@ class App {
     } finally {
       this.busy = false;
       this.updateLos();
+      this._afterRequest();
     }
   }
 
@@ -231,6 +255,7 @@ class App {
       this.ui.toast(e.message, true);
     } finally {
       this.busy = false;
+      this._afterRequest();
     }
   }
 

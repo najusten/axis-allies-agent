@@ -51,7 +51,7 @@ import yaml
 from abilities import AbilitySystem
 from action import (Action, MoveAction, AttackAction, UseAbilityAction,
                     BoardTransportAction, DismountTransportAction, PassAction,
-                    PlaceAircraftAction)
+                    PlaceAircraftAction, DeployAction)
 from action_executor import ActionExecutor, ActionResult
 from action_generator import ActionGenerator
 from board import Board
@@ -294,6 +294,9 @@ def find_legal_action(legal: List[Action], data: dict,
                 continue    # plain attack requested; skip special variants
             return a
         elif kind == 'place' and isinstance(a, PlaceAircraftAction):
+            if (a.to_q, a.to_r) == dest():
+                return a
+        elif kind == 'deploy' and isinstance(a, DeployAction):
             if (a.to_q, a.to_r) == dest():
                 return a
         elif kind in ('board', 'board_transport') and isinstance(a, BoardTransportAction):

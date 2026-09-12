@@ -65,6 +65,7 @@ export class BoardRenderer {
   // ------------------------------------------------------------------ render
   render(state) {
     this.state = state;
+    this.zone = state.session.deployment_zone || null;
     const board = state.game.board;
     const key = `${board.width}x${board.height}:${board.hexes.length}`;
     if (key !== this.boardKey) {
@@ -145,6 +146,10 @@ export class BoardRenderer {
       const { x, y } = axialToPixel(w.q, w.r);
       g.appendChild(txt(x, y + 4, '✖', null, { 'text-anchor': 'middle', 'font-size': 14, fill: '#333', opacity: .6 }));
     }
+    // deployment zone shading
+    if (this.zone && this.zone.length) {
+      for (const [q, r] of this.zone) g.appendChild(el('polygon', { points: polygonPoints(q, r), fill: 'rgba(34,211,238,.12)', 'pointer-events': 'none' }));
+    }
     // objective
     if (game.objective) {
       const { x, y } = axialToPixel(game.objective.q, game.objective.r);
@@ -176,7 +181,7 @@ export class BoardRenderer {
   }
 
   _drawUnits(state) {
-    const visible = state.game.units.filter(u => u.is_alive && !u.carried_by_id && (u.card.unit_type !== 'Aircraft' || u.is_aircraft_on_map));
+    const visible = state.game.units.filter(u => u.is_alive && u.is_deployed && !u.carried_by_id && (u.card.unit_type !== 'Aircraft' || u.is_aircraft_on_map));
     const offsets = this._stackOffsets(visible);
     const seen = new Set();
     for (const u of visible) {

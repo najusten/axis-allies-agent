@@ -59,10 +59,11 @@ export class UI {
         if (u.is_damaged) tags.push('<span class="tag dmg">damaged</span>');
         if (u.carried_by_id) tags.push('<span class="tag">aboard</span>');
         if (u.card.unit_type === 'Aircraft' && !u.is_aircraft_on_map) tags.push('<span class="tag">off-map</span>');
+        if (!u.is_deployed && u.card.unit_type !== 'Aircraft') tags.push('<span class="tag pend">deploy</span>');
         if (u.has_moved && u.has_attacked) tags.push('<span class="tag done">done</span>');
         else if (u.has_moved) tags.push('<span class="tag done">moved</span>');
         else if (u.has_attacked) tags.push('<span class="tag done">fired</span>');
-        const pos = (u.card.unit_type === 'Aircraft' && !u.is_aircraft_on_map) ? '✈' : `${u.position[0]},${u.position[1]}`;
+        const pos = (u.card.unit_type === 'Aircraft' && !u.is_aircraft_on_map) ? '✈' : !u.is_deployed ? '—' : `${u.position[0]},${u.position[1]}`;
         li.innerHTML = `<span class="nm">${esc(u.card.name)}</span>${tags.join('')}<span class="st">${pos}</span>`;
         li.onclick = () => this.h.onSelectUnit(u.id);
         li.onmouseenter = () => this.h.onHoverUnit(u.id);
@@ -212,6 +213,17 @@ export class UI {
         <p style="font-family:monospace">${rolls}</p>
         <p>Go first (act before the opponent) or second (see their moves, then react)?</p>
         <div class="actions"><button class="btn" id="m-second">Go second</button><button class="btn primary" id="m-first">Go first</button></div>`);
+      box.className = 'modal-box handoff';
+      box.querySelector('#m-first').onclick = () => { this.closeModal(); resolve(true); };
+      box.querySelector('#m-second').onclick = () => { this.closeModal(); resolve(false); };
+    });
+  }
+
+  showDeployOrderChoice(player) {
+    return new Promise(resolve => {
+      const box = this._modal(`<h2 class="${player === 'player1' ? 'p1' : 'p2'}">${this.playerName(player)} wins the coin flip</h2>
+        <p>Deploy first, or second (you'll see the opponent's setup before placing)?</p>
+        <div class="actions"><button class="btn" id="m-second">Deploy second</button><button class="btn primary" id="m-first">Deploy first</button></div>`);
       box.className = 'modal-box handoff';
       box.querySelector('#m-first').onclick = () => { this.closeModal(); resolve(true); };
       box.querySelector('#m-second').onclick = () => { this.closeModal(); resolve(false); };

@@ -23,11 +23,13 @@ from enum import Enum
 from typing import Dict, List, Optional, Tuple, Any
 
 from game_state import GameState, GamePhase
-from action import (Action, MoveAction, AttackAction, PassAction, EndPhaseAction)
+from action import (Action, MoveAction, AttackAction, PassAction, EndPhaseAction, DeployAction)
 
 
 VANGUARD_PHASE = "vanguard"
 INITIATIVE_PHASE = "initiative"   # waiting for the initiative winner to choose first/second
+DEPLOYMENT_PHASE = "deployment"   # pre-game: place undeployed units in your zone
+DEPLOY_ORDER_PHASE = "deploy_order"   # coin-flip winner chooses to deploy first or second
 OBJECTIVE_CHECK_TURN = 7     # rulebook: end of turn 7, then every turn
 POINTS_CHECK_TURN = 10       # rulebook: end of turn 10, points decide (if not tied)
 
@@ -111,8 +113,10 @@ class TurnController:
         phase, player = cur
         if phase == VANGUARD_PHASE:
             return self._vanguard_actions(player)
-        if phase == INITIATIVE_PHASE:
-            return []      # answered via choose_order(), not an action
+        if phase in (INITIATIVE_PHASE, DEPLOY_ORDER_PHASE):
+            return []      # answered via choose_order()/choose_deploy_order(), not an action
+        if phase == DEPLOYMENT_PHASE:
+            return self._deployment_actions(player)
         actions = self.generator.get_all_legal_actions(self.game_state, player)
         return [a for a in actions if not isinstance(a, (PassAction, EndPhaseAction))]
 
@@ -121,10 +125,35 @@ class TurnController:
     # ------------------------------------------------------------------
 
     def start(self):
-        """Queue the vanguard phase (if any) and the first turn."""
+        """Queue deployment (if units are undeployed), the vanguard phase (if any) and the first turn."""
         if self._started:
             return
         self._started = True
+        self.phase_queue = []
+        self.phase_idx = 0
+        if self._undeployed('player1') or self._undeployed('player2'):
+            # Rulebook: flip a coin; the winner decides whether to deploy first or second
+            winner = "player1" if self.executor.dice.roll_d6() <= 3 else "player2"
+            self.deploy_winner = winner
+            self._emit('coin_flip', winner=winner)
+            if self.is_human(winner):
+                self.phase_queue = [(DEPLOY_ORDER_PHASE, winner)]
+                self.game_state.active_player = winner
+                self._emit('phase', phase=DEPLOY_ORDER_PHASE, player=winner)
+                return
+            # AI winner: deploying second (seeing the opponent's setup) is the safer default
+            self.choose_deploy_order(self._other(winner))
+            return
+        self._after_deployment()
+
+    def choose_deploy_order(self, first: str):
+        self.game_state.current_phase = GamePhase.DEPLOYMENT
+        self.phase_queue = [(DEPLOYMENT_PHASE, first), (DEPLOYMENT_PHASE, self._other(first))]
+        self.phase_idx = 0
+        self._emit('deploy_order', first=first)
+        self._enter_phase()
+
+    def _after_deployment(self):
         self.phase_queue = []
         self.phase_idx = 0
         if self._any_unit_has_ability('vanguard'):
@@ -157,12 +186,16 @@ class TurnController:
         if not cur:
             return
         phase, player = cur
-        if phase == INITIATIVE_PHASE:
-            return    # must be answered with choose_order()
+        if phase in (INITIATIVE_PHASE, DEPLOY_ORDER_PHASE):
+            return    # must be answered with choose_order()/choose_deploy_order()
+        if phase == DEPLOYMENT_PHASE and self._undeployed(player):
+            return    # every unit must be placed before the phase can end
         self._exit_phase(phase, player)
         self.phase_idx += 1
         if self.phase_idx >= len(self.phase_queue):
-            if phase == VANGUARD_PHASE:
+            if phase == DEPLOYMENT_PHASE:
+                self._after_deployment()
+            elif phase == VANGUARD_PHASE:
                 self._start_turn()
             else:
                 self._end_turn()
@@ -185,7 +218,7 @@ class TurnController:
                 break
             phase, player = cur
             if self.is_human(player):
-                if phase == INITIATIVE_PHASE or self.legal_actions():
+                if phase in (INITIATIVE_PHASE, DEPLOY_ORDER_PHASE) or self.legal_actions():
                     break
                 self._emit('skip', phase=phase, player=player, reason='no legal actions')
                 self.end_phase()
@@ -305,7 +338,8 @@ class TurnController:
             if phase == GamePhase.AIRSTRIKE and not self._has_aircraft(player, on_map=True):
                 self.phase_idx += 1
                 continue
-            gs.current_phase = GamePhase.MOVEMENT if phase == VANGUARD_PHASE else phase
+            gs.current_phase = (GamePhase.MOVEMENT if phase == VANGUARD_PHASE
+                                else GamePhase.DEPLOYMENT if phase == DEPLOYMENT_PHASE else phase)
             gs.active_player = player
             self._actions_this_phase = 0
             if phase == GamePhase.MOVEMENT:
@@ -314,7 +348,9 @@ class TurnController:
             self._emit('phase', phase=phase, player=player)
             return
         # queue exhausted
-        if self.phase_queue and self.phase_queue[-1][0] == VANGUARD_PHASE:
+        if self.phase_queue and self.phase_queue[-1][0] == DEPLOYMENT_PHASE:
+            self._after_deployment()
+        elif self.phase_queue and self.phase_queue[-1][0] == VANGUARD_PHASE:
             self._start_turn()
         else:
             self._end_turn()
@@ -394,6 +430,9 @@ class TurnController:
     def _run_ai_phase(self, player: str, max_actions: Optional[int]):
         agent = self.players[player]
         gs = self.game_state
+        if self.current_phase() == DEPLOYMENT_PHASE:
+            self._ai_deploy(player, agent)
+            return
         if max_actions is None:
             n_units = len([u for u in gs.get_units_by_owner(player) if u.is_alive])
             max_actions = max(20, 3 * n_units)
@@ -428,6 +467,57 @@ class TurnController:
                 if (dq, dr) != (q, r):
                     actions.append(MoveAction(unit_id=us.unit.id, from_q=q, from_r=r,
                                               to_q=dq, to_r=dr, max_speed=4))
+        return actions
+
+    def _ai_deploy(self, player: str, agent):
+        """Default AI deployment: slow/indirect units at the back, others toward the
+        front of the zone, in cover when available, spread across the rows."""
+        import random as _r
+        gs = self.game_state
+        chooser = getattr(agent, 'choose_deployment', None)
+        for us in list(self._undeployed(player)):
+            legal = [a for a in self._deployment_actions(player) if a.unit_id == us.unit.id]
+            if not legal:
+                us.is_deployed = True   # nowhere to put it; treat as lost (shouldn't happen)
+                continue
+            if chooser is not None:
+                action = chooser(gs, us, legal)
+            else:
+                speed = us.unit.speed if isinstance(us.unit.speed, int) else 0
+                back = speed == 0 or any('indirect' in a.lower() or 'artillery' in (us.unit.unit_type or '').lower()
+                                          for a in (us.unit.abilities or []))
+                def score(a):
+                    col = gs.board.axial_to_offset(a.to_q, a.to_r)[0]
+                    depth = col if player == 'player1' else gs.board.width - 1 - col   # 0 = own edge
+                    terrain = gs.board.get_hex(a.to_q, a.to_r).terrain
+                    s = (-depth if back else depth) * 2.0
+                    if terrain in ('forest', 'hill', 'town', 'building'):
+                        s += 3 if 'Vehicle' not in (us.unit.unit_type or '') else 1
+                    if terrain == 'road':
+                        s += 1 if 'Vehicle' in (us.unit.unit_type or '') else 0
+                    s -= 2 * len([u for u in gs.get_units_at_position(a.to_q, a.to_r) if u.owner == player])
+                    return s + _r.random()
+                action = max(legal, key=score)
+            self.apply(action)
+
+    def _undeployed(self, player: str):
+        return [us for us in self.game_state.get_units_by_owner(player)
+                if us.is_alive and not us.is_deployed and 'Aircraft' not in (us.unit.unit_type or '')
+                and not self._has_ability(us, 'paratrooper')]
+
+    def _deployment_actions(self, player: str) -> List[Action]:
+        gs = self.game_state
+        actions: List[Action] = []
+        zone = gs.deployment_zone(player)
+        for us in self._undeployed(player):
+            is_vehicle = 'Vehicle' in (us.unit.unit_type or '')
+            for (q, r) in zone:
+                h = gs.board.get_hex(q, r)
+                if h.terrain in ('water', 'impassable') or (is_vehicle and h.terrain == 'marsh'):
+                    continue
+                if not gs.can_stack_at(q, r, player, us.unit.unit_type, exclude_unit_id=us.unit.id):
+                    continue
+                actions.append(DeployAction(us.unit.id, q, r, setup=True))
         return actions
 
     def _apply_exert_will(self, player: str):
@@ -542,6 +632,10 @@ def format_event(ev: dict) -> Optional[str]:
         return "\n".join(lines)
     if t == 'turn_order':
         return f"  → {ev['first']} goes first"
+    if t == 'coin_flip':
+        return f"🪙 Coin flip: {ev['winner']} chooses who deploys first"
+    if t == 'deploy_order':
+        return f"  → {ev['first']} deploys first"
     if t == 'initiative_reroll':
         return "  🎲 tie — reroll"
     if t == 'phase':

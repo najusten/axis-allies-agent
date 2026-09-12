@@ -2786,9 +2786,33 @@ class ActionExecutor:
             f"{soldier_state.unit.name} dismounted from {transport_state.unit.name} to ({action.to_q},{action.to_r})"
         )
 
+    def _execute_setup_deploy(self, game_state: GameState, action, unit_state: UnitState) -> ActionResult:
+        """Pre-game deployment: place within the player's zone, respecting stacking and terrain."""
+        unit = unit_state.unit
+        dest = game_state.board.get_hex(action.to_q, action.to_r)
+        if dest is None:
+            return ActionResult(False, "Invalid deployment location")
+        if not game_state.can_deploy_at(action.to_q, action.to_r, unit_state.owner):
+            return ActionResult(False, "Outside your deployment zone")
+        if dest.terrain in ('water', 'impassable'):
+            return ActionResult(False, f"Cannot deploy in {dest.terrain}")
+        if 'Vehicle' in (unit.unit_type or '') and dest.terrain in ('marsh',):
+            return ActionResult(False, "Vehicles cannot deploy in marsh")
+        if not game_state.can_stack_at(action.to_q, action.to_r, unit_state.owner, unit.unit_type,
+                                       exclude_unit_id=unit.id):
+            return ActionResult(False, "Deployment hex is full (stacking limit)")
+        unit_state.position = (action.to_q, action.to_r)
+        unit_state.is_deployed = True
+        if 'Vehicle' in (unit.unit_type or ''):
+            unit_state.facing = 0 if unit_state.owner == 'player1' else 3   # face the enemy edge
+        dest.unit = unit
+        return ActionResult(True, f"{unit.name} deployed at ({action.to_q}, {action.to_r})",
+                            events=[{'type': 'deploy', 'unit': unit.id, 'name': unit.name,
+                                     'to': [action.to_q, action.to_r]}])
+
     def _execute_deploy(self, game_state: GameState,
                         action: DeployAction) -> ActionResult:
-        """Execute a Paratrooper deployment action"""
+        """Execute a deployment action (pre-game setup, or a Paratrooper drop)"""
         unit_state = game_state.get_unit_state(action.unit_id)
         if not unit_state:
             return ActionResult(False, f"Unit {action.unit_id} not found")
@@ -2796,6 +2820,8 @@ class ActionExecutor:
         # Check if already deployed
         if unit_state.is_deployed:
             return ActionResult(False, "Unit is already deployed")
+        if getattr(action, 'setup', False):
+            return self._execute_setup_deploy(game_state, action, unit_state)
 
         # Check if destination hex is valid
         dest_hex = game_state.board.get_hex(action.to_q, action.to_r)

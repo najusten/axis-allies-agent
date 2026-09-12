@@ -27,7 +27,7 @@ from typing import Optional
 
 from flask import Flask, jsonify, request, send_from_directory
 
-from action import (MoveAction, AttackAction, UseAbilityAction,
+from action import (MoveAction, AttackAction, UseAbilityAction, DeployAction,
                     BoardTransportAction, DismountTransportAction, PlaceAircraftAction)
 from agents import HeuristicAgent, LookaheadAgent
 from evaluation import GameStateEvaluator
@@ -35,7 +35,8 @@ from game_runner import AggressiveRandomAgent, GreedyAgent, RandomAgent
 from game_setup import load_all_units, GameSetup, GameSetupConfig
 from game_state import GameState, GamePhase, UnitState
 from scenario import build_action, build_systems, find_legal_action, load_scenario, ABILITY_CSV
-from turn_controller import TurnController, format_event, VANGUARD_PHASE, INITIATIVE_PHASE
+from turn_controller import (TurnController, format_event, VANGUARD_PHASE, INITIATIVE_PHASE,
+                             DEPLOYMENT_PHASE, DEPLOY_ORDER_PHASE)
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 SCENARIO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'scenarios')
@@ -47,7 +48,7 @@ _session: Optional['GameSession'] = None
 PHASE_LABELS = {
     'movement': 'Movement', 'assault': 'Assault', 'flight': 'Flight',
     'airstrike': 'Airstrike', 'deployment': 'Deployment', VANGUARD_PHASE: 'Vanguard',
-    INITIATIVE_PHASE: 'Initiative',
+    INITIATIVE_PHASE: 'Initiative', DEPLOYMENT_PHASE: 'Deployment', DEPLOY_ORDER_PHASE: 'Deployment',
 }
 PHASE_HINTS = {
     'movement': 'Select a unit, then click a green hex to move. Yellow = board transport, orange OUT = dismount, purple = ability. Vehicles roll 4+ to enter forest.',
@@ -56,6 +57,8 @@ PHASE_HINTS = {
     'airstrike': 'Select an Aircraft on the map and click a red ⚔ hex to attack.',
     VANGUARD_PHASE: 'Pre-game Vanguard move (speed 4).',
     INITIATIVE_PHASE: 'You won the initiative roll: choose whether to go first or second this turn.',
+    DEPLOYMENT_PHASE: 'Deploy your army: select a unit in the sidebar, then click a cyan hex within five hexes of your edge. All units must be placed.',
+    DEPLOY_ORDER_PHASE: 'You won the coin flip: deploy first, or second (after seeing the opponent\'s setup)?',
 }
 DICE_EVENT_TYPES = {'attack', 'cover_save', 'movement_roll', 'defensive_fire', 'initiative', 'casualty'}
 
@@ -71,7 +74,8 @@ class GameSession:
                  points: int = 100, seed: Optional[int] = None,
                  scenario: Optional[str] = None, armies: str = 'showcase',
                  max_year: Optional[int] = None, historical: bool = False,
-                 p1_units: Optional[list] = None, p2_units: Optional[list] = None):
+                 p1_units: Optional[list] = None, p2_units: Optional[list] = None,
+                 deploy: bool = True):
         self.mode = mode
         self.ai_type = ai_type
         self.seed = seed if seed is not None else random.randrange(1, 10 ** 6)
@@ -101,6 +105,18 @@ class GameSession:
             players['player1'] = self._make_agent(ai_type, 'AI 1')
             players['player2'] = self._make_agent(ai_type, 'AI 2')
         self.players = players
+
+        # Both sides deploy (rulebook setup: coin flip, then each army within five
+        # hexes of its edge). Humans place units by hand, AIs use their policy.
+        # Scenarios come pre-placed.
+        if not scenario and deploy:
+            for us in game_state.units.values():
+                if 'Aircraft' not in (us.unit.unit_type or ''):
+                    h = game_state.board.get_hex(*us.position)
+                    if h is not None and h.unit is us.unit:
+                        h.unit = None
+                    us.is_deployed = False
+                    us.position = (-99, -99)
 
         self.controller = TurnController(
             game_state, self.systems.executor, self.systems.generator,
@@ -208,6 +224,9 @@ class GameSession:
                 'is_human_turn': self.is_human_turn(),
                 'pending_facing': self.pending_facing,
                 'pending_initiative': (player if phase == INITIATIVE_PHASE else None),
+                'pending_deploy_order': (player if phase == DEPLOY_ORDER_PHASE else None),
+                'deployment_zone': ([list(h) for h in gs.deployment_zone(player)]
+                                    if phase == DEPLOYMENT_PHASE else None),
                 'can_undo': bool(self._undo_stack) and self.is_human_turn(),
                 'can_redo': bool(self._redo_stack) and self.is_human_turn(),
                 'game_over': self.controller.game_over,
@@ -228,7 +247,7 @@ class GameSession:
                 continue
             pending = self.systems.executor.casualty_system.get_pending_hits_summary(gs, uid)
             out[uid] = {
-                'moves': [], 'attacks': [], 'board': [], 'dismount': [], 'abilities': [], 'place': [],
+                'moves': [], 'attacks': [], 'board': [], 'dismount': [], 'abilities': [], 'place': [], 'deploy': [],
                 'pending_hits': pending.get('total', 0),
             }
         if not self.is_human_turn() or self.pending_facing:
@@ -269,6 +288,8 @@ class GameSession:
                                           'transport_id': action.transport_id})
             elif isinstance(action, PlaceAircraftAction):
                 entry['place'].append([action.to_q, action.to_r])
+            elif isinstance(action, DeployAction):
+                entry['deploy'].append([action.to_q, action.to_r])
         return out
 
     # -- undo -------------------------------------------------------------
@@ -321,6 +342,17 @@ class GameSession:
                     self.controller.end_phase()
             return {'success': True, 'events': self.controller.events[start:]}
 
+        if kind == 'choose_deploy_order':
+            cur = self.controller.current()
+            if not cur or cur[0] != DEPLOY_ORDER_PHASE or self.players.get(cur[1]) is not None:
+                return {'error': 'No deployment choice pending'}
+            winner = cur[1]
+            first = winner if data.get('first', True) else ('player2' if winner == 'player1' else 'player1')
+            self._clear_undo()
+            self.controller.choose_deploy_order(first)
+            self.controller.run_until_human()
+            return {'success': True, 'events': self.controller.events[start:]}
+
         if kind == 'choose_order':
             cur = self.controller.current()
             if not cur or cur[0] != INITIATIVE_PHASE or self.players.get(cur[1]) is not None:
@@ -364,8 +396,10 @@ class GameSession:
             return {'error': 'Not your turn'}
 
         if kind == 'pass':
-            if self.controller.current_phase() == INITIATIVE_PHASE:
+            if self.controller.current_phase() in (INITIATIVE_PHASE, DEPLOY_ORDER_PHASE):
                 return {'error': 'Choose whether to go first or second'}
+            if self.controller.current_phase() == DEPLOYMENT_PHASE:
+                return {'error': 'Deploy all your units first'}
             self.pending_facing = None
             self._clear_undo()
             self.controller.end_phase()
@@ -481,6 +515,7 @@ def api_new_game():
                 scenario=data.get('scenario') or None,
                 armies=data.get('armies', 'showcase'),
                 p1_units=data.get('p1_units'), p2_units=data.get('p2_units'),
+                deploy=bool(data.get('deploy', True)),
                 max_year=int(data['max_year']) if data.get('max_year') not in (None, '') else None,
                 historical=bool(data.get('historical', False)),
             )

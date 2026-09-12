@@ -168,10 +168,11 @@ class DeployAction(Action):
     to_q: int
     to_r: int
 
-    def __init__(self, unit_id: str, to_q: int, to_r: int):
+    def __init__(self, unit_id: str, to_q: int, to_r: int, setup: bool = False):
         super().__init__(unit_id, "deploy")
         self.to_q = to_q
         self.to_r = to_r
+        self.setup = setup   # pre-game deployment (zone rules) vs. Paratrooper drop
 
     def __str__(self):
         return f"Deploy {self.unit_id} at ({self.to_q},{self.to_r})"

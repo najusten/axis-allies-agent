@@ -316,6 +316,18 @@ class GameState:
             return self.units[unit_id].owner
         return None
     
+    DEPLOY_DEPTH = 5   # rulebook: deploy anywhere within five hexes of your end of the map
+
+    def deployment_zone(self, owner: str):
+        """Axial coords of the hexes a player may deploy in (player1 = west end)."""
+        w = self.board.width
+        cols = range(0, self.DEPLOY_DEPTH) if owner == 'player1' else range(w - self.DEPLOY_DEPTH, w)
+        return [h for col in cols for h in self.board.column(col)]
+
+    def can_deploy_at(self, q: int, r: int, owner: str) -> bool:
+        col = self.board.axial_to_offset(q, r)[0]
+        return col < self.DEPLOY_DEPTH if owner == 'player1' else col >= self.board.width - self.DEPLOY_DEPTH
+
     def get_all_alive_units(self) -> List[UnitState]:
         """All living units, both players."""
         return [us for us in self.units.values() if us.is_alive]
