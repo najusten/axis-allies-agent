@@ -677,15 +677,22 @@ class GameSetup:
                     road_row -= 1
             road_row = max(1, min(H - 2, road_row))
 
-        # A stream: a continuous line of hex sides between two columns, bridged
-        # wherever the road crosses it (moving along a road needs no roll)
+        # A stream: a line of hex sides between two columns near the CENTRE of
+        # the map so both sides must cross it equally, bridged wherever the road
+        # crosses it and with a couple of fords (gaps) so it never walls off a side.
         if random.random() < 0.7:
-            col = random.choice([W // 3, W // 3 + 1, 2 * W // 3 - 1, 2 * W // 3])
+            col = random.choice([W // 2 - 1, W // 2])
+            edges = []
             for row in range(H):
                 q, r = A(col, row)
                 for nb in board.get_neighbors(q, r):
                     if Board.axial_to_offset(nb.q, nb.r)[0] == col + 1:
-                        board.add_edge_obstacle(q, r, nb.q, nb.r, 'stream')
+                        edges.append((q, r, nb.q, nb.r))
+            fords = set(random.sample(range(len(edges)), min(len(edges), random.choice([2, 3]))))
+            for i, (q, r, nq, nr) in enumerate(edges):
+                if i in fords:
+                    continue
+                board.add_edge_obstacle(q, r, nq, nr, 'stream')
 
         # Hedges: field boundaries around towns
         for (q, r) in list(town_hexes):
@@ -711,23 +718,23 @@ class GameSetup:
             if hex_obj.terrain in cover_types:
                 if q < mid_q:
                     left_cover.append((q, r))
-                elif q > mid_q:
+                else:
                     right_cover.append((q, r))
 
-        # If imbalance > 2, add cover to the weaker side
+        # If imbalance > 1, add cover to the weaker side until it's within 1
         diff = len(left_cover) - len(right_cover)
-        if abs(diff) <= 2:
+        if abs(diff) <= 1:
             return
 
         # Determine which side needs more cover
         if diff > 0:
             # Right side needs more
-            add_side_range = range(mid_q + 1, self.config.board_width)
+            add_side_range = range(mid_q, self.config.board_width)
         else:
             # Left side needs more
             add_side_range = range(0, mid_q)
 
-        needed = abs(diff) // 2  # Close half the gap
+        needed = abs(diff) - 1   # close the gap to at most 1 hex
         added = 0
         candidates = []
         for col in add_side_range:
