@@ -103,8 +103,11 @@ initiative_system = InitiativeSystem(ability_system, movement_system)
 - ❌ Activation missing for: Aggression (move-then-attack), Gliderborne / Partisan (special deployment), Vanguard (pre-game phase; runner only), AVRE (explicit obstacle destruction), Improved Indirect Fire (US commander target designation)
 
 ### AI
-- ✅ `RandomAgent`, `AggressiveRandomAgent`, `GreedyAgent` (one-ply via `GameStateEvaluator`)
-- ⚠️ `MCTSAgent` exists but is not playable: tree ignores phase transitions and the branching factor (one `MoveAction` per reachable hex) is too high — see roadmap Phase 4 (executor-state corruption is fixed)
+- ✅ `agents.HeuristicAgent` — **server default**. Static scoring of every legal action: attacks by expected damage (binomial over dice, cover roll, target value, focus fire), moves by objective pressure (phased by turn), cover, expected damage dealt/taken from the destination, rear exposure, forest bog risk, spreading. ~8 ms/decision. Beats AggressiveRandom 80–94%, Greedy 100%.
+- ✅ `agents.LookaheadAgent` — heuristic top-K pruning + one-ply simulation scored by `GameStateEvaluator`. Currently slightly *weaker* than pure heuristic (the evaluator is the weak link).
+- ✅ Legacy: `RandomAgent`, `AggressiveRandomAgent`, `GreedyAgent` (`game_runner.py`)
+- ❌ `MCTSAgent` (`mcts.py`) still not playable (ignores phase transitions, full action branching, weak evaluator). Next step would be MCTS/rollouts using the heuristic policy through `TurnController`.
+- Benchmark: `python3 simulate.py -n 16 --p1 heuristic --p2 aggressive --seed 2000`
 
 ### Server / UI (`server.py` + `static/`)
 - ✅ JSON API; frontend updates in place (no reload); moves animate; dice popups for attacks, cover rolls, movement rolls, defensive fire; LOS line; casualty fades; initiative banner; click to skip
@@ -112,7 +115,7 @@ initiative_system = InitiativeSystem(ability_system, movement_system)
 - ✅ New Game dialog: mode, AI type, seed, or load a scenario file
 - ✅ Select unit → highlighted hexes (move/attack/board/dismount), ability panel with per-target buttons, facing picker, undo/redo (blocked after any dice roll), zoom (fit/±/ctrl-wheel) and drag-pan, stat cards with ability descriptions, event log, coords toggle
 - ✅ Rectangular board (even-q offset), landscape default 18×12
-- ❌ MCTS / heuristic AI selectable (Phase 4)
+- ✅ AI choice in New Game: Heuristic (default), Lookahead, Aggressive, Greedy, Random
 - ❌ Path-aware movement (choose route), aircraft placement UI, deployment phase UI
 
 ---
@@ -121,7 +124,15 @@ initiative_system = InitiativeSystem(ability_system, movement_system)
 
 - Special attacks (rockets, hull cannons, remote control, bombs) roll their own dice outside `_resolve_attack_full`: no cover roll, no facing, no rerolls. They now at least record pending counters correctly. Should be unified.
 - `dice.resolve_soldier_damage`: a cover-saved hit on an *already disrupted* soldier does nothing. Rulebook says a second Disrupted result destroys — verify with a scenario.
-- Cover terrain = forest, building, hill, town, ruins (marsh excluded) — verify ruins/marsh.
+- Defensive fire applies its result immediately and destroys an already-disrupted target (`defensive_fire.py:690`). Rulebook: defensive fire "can only disrupt"? — verify.
+- Forest bog roll threshold is 4+ in the engine; the roll itself is confirmed by forum posts, the number is not. The 2008 Expanded Rules reportedly changed forests to double movement cost and "soft cover −1" — this engine follows the original rules.
+
+### Rules confirmed from rulebook/forums (Sep 2026)
+- Assault phase: attack **or** move; a unit that moved in the movement phase may move again ([axisandallies.org thread](https://www.axisandallies.org/forums/topic/16481/question-from-a-new-player-re-aa-miniatures), starter review).
+- Hindering terrain with cover roll: towns, forests, hills, swamps (soldiers 4+, vehicles 5+; success ⇒ result reduced to Disrupted).
+- Vehicle hits: successes = defense → disrupted, > defense → damaged, ≥ 2×defense → destroyed.
+- Road bonus only if the unit "stays on the road from start to finish"; vehicles make a movement roll to enter forest.
+- Spotter Q&A: a unit only counts as a Spotter if it doesn't move in the assault phase ([aamcardbase Q&A](http://www.aamcardbase.com/special_abilities_aam.aspx)).
 - Artillery assault-only movement, half-hexes, hex-side terrain: not implemented.
 - Ability activation UI missing for Aggression, Gliderborne, Partisan, AVRE, Improved Indirect Fire.
 - Log/coordinates are axial (q, r); the UI's coords toggle shows the same. Fine for debugging, may want offset (col,row) for players.
@@ -148,7 +159,7 @@ See `.claude/plans/` (session plan) for detail. Summary:
 - ✅ **Phase 1 — Engine foundations** (done): injectable RNG + `ScriptedDice`; game bookkeeping on `GameState`; `TurnController`; structured events; `to_dict()`; scenario loader.
 - 🔧 **Phase 2 — Rules verification** (infrastructure done, scenarios ongoing): 8 scenarios so far; add one per mechanic and per forum/FAQ ruling.
 - ✅ **Phase 3 — Frontend** (done, plain 2D): JSON API + static SVG frontend; hot-seat and vs-AI.
-- **Phase 4 — Agents**: fast `HeuristicAgent` with per-unit candidate actions; fix `MCTSAgent` (phases via `TurnController`, candidate actions, open-loop chance handling); tournament benchmarking with `simulate.py`.
+- 🔧 **Phase 4 — Agents**: `HeuristicAgent` + `LookaheadAgent` done and benchmarked; MCTS with heuristic rollouts via `TurnController` still open.
 - **Phase 5 — Visuals**: decide 2D art vs 3D; only `static/js/renderer.js` changes.
 
 Deferred: script sweep (remove unneeded modules once gameplay is complete), unit-card privacy in hot-seat, path-aware movement, remaining ability activations.

@@ -29,6 +29,7 @@ from flask import Flask, jsonify, request, send_from_directory
 
 from action import (MoveAction, AttackAction, UseAbilityAction,
                     BoardTransportAction, DismountTransportAction)
+from agents import HeuristicAgent, LookaheadAgent
 from evaluation import GameStateEvaluator
 from game_runner import AggressiveRandomAgent, GreedyAgent, RandomAgent
 from game_setup import load_all_units, GameSetup, GameSetupConfig
@@ -64,7 +65,7 @@ DICE_EVENT_TYPES = {'attack', 'cover_save', 'movement_roll', 'defensive_fire', '
 class GameSession:
     """One game: engine systems + TurnController + undo stacks."""
 
-    def __init__(self, mode: str = 'vs_ai', ai_type: str = 'aggressive',
+    def __init__(self, mode: str = 'vs_ai', ai_type: str = 'heuristic',
                  points: int = 100, seed: Optional[int] = None,
                  scenario: Optional[str] = None):
         self.mode = mode
@@ -110,7 +111,12 @@ class GameSession:
             return RandomAgent(name)
         if kind == 'greedy':
             return GreedyAgent(name, self.systems.executor, GameStateEvaluator())
-        return AggressiveRandomAgent(name)
+        if kind == 'aggressive':
+            return AggressiveRandomAgent(name)
+        if kind == 'lookahead':
+            return LookaheadAgent(name, executor=self.systems.executor, evaluator=GameStateEvaluator(),
+                                  movement_system=self.systems.movement)
+        return HeuristicAgent(name, movement_system=self.systems.movement)
 
     def _create_showcase_game(self) -> GameState:
         """Hand-picked armies that exercise many abilities, on a generated board."""
@@ -432,7 +438,7 @@ def api_new_game():
         try:
             _session = GameSession(
                 mode=data.get('mode', 'vs_ai'),
-                ai_type=data.get('ai', 'aggressive'),
+                ai_type=data.get('ai', 'heuristic'),
                 points=int(data.get('points', 100)),
                 seed=int(data['seed']) if data.get('seed') not in (None, '') else None,
                 scenario=data.get('scenario') or None,

@@ -26,7 +26,7 @@ from scenario import build_systems
 from turn_controller import TurnController
 
 
-AGENTS = ['random', 'aggressive', 'greedy', 'mcts']
+AGENTS = ['random', 'aggressive', 'greedy', 'heuristic', 'lookahead', 'mcts']
 
 
 def make_agent(kind: str, name: str, systems):
@@ -36,6 +36,13 @@ def make_agent(kind: str, name: str, systems):
         return AggressiveRandomAgent(name)
     if kind == 'greedy':
         return GreedyAgent(name, systems.executor, GameStateEvaluator())
+    if kind == 'heuristic':
+        from agents import HeuristicAgent
+        return HeuristicAgent(name, movement_system=systems.movement, rng=random.Random(random.random()))
+    if kind == 'lookahead':
+        from agents import LookaheadAgent
+        return LookaheadAgent(name, executor=systems.executor, evaluator=GameStateEvaluator(),
+                              movement_system=systems.movement, rng=random.Random(random.random()))
     if kind == 'mcts':
         from mcts import MCTSAgent
         agent = MCTSAgent(name, time_limit=1.0)
