@@ -1,0 +1,12 @@
+name: town-hex-blocks-line-of-sight
+source: "Rulebook p.19: 'If you can draw the line without crossing any part of a hex containing towns, hills, or forests ... the unit can see the target'"
+board: {width: 12, height: 8, terrain: {town: [[5,3]]}}
+units:
+  - {id: mg, owner: player1, at: [3,3], stats: {unit_type: Soldier, defense: "4", per: [10,8,6]}}
+  - {id: behind, owner: player2, at: [7,3], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+phase: assault
+active_player: player1
+actions: []
+expect:
+  legal:
+    - {type: attack, unit: mg, target: behind, allowed: false}

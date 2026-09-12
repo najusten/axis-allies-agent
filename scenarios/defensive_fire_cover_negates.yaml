@@ -1,0 +1,16 @@
+name: cover-roll-negates-defensive-fire
+source: "Rulebook p.25 Cover and Defensive Fire: 'A successful cover roll against defensive fire negates the attack instead of limiting its effect to disruption'"
+board: {width: 10, height: 8, terrain: {forest: [[4,3]]}}
+units:
+  - {id: rifles, owner: player1, at: [3,4], stats: {unit_type: Soldier, defense: "4", speed: 2, per: [7,5,3]}}
+  - {id: mg, owner: player2, at: [4,4], stats: {unit_type: Soldier, defense: "4", per: [10,8,6]}}
+phase: movement
+active_player: player1
+dice: [6,6,6,6,6,6,6,6,6,6, 5]   # 10 hits, then cover roll 5 (needs 4+) → negated
+actions:
+  - {type: move, unit: rifles, to: [4,3]}
+expect:
+  events:
+    - {type: defensive_fire, defender: mg, target: rifles, disrupted: false, movement_stopped: false}
+  units:
+    rifles: {status: healthy, at: [4,3]}

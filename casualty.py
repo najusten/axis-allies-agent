@@ -263,6 +263,12 @@ class CasualtySystem:
                         results['units_disrupted'].append(unit_id)
                 
                 elif counter.counter_type == HitCounterType.DAMAGED:
+                    if unit_state.is_damaged:
+                        # Rulebook: "If a damaged Vehicle would receive another
+                        # Damaged counter, it gets a Destroyed counter instead."
+                        game_state.remove_unit(unit_id)
+                        results['units_destroyed'].append(unit_id)
+                        break
                     unit_state.is_damaged = True
                     game_state.face_up_damaged.add(unit_id)
                     if unit_id not in results['units_damaged']:

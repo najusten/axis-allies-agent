@@ -1,0 +1,16 @@
+name: defensive-fire-best-result-is-disruption
+source: "Rulebook p.21: 'A defensive-fire attack is a lot like a normal attack except that the best result is disruption and that effect takes place immediately'"
+board: {width: 10, height: 8}
+units:
+  - {id: rifles, owner: player1, at: [3,4], disrupted: true, stats: {unit_type: Soldier, defense: "4", speed: 2, per: [7,5,3], abilities: "Robust"}}
+  - {id: mg, owner: player2, at: [4,4], stats: {unit_type: Soldier, defense: "4", per: [10,8,6]}}
+phase: movement
+active_player: player1
+dice: [6,6,6,6,6,6,6,6,6,6]     # 10 dice at short range, all hit
+actions:
+  - {type: move, unit: rifles, to: [4,3]}     # (3,4) and (4,3) are both adjacent to mg at (4,4) → provokes
+expect:
+  events:
+    - {type: defensive_fire, defender: mg, target: rifles, disrupted: true}
+  units:
+    rifles: {status: disrupted, alive: true}

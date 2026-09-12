@@ -495,13 +495,8 @@ class DefensiveFireSystem:
                 defense += 1
                 notes.append("Elan/Fearless: +1/+1 defense vs defensive fire")
 
-        # Disrupted: -1 defense
-        if target_state.is_disrupted:
-            defense = max(1, defense - 1)
-
-        # Damaged: -1 defense (doesn't stack with disrupted for penalty purposes,
-        # but damaged is a separate state that also gives -1)
-        if target_state.is_damaged:
+        # Rulebook: disrupted or damaged → -1 defense, applied only once when both
+        if target_state.is_disrupted or target_state.is_damaged:
             defense = max(1, defense - 1)
 
         return defense, notes
@@ -636,7 +631,7 @@ class DefensiveFireSystem:
         # Check if target hex has cover
         hex_obj = game_state.board.hexes.get(attack_in_hex)
         terrain = hex_obj.terrain if hex_obj else 'open'
-        has_cover = terrain in Board.COVER_TERRAIN
+        has_cover = Board.gives_cover(terrain, target.unit_type)
 
         # Determine cover roll threshold based on unit type
         if 'Vehicle' in (target.unit_type or ''):
@@ -679,31 +674,17 @@ class DefensiveFireSystem:
         if hit_2 and not cover_success_2:
             hits_applied += 1
 
-        # Determine final result based on hits applied
-        # Each hit causes a disruption. Two disruptions:
-        # - Soldier: destroyed (healthy->disrupted->destroyed)
-        # - Vehicle: damaged (healthy->disrupted->damaged)
+        # Rulebook: "A defensive-fire attack is a lot like a normal attack except
+        # that the best result is disruption and that effect takes place
+        # immediately." A successful cover roll negates it entirely.
         target_disrupted = False
         target_damaged = False
         target_destroyed = False
         movement_stopped = False
 
         if hits_applied >= 1:
-            movement_stopped = True
-            if target_state.is_disrupted:
-                # Already disrupted - next hit is worse
-                if 'Vehicle' in (target.unit_type or ''):
-                    target_damaged = True
-                else:
-                    target_destroyed = True
-            else:
-                target_disrupted = True
-                # Check for second hit (Double Shot)
-                if hits_applied >= 2:
-                    if 'Vehicle' in (target.unit_type or ''):
-                        target_damaged = True
-                    else:
-                        target_destroyed = True
+            movement_stopped = True        # disrupted units can't move
+            target_disrupted = True        # face-up Disrupted counter, even if already disrupted
 
         # Use first attack's cover roll for reporting (simplification)
         cover_success = cover_success_1

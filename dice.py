@@ -274,23 +274,15 @@ class DiceSystem:
                 counters_placed=[]
             )
         
-        # Cover success caps damage at disruption
+        # Rulebook: a successful cover roll limits the effect to disruption —
+        # place one face-down Disrupted counter, whatever the current status
         if cover_success:
-            if current_status == UnitStatus.HEALTHY:
-                return DamageResult(
-                    hits_scored=1,
-                    new_status=UnitStatus.DISRUPTED,
-                    status_change="Disrupted (cover saved from worse)",
-                    counters_placed=["disrupted"]
-                )
-            else:
-                # Already disrupted, cover prevents additional damage
-                return DamageResult(
-                    hits_scored=0,
-                    new_status=current_status,
-                    status_change="No additional effect (cover save)",
-                    counters_placed=[]
-                )
+            return DamageResult(
+                hits_scored=1,
+                new_status=UnitStatus.DISRUPTED,
+                status_change="Disrupted (cover saved from worse)",
+                counters_placed=["disrupted"]
+            )
         
         # No cover - apply full damage
         if current_status == UnitStatus.HEALTHY:
@@ -354,46 +346,22 @@ class DiceSystem:
                 counters_placed=[]
             )
         
-        # Cover success caps damage at +1 status level
+        # Rulebook: a successful cover roll limits the effect to disruption
+        # (one face-down Disrupted counter), even for damaged Vehicles
         if cover_success:
-            if current_status == UnitStatus.HEALTHY:
-                return DamageResult(
-                    hits_scored=1,
-                    new_status=UnitStatus.DISRUPTED,
-                    status_change="Disrupted (cover saved from worse)",
-                    counters_placed=["disrupted"]
-                )
-            elif current_status == UnitStatus.DISRUPTED:
-                return DamageResult(
-                    hits_scored=1,
-                    new_status=UnitStatus.DAMAGED,
-                    status_change="Damaged (cover saved from destruction)",
-                    counters_placed=["damaged"]
-                )
-            elif current_status == UnitStatus.DAMAGED:
-                # Cover can't save a damaged vehicle from destruction
-                return DamageResult(
-                    hits_scored=hits,
-                    new_status=UnitStatus.DESTROYED,
-                    status_change="DESTROYED (damaged vehicle can't be saved)",
-                    counters_placed=["destroyed"]
-                )
-            elif current_status == UnitStatus.DISRUPTED_AND_DAMAGED:
-                # Same as damaged - can't save
-                return DamageResult(
-                    hits_scored=hits,
-                    new_status=UnitStatus.DESTROYED,
-                    status_change="DESTROYED (damaged vehicle can't be saved)",
-                    counters_placed=["destroyed"]
-                )
+            if current_status in (UnitStatus.DAMAGED, UnitStatus.DISRUPTED_AND_DAMAGED):
+                new_status = UnitStatus.DISRUPTED_AND_DAMAGED
+            elif current_status == UnitStatus.DESTROYED:
+                return DamageResult(0, current_status, "Already destroyed", [])
             else:
-                return DamageResult(
-                    hits_scored=0,
-                    new_status=current_status,
-                    status_change="Already destroyed",
-                    counters_placed=[]
-                )
-        
+                new_status = UnitStatus.DISRUPTED
+            return DamageResult(
+                hits_scored=1,
+                new_status=new_status,
+                status_change="Disrupted (cover saved from worse)",
+                counters_placed=["disrupted"]
+            )
+
         # No cover - apply full damage based on hits
         if current_status == UnitStatus.HEALTHY:
             if hits >= 3:

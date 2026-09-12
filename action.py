@@ -301,7 +301,7 @@ class ActionValidator:
 
         # Check stacking limits at destination
         if owner and game_state and not game_state.can_stack_at(
-                action.to_q, action.to_r, owner, unit_type):
+                action.to_q, action.to_r, owner, unit_type, exclude_unit_id=unit.id):
             return ActionValidation(False, "Destination hex exceeds stacking limit")
 
         return ActionValidation(True)

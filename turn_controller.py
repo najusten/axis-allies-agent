@@ -27,7 +27,8 @@ from action import (Action, MoveAction, AttackAction, PassAction, EndPhaseAction
 
 
 VANGUARD_PHASE = "vanguard"
-OBJECTIVE_CHECK_TURN = 7
+OBJECTIVE_CHECK_TURN = 7     # rulebook: end of turn 7, then every turn
+POINTS_CHECK_TURN = 10       # rulebook: end of turn 10, points decide (if not tied)
 
 
 def jsonable(value):
@@ -54,7 +55,7 @@ class TurnController:
 
     def __init__(self, game_state: GameState, action_executor, action_generator,
                  initiative_system, players: Dict[str, Any],
-                 max_turns: int = 20, movement_system=None):
+                 max_turns: int = 30, movement_system=None):
         self.game_state = game_state
         self.executor = action_executor
         self.generator = action_generator
@@ -290,18 +291,25 @@ class TurnController:
         if self._check_elimination():
             return
 
+        # Rulebook "How to Win": at the end of turn 7 (and every turn after)
+        # the player who controls the objective wins; at the end of turn 10
+        # the higher surviving point total wins; if still tied, keep playing
+        # until a turn ends with a controller or a points lead.
         if gs.turn_number >= OBJECTIVE_CHECK_TURN:
             controller = gs.check_objective_control()
             if controller:
                 self._finish(controller, 'objective')
                 return
 
-        if gs.turn_number >= self.max_turns:
+        if gs.turn_number >= POINTS_CHECK_TURN:
             p1 = gs.get_total_points("player1")
             p2 = gs.get_total_points("player2")
-            winner = "player1" if p1 > p2 else "player2" if p2 > p1 else None
-            self._finish(winner, 'points' if winner else 'draw')
-            return
+            if p1 != p2:
+                self._finish("player1" if p1 > p2 else "player2", 'points')
+                return
+            if gs.turn_number >= self.max_turns:
+                self._finish(None, 'draw')
+                return
 
         # End-of-turn housekeeping
         for us in gs.units.values():

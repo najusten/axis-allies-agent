@@ -1,0 +1,17 @@
+name: failed-forest-roll-stops-in-hex-being-left-facing-it
+source: "Rulebook p.24 Movement Roll: 'If you roll 3 or less, it stops moving in the hex it was attempting to leave'; p.14: a Vehicle stopped by a failed terrain roll ends its movement facing the hex it tried to enter"
+board: {width: 10, height: 8, terrain: {forest: [[5,3]]}}
+units:
+  - {id: tank, owner: player1, at: [2,3], facing: N, stats: {unit_type: Vehicle, defense: "5/3", speed: 4, veh: [10,8,6], per: [8,6,4]}}
+  - {id: enemy, owner: player2, at: [9,0], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+phase: movement
+active_player: player1
+dice: [1]
+actions:
+  - {type: move, unit: tank, to: [5,3]}     # route (2,3)->(3,3)->(4,3)->(5,3): 1+1+2 = 4
+expect:
+  events:
+    - {type: movement_roll, unit: tank, reason: forest, roll: 1, success: false}
+    - {type: move, unit: tank, to: [4,3], stopped: true}
+  units:
+    tank: {at: [4,3], has_moved: true, facing: 0}     # facing 0 = toward (5,3) from (4,3)

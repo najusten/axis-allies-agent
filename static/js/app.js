@@ -93,7 +93,12 @@ class App {
     const ua = this.state.unit_actions[id];
     if (!ua) return [];
     const out = [];
-    for (const [q, r] of ua.moves) out.push({ q, r, kind: 'move', data: { type: 'move', unit_id: id, to_q: q, to_r: r } });
+    const u = this.state.game.units.find(x => x.id === id);
+    for (const [q, r] of ua.moves) {
+      const turnInPlace = u && u.position[0] === q && u.position[1] === r;
+      out.push({ q, r, kind: turnInPlace ? 'turn' : 'move', label: turnInPlace ? '↻ turn' : undefined,
+                 data: { type: 'move', unit_id: id, to_q: q, to_r: r } });
+    }
     for (const a of ua.attacks) out.push({ q: a.q, r: a.r, kind: a.indirect ? 'indirect' : 'attack', label: a.indirect ? 'IDF' : '⚔', data: { type: 'attack', unit_id: id, target_id: a.target_id, target_q: a.q, target_r: a.r } });
     for (const b of ua.board) out.push({ q: b.q, r: b.r, kind: 'board', label: 'BOARD', data: { type: 'board_transport', unit_id: id, transport_id: b.transport_id, pos_q: b.q, pos_r: b.r } });
     for (const d of ua.dismount) out.push({ q: d.q, r: d.r, kind: 'dismount', label: 'OUT', data: { type: 'dismount', unit_id: id, transport_id: d.transport_id, to_q: d.q, to_r: d.r } });
@@ -119,10 +124,11 @@ class App {
     if (this.busy) return;
     const u = this.state.game.units.find(x => x.id === id);
     if (!u) return;
-    // Clicking an enemy while a unit with an attack on that hex is selected = attack
-    if (this.selected && this.selected !== id) {
+    // Clicking a unit standing on one of the selected unit's highlights = that action
+    // (attack an enemy there, or "turn in place" on the selected vehicle itself)
+    if (this.selected) {
       const hl = this.highlightsFor(this.selected).find(h => h.q === u.position[0] && h.r === u.position[1]);
-      if (hl) { this.onHighlightClick(hl); return; }
+      if (hl && (this.selected !== id || hl.kind === 'turn')) { this.onHighlightClick(hl); return; }
     }
     this.select(this.selected === id ? null : id);
   }

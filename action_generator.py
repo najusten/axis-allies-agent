@@ -710,6 +710,8 @@ class ActionGenerator:
             if heavy_rifle_speed > 0 and base_speed == 0:
                 base_speed = heavy_rifle_speed
             effective_speed = base_speed + bonus_speed
+            if unit_state.is_damaged and 'Vehicle' in (unit.unit_type or ''):
+                effective_speed -= 1   # rulebook: damaged Vehicle suffers -1 speed
             # Subtract movement already spent (partial move)
             if movement_spent > 0:
                 effective_speed = max(0, effective_speed - movement_spent)
@@ -736,8 +738,12 @@ class ActionGenerator:
             # Create a move action for each reachable hex
             unit_type = getattr(unit, 'unit_type', 'Soldier')
             for (dest_q, dest_r) in reachable:
-                # Skip current position
                 if (dest_q, dest_r) == (q, r):
+                    # Vehicles may "move zero hexes" just to change facing
+                    if ('Vehicle' in (unit_type or '') and not unit_state.is_disrupted
+                            and movement_spent == 0):
+                        actions.append(MoveAction(unit_id=unit.id, from_q=q, from_r=r,
+                                                  to_q=q, to_r=r, path=[(q, r)], movement_cost=1))
                     continue
 
                 # Enforce stacking limits at destination
@@ -2396,12 +2402,17 @@ class ActionGenerator:
 
         reachable = self.movement_system.get_reachable_hexes(
             game_state.board, q, r, unit,
-            friendly_positions=friendly_positions
+            friendly_positions=friendly_positions,
+            is_damaged=unit_state.is_damaged
         )
 
         unit_type = getattr(unit, 'unit_type', 'Soldier')
         for (dest_q, dest_r) in reachable:
             if (dest_q, dest_r) == (q, r):
+                # Vehicles may "move zero hexes" to change facing (not while disrupted)
+                if 'Vehicle' in (unit_type or '') and not unit_state.is_disrupted:
+                    actions.append(MoveAction(unit_id=unit.id, from_q=q, from_r=r, to_q=q, to_r=r,
+                                              path=[(q, r)], movement_cost=0, is_relocate=True))
                 continue
             if not game_state.can_stack_at(dest_q, dest_r, owner, unit_type):
                 continue

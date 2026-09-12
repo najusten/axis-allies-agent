@@ -335,28 +335,28 @@ class GameState:
         """Get all units at a specific hex position"""
         return [us for us in self.units.values() if us.position == (q, r) and us.is_alive]
 
-    def can_stack_at(self, q: int, r: int, owner: str, unit_type: str) -> bool:
-        """Check if a unit of the given type can legally stack at (q, r).
+    def can_stack_at(self, q: int, r: int, owner: str, unit_type: str,
+                     exclude_unit_id: str = None) -> bool:
+        """Check if a unit of the given type can legally END its move at (q, r).
 
-        Stacking rules (per player, per hex):
-        - Max 3 units total (excluding Aircraft, Obstacles, and transported units)
-        - Max 1 Vehicle
-        - Aircraft and Obstacles don't count toward stacking
-        - Transported/loaded units don't count
+        Rulebook "Stacking": at most two friendly units in a hex, at most one of
+        them a Vehicle; a hex can hold two units of each army but only one
+        Vehicle in total. Aircraft (one per hex, separate limit), Obstacles and
+        transported units don't count.
         """
-        units_here = [us for us in self.get_units_at_position(q, r)
-                      if us.owner == owner
-                      and getattr(us.unit, 'unit_type', '') not in ('Aircraft', 'Obstacle')
-                      and not getattr(us, 'is_loaded', False)]
-        count = len(units_here)
-        vehicle_count = sum(1 for us in units_here
-                            if getattr(us.unit, 'unit_type', '') == 'Vehicle')
-
-        if unit_type == 'Aircraft' or unit_type == 'Obstacle':
+        here = [us for us in self.get_units_at_position(q, r)
+                if us.is_alive and us.unit.id != exclude_unit_id
+                and getattr(us.unit, 'unit_type', '') not in ('Aircraft', 'Obstacle')
+                and not getattr(us, 'carried_by_id', None)]
+        if unit_type == 'Obstacle':
             return True
-        if count >= 3:
+        if unit_type == 'Aircraft':
+            return not any(getattr(us.unit, 'unit_type', '') == 'Aircraft'
+                           for us in self.get_units_at_position(q, r) if us.unit.id != exclude_unit_id)
+        friendly = [us for us in here if us.owner == owner]
+        if len(friendly) >= 2:
             return False
-        if unit_type == 'Vehicle' and vehicle_count >= 1:
+        if 'Vehicle' in (unit_type or '') and any('Vehicle' in (us.unit.unit_type or '') for us in here):
             return False
         return True
 

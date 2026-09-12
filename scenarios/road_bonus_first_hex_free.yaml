@@ -1,0 +1,16 @@
+name: road-bonus-first-road-hex-is-free
+source: "Rulebook p.24 Road Bonus: 'Each phase, the first hex that a Vehicle moves along a road is free.' Moving along a road = between two adjacent hexes connected by a road"
+board: {width: 12, height: 10, terrain: {road: [[1,5],[2,5],[3,5]]}}
+units:
+  - {id: truck, owner: player1, at: [1,5], facing: SE, stats: {unit_type: Vehicle, defense: "3/2", speed: 2, veh: [0,0,0], per: [6,4,2]}}
+  - {id: enemy, owner: player2, at: [11,0], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+phase: movement
+active_player: player1
+actions: []
+expect:
+  legal:
+    - {type: move, unit: truck, to: [3,5], allowed: true}   # 2 road hexes, first free: cost 1
+    - {type: move, unit: truck, to: [4,5], allowed: true}   # road, road (free), then off-road: 0+1+1 = 2
+    - {type: move, unit: truck, to: [5,5], allowed: false}  # 4 hexes
+    - {type: move, unit: truck, to: [1,8], allowed: false}  # 3 hexes off-road: no bonus
+    - {type: move, unit: truck, to: [1,7], allowed: true}

@@ -1,0 +1,16 @@
+name: vehicles-pay-two-for-every-forest-hex
+source: "Rulebook p.24 Double-Cost Terrain: 'When a Vehicle enters a hill or forest hex, it counts as two hexes of movement'; Soldiers pay 1; Vehicles can't enter marshes"
+board: {width: 10, height: 8, terrain: {forest: [[3,3],[4,3]], marsh: [[2,4]]}}
+units:
+  - {id: tank, owner: player1, at: [2,3], facing: SE, stats: {unit_type: Vehicle, defense: "5/3", speed: 3, veh: [10,8,6], per: [8,6,4]}}
+  - {id: rifles, owner: player1, at: [2,2], stats: {unit_type: Soldier, defense: "4", speed: 2, per: [7,5,3]}}
+  - {id: enemy, owner: player2, at: [9,0], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+phase: movement
+active_player: player1
+actions: []
+expect:
+  legal:
+    - {type: move, unit: tank, to: [3,3], allowed: true}     # forest: 2
+    - {type: move, unit: tank, to: [4,3], allowed: false}    # forest + forest = 4 > 3
+    - {type: move, unit: tank, to: [2,4], allowed: false}    # marsh impassable to vehicles
+    - {type: move, unit: rifles, to: [4,2], allowed: true}   # soldiers: forest costs 1 → (3,2)?(4,2)

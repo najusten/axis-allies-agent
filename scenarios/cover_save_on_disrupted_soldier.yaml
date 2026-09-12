@@ -1,0 +1,15 @@
+name: cover-save-places-disrupted-counter-even-if-already-disrupted
+source: "Rulebook p.25 Effect of a Cover Roll: the effect is limited to disruption — place a face-down Disrupted counter (so a disrupted soldier in cover is not destroyed, but stays disrupted next turn)"
+board: {width: 10, height: 8, terrain: {forest: [[5,3]]}}
+units:
+  - {id: rifles, owner: player1, at: [5,3], disrupted: true, stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+  - {id: mg, owner: player2, at: [7,3], stats: {unit_type: Soldier, defense: "4", per: [10,8,6]}}
+phase: assault
+active_player: player2
+dice: [6,6,6,6,6,6,6,6, 4]     # 8 hits (destroy), cover roll 4 → saved
+actions:
+  - {type: attack, unit: mg, target: rifles}
+  - {type: casualty}
+expect:
+  units:
+    rifles: {status: disrupted, alive: true}

@@ -1,0 +1,14 @@
+name: disrupted-unit-has-minus-one-defense
+source: "Rulebook p.20 Disrupted: 'suffers a -1 penalty to defense'"
+board: {width: 10, height: 8}
+units:
+  - {id: rifles, owner: player1, at: [5,3], disrupted: true, stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+  - {id: mg, owner: player2, at: [7,3], stats: {unit_type: Soldier, defense: "4", per: [10,8,6]}}
+phase: assault
+active_player: player2
+dice: [6,6,6,1,1,1,1,1]        # 3 successes: < 4, but = 4-1 → 1 hit vs the disrupted target
+actions:
+  - {type: attack, unit: mg, target: rifles}
+expect:
+  results:
+    0: {combat: {defense: 3, hits: 1}}

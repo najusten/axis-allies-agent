@@ -503,13 +503,11 @@ class ActionExecutor:
         if not validation:
             return ActionResult(False, f"Invalid move: {validation.reason}")
 
-        # Movement rolls for vehicles entering difficult terrain
-        to_hex_obj = game_state.board.get_hex(action.to_q, action.to_r)
         unit_abilities = getattr(unit, 'abilities', []) or []
-
         move_events: List[Dict] = []
         movement_mods = self.ability_system.get_movement_modifiers(unit)
         roll_bonus = movement_mods.get('movement_roll_bonus', 0)
+        movement_roll_note = ""   # successful rolls, for the message
 
         def movement_roll(reason: str, allow_lead_the_way: bool = True):
             """Roll 4+ (with Robust/Mountaineering bonus); Lead the Way rerolls once per turn."""
@@ -526,160 +524,167 @@ class ActionExecutor:
                                 'success': success, 'reroll': rerolled})
             return roll, success
 
-        # Vehicle bog check: Vehicles must roll 4+ to enter forest hexes
-        # Exception: Brushcutters ability ignores forest terrain rolls
-        # (Roads are their own terrain type, so a road hex is never a forest hex.)
-        movement_roll_note = ""  # Track successful movement rolls for the message
-        if (to_hex_obj and to_hex_obj.terrain == 'forest'
-                and 'Vehicle' in (unit.unit_type or '')):
-            ignore_forest = movement_mods.get('ignore_forest_terrain', False)
-
-            if not to_hex_obj.has_road and not ignore_forest:
-                roll, success = movement_roll('forest')
-
-                if not success:
-                    # Failed bog check consumes the unit's movement
-                    unit_state.has_moved = True
-                    return ActionResult(
-                        True,
-                        f"{unit.name} bogged down entering {to_hex_obj.terrain} (rolled {roll}, needed {4 - roll_bonus}+) — stuck at ({action.from_q},{action.from_r})",
-                        events=move_events
-                    )
-                else:
-                    movement_roll_note = f" [forest entry roll: {roll}, needed {4 - roll_bonus}+ ✓]"
-
-        # Weak Suspension: must make movement roll to enter hill hex (except along road)
-        if to_hex_obj and to_hex_obj.terrain == 'hill':
-            has_weak_suspension = any(a.lower() == 'weak suspension' for a in unit_abilities)
-
-            if has_weak_suspension and not to_hex_obj.has_road:
-                roll, success = movement_roll('hill')
-
-                if not success:
-                    unit_state.has_moved = True
-                    return ActionResult(
-                        True,
-                        f"{unit.name} failed movement roll to enter hill (rolled {roll}, needed {4 - roll_bonus}+) — stuck at ({action.from_q},{action.from_r})",
-                        events=move_events
-                    )
-                else:
-                    movement_roll_note = f" [hill entry roll: {roll}, needed {4 - roll_bonus}+ ✓]"
-
-        # Check for edge obstacles that require movement rolls
-        edge_obstacle = game_state.board.get_edge_obstacle(
-            action.from_q, action.from_r, action.to_q, action.to_r
-        )
-        if edge_obstacle:
-            obstacle_lower = edge_obstacle.lower()
-            requires_roll = False
-            obstacle_name = edge_obstacle
-
-            # Barbed Wire: Soldiers must make movement roll
-            if obstacle_lower == 'barbed wire' and 'Soldier' in (unit.unit_type or ''):
-                requires_roll = True
-                obstacle_name = "Barbed Wire"
-
-            # Destroyed Bridge: All units must make movement roll (stream crossing)
-            elif obstacle_lower == 'destroyed_bridge':
-                requires_roll = True
-                obstacle_name = "stream (destroyed bridge)"
-
-            if requires_roll:
-                roll, success = movement_roll(obstacle_name, allow_lead_the_way=False)
-
-                if not success:
-                    return ActionResult(
-                        False,
-                        f"{unit.name} failed movement roll to cross {obstacle_name} (rolled {roll}, needed {4 - roll_bonus}+)",
-                        events=move_events
-                    )
-
-        # AVRE: This unit ignores Obstacles and destroys each Obstacle it crosses/enters
-        has_avre = any(a.lower() == 'avre' for a in unit_abilities)
-        avre_destroyed_obstacles = []
-
-        # Tank Obstacle: Vehicles must make movement roll to enter hex with Tank Obstacle unit
-        # (AVRE units ignore this requirement and destroy the obstacle instead)
-        if 'Vehicle' in (unit.unit_type or ''):
-            units_at_dest = game_state.get_units_at_position(action.to_q, action.to_r)
-            for dest_unit_state in units_at_dest:
-                dest_abilities = getattr(dest_unit_state.unit, 'abilities', []) or []
-                has_tank_obstacle = any('tank obstacle' in a.lower() for a in dest_abilities)
-                is_obstacle = dest_unit_state.unit.unit_type == 'Obstacle'
-
-                if has_avre and is_obstacle:
-                    # AVRE destroys obstacles on entry
-                    avre_destroyed_obstacles.append(dest_unit_state)
-                elif has_tank_obstacle and not has_avre:
-                    roll, success = movement_roll('tank obstacle', allow_lead_the_way=False)
-
-                    if not success:
-                        return ActionResult(
-                            False,
-                            f"{unit.name} failed movement roll to cross Tank Obstacle (rolled {roll}, needed {4 - roll_bonus}+)",
-                            events=move_events
-                        )
-                    break  # Only one roll needed per Tank Obstacle
-
-        # AVRE also destroys edge obstacles when crossing them
-        if has_avre:
-            edge_obstacle = game_state.board.get_edge_obstacle(
-                action.from_q, action.from_r, action.to_q, action.to_r
-            )
-            if edge_obstacle:
-                game_state.board.remove_edge_obstacle(
-                    action.from_q, action.from_r, action.to_q, action.to_r
-                )
-                avre_destroyed_obstacles.append(('edge', edge_obstacle))
-
         from_hex = (action.from_q, action.from_r)
         to_hex = (action.to_q, action.to_r)
+        is_vehicle = 'Vehicle' in (unit.unit_type or '')
+        has_avre = any(a.lower() == 'avre' for a in unit_abilities)
+        has_determined_charge = any(a.lower() == 'determined charge' for a in unit_abilities)
+        avre_destroyed_obstacles = []
 
-        # Check if moving unit has Determined Charge (doesn't stop when disrupted)
-        has_determined_charge = any(
-            a.lower() == 'determined charge' for a in (getattr(unit, 'abilities', []) or [])
-        )
+        # Resolve the actual route hex by hex. The generator only gives start
+        # and destination; find_path reproduces the cheapest legal route so
+        # terrain rolls and defensive fire happen where the unit really goes.
+        if from_hex == to_hex:
+            # "Moving zero hexes": the unit spends its movement to change facing
+            unit_state.has_moved = True
+            if is_relocate:
+                unit_state.assault_moved = True
+            move_events.append({'type': 'move', 'unit': unit.id, 'name': unit.name,
+                                'from': list(from_hex), 'to': list(to_hex), 'path': [list(from_hex)],
+                                'facing': unit_state.facing, 'stopped': False})
+            return ActionResult(True, f"{unit.name} holds position and turns", events=move_events)
+
+        path = action.path if action.path and len(action.path) >= 2 else [from_hex, to_hex]
+        if len(path) == 2 and game_state.board.hex_distance(*from_hex, *to_hex) > 1:
+            friendly_positions = {fus.position for fus in game_state.get_units_by_owner(unit_state.owner)
+                                  if fus.is_alive and fus.unit.id != unit.id}
+            path = self.movement_system.find_path(
+                game_state.board, from_hex[0], from_hex[1], to_hex[0], to_hex[1], unit,
+                max_speed=getattr(action, 'max_speed', None), friendly_positions=friendly_positions)
+        action.path = list(path)
+
+        def entry_checks(step_from, step_to):
+            """Terrain/obstacle rolls for entering step_to. Returns (ok, reason)."""
+            hex_obj = game_state.board.get_hex(*step_to)
+            if hex_obj is None:
+                return True, None
+            # Vehicle bog check: 4+ to enter forest (Brushcutters ignore; roads never forest)
+            if hex_obj.terrain == 'forest' and is_vehicle and not hex_obj.has_road \
+                    and not movement_mods.get('ignore_forest_terrain', False):
+                roll, ok = movement_roll('forest')
+                if not ok:
+                    return False, f"bogged down entering forest (rolled {roll}, needed {4 - roll_bonus}+)"
+                nonlocal movement_roll_note
+                movement_roll_note += f" [forest entry roll: {roll}, needed {4 - roll_bonus}+ ✓]"
+            # Weak Suspension: roll to enter a hill (except along a road)
+            if hex_obj.terrain == 'hill' and not hex_obj.has_road \
+                    and any(a.lower() == 'weak suspension' for a in unit_abilities):
+                roll, ok = movement_roll('hill')
+                if not ok:
+                    return False, f"failed movement roll to enter hill (rolled {roll}, needed {4 - roll_bonus}+)"
+                movement_roll_note += f" [hill entry roll: {roll}, needed {4 - roll_bonus}+ ✓]"
+            # Edge obstacles between the two hexes
+            edge_obstacle = game_state.board.get_edge_obstacle(step_from[0], step_from[1], step_to[0], step_to[1])
+            if edge_obstacle:
+                if has_avre:
+                    game_state.board.remove_edge_obstacle(step_from[0], step_from[1], step_to[0], step_to[1])
+                    avre_destroyed_obstacles.append(('edge', edge_obstacle))
+                else:
+                    lower = edge_obstacle.lower()
+                    name = None
+                    if lower == 'barbed wire' and 'Soldier' in (unit.unit_type or ''):
+                        name = 'Barbed Wire'
+                    elif lower == 'destroyed_bridge':
+                        name = 'stream (destroyed bridge)'
+                    if name:
+                        roll, ok = movement_roll(name, allow_lead_the_way=False)
+                        if not ok:
+                            return False, f"failed movement roll to cross {name} (rolled {roll}, needed {4 - roll_bonus}+)"
+            # Tank Obstacle units in the hex (AVRE destroys instead)
+            if is_vehicle:
+                for dest_unit_state in game_state.get_units_at_position(*step_to):
+                    dest_abilities = getattr(dest_unit_state.unit, 'abilities', []) or []
+                    is_obstacle = dest_unit_state.unit.unit_type == 'Obstacle'
+                    if has_avre and is_obstacle:
+                        avre_destroyed_obstacles.append(dest_unit_state)
+                    elif any('tank obstacle' in a.lower() for a in dest_abilities) and not has_avre:
+                        roll, ok = movement_roll('tank obstacle', allow_lead_the_way=False)
+                        if not ok:
+                            return False, f"failed movement roll to cross Tank Obstacle (rolled {roll}, needed {4 - roll_bonus}+)"
+                        break
+            return True, None
 
         df_results = []
         movement_stopped = False
+        stop_reason = None
         final_hex = to_hex
 
-        # Check defensive fire along each step of the path (not just start→end)
-        path = action.path if action.path and len(action.path) >= 2 else [from_hex, to_hex]
         for i in range(len(path) - 1):
             step_from = path[i]
             step_to = path[i + 1]
+
+            ok, reason = entry_checks(step_from, step_to)
+            if not ok:
+                final_hex = step_from       # stuck in the hex before the obstacle
+                stop_reason = reason
+                break
+
             df_opportunities = self.defensive_fire.check_defensive_fire_triggered(
                 game_state, action.unit_id, step_from, step_to
             )
-
             for opportunity in df_opportunities:
                 result = self.defensive_fire.resolve_defensive_fire(
                     game_state, opportunity, attack_in_hex=step_to
                 )
                 df_results.append(result)
-
                 stopped_at = self.defensive_fire.apply_defensive_fire_result(game_state, result)
-
                 if result.movement_stopped and not has_determined_charge:
                     movement_stopped = True
                     final_hex = stopped_at if stopped_at else step_to
                     break
                 elif result.movement_stopped and has_determined_charge:
                     result.message += " [Determined Charge: continues moving]"
-
             if movement_stopped:
                 break
-        
+
+        def legal_stop(hex_):
+            return hex_ == from_hex or game_state.can_stack_at(hex_[0], hex_[1], unit_state.owner,
+                                                                unit.unit_type, exclude_unit_id=unit.id)
+
+        # Rulebook "Breaking Stacking Rules": a unit can't be forced to stop in an
+        # overstacked hex — retrace the path to the last hex where it may stop.
+        if (stop_reason is not None or movement_stopped) and final_hex in path and not legal_stop(final_hex):
+            idx = path.index(final_hex)
+            while idx > 0 and not legal_stop(path[idx]):
+                idx -= 1
+            final_hex = path[idx]
+            if stop_reason:
+                stop_reason += f" — retraced to ({final_hex[0]},{final_hex[1]}) (stacking)"
+
+        if stop_reason is not None:
+            # A failed terrain roll consumes the unit's movement
+            unit_state.has_moved = True
+            if final_hex == from_hex:
+                message = f"{unit.name} {stop_reason} — stuck at ({from_hex[0]},{from_hex[1]})"
+                success = True
+            else:
+                success = game_state.move_unit(action.unit_id, final_hex[0], final_hex[1])
+                message = f"{unit.name} moved to ({final_hex[0]}, {final_hex[1]}) — {stop_reason}"
+            idx = path.index(final_hex)
+            attempted = path[idx + 1] if idx + 1 < len(path) else None
+            action.path = path[:idx + 1]
+            if success:
+                game_state.apply_action(action)
+                if is_vehicle and attempted is not None:
+                    # Rulebook: a Vehicle stopped by a failed terrain roll ends
+                    # its movement facing the hex it tried to enter
+                    unit_state.facing = calculate_facing_after_move(final_hex, attempted).value
+                move_events.append({'type': 'move', 'unit': unit.id, 'name': unit.name,
+                                    'from': list(from_hex), 'to': list(final_hex),
+                                    'path': [list(h) for h in action.path], 'facing': unit_state.facing,
+                                    'stopped': True})
+            for df_result in df_results:
+                message += f"\n    ⚔ {df_result.message}"
+            return ActionResult(success, message, defensive_fire_results=df_results, events=move_events)
+
         # Execute the move (to final hex - may be destination or where stopped)
         if movement_stopped:
-            # Move to where unit was stopped
             success = game_state.move_unit(action.unit_id, final_hex[0], final_hex[1])
             message = f"{unit.name} moved to ({final_hex[0]}, {final_hex[1]}) - STOPPED by defensive fire!"
         else:
             success = game_state.move_unit(action.unit_id, action.to_q, action.to_r)
             message = f"{unit.name} moved to ({action.to_q}, {action.to_r}){movement_roll_note}"
-        
+
         if success:
             game_state.apply_action(action)
 
@@ -694,6 +699,8 @@ class ActionExecutor:
             movement_mods = self.ability_system.get_movement_modifiers(unit)
             max_speed = self.movement_system.get_effective_speed(unit, movement_mods,
                                                                  is_disrupted=unit_state.is_disrupted)
+            if unit_state.is_damaged and is_vehicle:
+                max_speed = max(0, max_speed - 1)   # damaged Vehicle: -1 speed
             if unit_state.movement_used >= max_speed:
                 unit_state.has_moved = True  # Fully spent
 
@@ -1496,23 +1503,37 @@ class ActionExecutor:
             notes_str = " | " + "; ".join(result['notes'][:3])
 
         if use_simultaneous and result['hits'] > 0:
-            # Record hits as face-down counters (don't apply yet)
-            counter_types = self.casualty_system.record_hits(
-                game_state,
-                action.target_id,
-                target.unit_type,
-                min(3, result.get('effective_hits', result['hits']))
-            )
+            # Record hits as face-down counters (don't apply yet).
+            # Cover-saved attack: "If the unit already has a face-down Disrupted
+            # counter, don't place another counter."
+            pending_now = game_state.pending_hits.get(action.target_id)
+            if result.get('cover_success') and pending_now and pending_now.get_face_down_count() > 0:
+                counter_types = []
+                result['notes'].append("Cover: already has a face-down Disrupted counter")
+            else:
+                counter_types = self.casualty_system.record_hits(
+                    game_state,
+                    action.target_id,
+                    target.unit_type,
+                    min(3, result.get('effective_hits', result['hits']))
+                )
 
             # Check if unit will be destroyed (for message purposes)
             will_destroy = self.casualty_system.unit_has_pending_destroyed(game_state, action.target_id)
 
+            # Describe what the face-down counters will do, not the immediate-mode status
+            result['pending_counters'] = [ct.value for ct in counter_types]
             if will_destroy:
-                message = f"{attacker.name} vs {target.name}:{dice_detail}{cover_detail} - {result['outcome'].upper()}! (pending){notes_str}"
+                outcome_txt = "DESTROYED!"
                 result['pending_destroyed'] = True
+                result['outcome'] = 'destroyed'
+            elif counter_types:
+                outcome_txt = "/".join(ct.value.upper() for ct in counter_types)
+                result['outcome'] = counter_types[-1].value
             else:
-                message = f"{attacker.name} vs {target.name}:{dice_detail}{cover_detail} - {result['outcome'].upper()} (pending){notes_str}"
-                result['pending_counters'] = [ct.value for ct in counter_types]
+                outcome_txt = "no new counter"
+                result['outcome'] = 'no effect'
+            message = f"{attacker.name} vs {target.name}:{dice_detail}{cover_detail} - {outcome_txt} (pending){notes_str}"
 
             return ActionResult(True, message, result['hits'], None, result)
 
@@ -1816,8 +1837,8 @@ class ActionExecutor:
 
         result['defense'] = base_defense
 
-        # Check cover
-        has_cover = target_terrain in self.COVER_TERRAIN
+        # Check cover (marsh covers Soldiers only)
+        has_cover = Board.gives_cover(target_terrain, target.unit_type)
         ignore_cover = attack_mods.get('ignore_cover', False)
 
         # Low Silhouette: gets cover in clear terrain (succeeds on 6)
@@ -2228,9 +2249,10 @@ class ActionExecutor:
         result['target_destroyed'] = final_new_status == UnitStatus.DESTROYED
         result['status_change'] = damage_result.status_change
         result['counters_placed'] = damage_result.counters_placed
-        # Hits after the cover roll / status-specific reduction: this is what
-        # becomes face-down counters in simultaneous mode.
-        result['effective_hits'] = damage_result.hits_scored
+        # Counters to place in simultaneous mode. Rulebook: hits become face-down
+        # counters regardless of the target's current (face-up) status; a cover
+        # save limits the effect to a single Disrupted counter.
+        result['effective_hits'] = 1 if cover_success else hits
 
         # Set outcome
         if final_new_status == UnitStatus.DESTROYED:

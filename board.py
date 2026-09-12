@@ -44,6 +44,16 @@ class Board:
     # Rulebook: "hindering terrain (towns, forests, hills, or swamps)" gives a
     # cover roll; ruins are treated like buildings.
     COVER_TERRAIN = frozenset({'forest', 'building', 'hill', 'town', 'ruins', 'marsh'})
+    SOLDIER_ONLY_COVER = frozenset({'marsh'})
+
+    @classmethod
+    def gives_cover(cls, terrain: str, unit_type: str) -> bool:
+        """Rulebook: forest, hill, town (and shell holes) cover everyone; marsh covers Soldiers only."""
+        if terrain not in cls.COVER_TERRAIN:
+            return False
+        if terrain in cls.SOLDIER_ONLY_COVER and 'Vehicle' in (unit_type or ''):
+            return False
+        return True
     
     def __init__(self, width=15, height=15):
         """
