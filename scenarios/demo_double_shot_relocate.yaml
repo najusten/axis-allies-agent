@@ -1,14 +1,15 @@
 name: "Demo: Double Shot and Relocate"
 playable: true
-description: "Your MG 42 team can fire twice in the assault phase (but once it fires it can't move). Your Nebelwerfer has speed 0 and can only move 2 hexes in the assault phase instead of firing (Relocate 2)."
-board: {width: 12, height: 8, terrain: {hill: [[3,3]], forest: [[7,4]]}}
+coords: offset
+description: "Your MG 42 team can fire twice in the assault phase (but once it fires it can't move). Your Nebelwerfer has speed 0: it can only move 2 hexes in the assault phase instead of firing (Relocate 2)."
+board: {width: 12, height: 8, terrain: {hill: [[3,3]], forest: [[7,5]]}}
 objective: [7,3]
 units:
   - {id: mg, owner: player1, name: "MG 42 Machine Gun Team", at: [3,3]}
   - {id: neb, owner: player1, name: "Nebelwerfer 41", at: [2,4]}
   - {id: inf, owner: player1, name: "Panzergrenadier", at: [3,2]}
   - {id: e1, owner: player2, name: "M1 Garand Rifle", at: [6,3]}
-  - {id: e2, owner: player2, name: "BAR Gunner", at: [7,4]}
+  - {id: e2, owner: player2, name: "BAR Gunner", at: [7,5]}
   - {id: e3, owner: player2, name: "M4A1 Sherman", at: [8,2], facing: NW}
 phase: movement
 active_player: player1

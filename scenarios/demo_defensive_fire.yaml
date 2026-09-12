@@ -1,13 +1,14 @@
 name: "Demo: defensive fire decision"
 playable: true
-description: "Player 2's Panzer must drive past Player 1's MG team to reach the objective. As Player 1 you'll be asked which hex to fire into (rear armor vs front) or to hold fire. Hot-seat recommended; choose to go second as Player 1."
-board: {width: 12, height: 8, terrain: {forest: [[3,5],[7,2]], town: [[6,4]]}}
+coords: offset
+description: "Player 2's Sherman must drive past Player 1's MG team to reach the objective. As Player 1 you'll be asked which hex to fire into (rear armor vs front) or to hold fire. Hot-seat recommended; choose to go second as Player 1."
+board: {width: 12, height: 8, terrain: {forest: [[3,5],[7,1]], town: [[6,4]]}}
 objective: [6,4]
 units:
   - {id: mg, owner: player1, name: "MG 42 Machine Gun Team", at: [4,4]}
   - {id: rifles, owner: player1, name: "M1 Garand Rifle", at: [3,5]}
   - {id: tank, owner: player2, name: "M4A1 Sherman", at: [8,3], facing: NW}
-  - {id: grens, owner: player2, name: "Panzergrenadier", at: [8,4]}
+  - {id: grens, owner: player2, name: "Panzergrenadier", at: [8,5]}
 phase: movement
 active_player: player1
 actions: []

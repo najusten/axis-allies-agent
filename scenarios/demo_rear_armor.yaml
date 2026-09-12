@@ -1,11 +1,12 @@
 name: "Demo: rear armor and facing"
 playable: true
-description: "An enemy Panther faces north-west: front defense 6, rear 4 (side shots count as rear). Work a Sherman or the Bazooka around its flank in the movement phase, then fire in the assault phase. Toggle LOS to check sight lines."
-board: {width: 12, height: 8, terrain: {hill: [[6,2]], forest: [[4,5],[5,5]]}}
-objective: [6,4]
+coords: offset
+description: "An enemy Panther faces west (toward you): front defense 6, rear 4 — and side shots count as rear. Work a Sherman or the Bazooka around its flank in the movement phase, then fire in the assault phase. Toggle LOS to check sight lines."
+board: {width: 12, height: 8, terrain: {hill: [[6,1]], forest: [[4,6],[5,6]]}}
+objective: [7,4]
 units:
-  - {id: s1, owner: player1, name: "M4A1 Sherman", at: [2,3], facing: SE}
-  - {id: s2, owner: player1, name: "M4A1 Sherman", at: [2,5], facing: SE}
+  - {id: s1, owner: player1, name: "M4A1 Sherman", at: [2,2], facing: SE}
+  - {id: s2, owner: player1, name: "M4A1 Sherman", at: [2,6], facing: NE}
   - {id: bz, owner: player1, name: "Bazooka", at: [3,4]}
   - {id: panther, owner: player2, name: "Panther Ausf. A", at: [7,4], facing: NW}
   - {id: g1, owner: player2, name: "Panzergrenadier", at: [8,3]}

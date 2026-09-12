@@ -175,6 +175,8 @@ class Board:
 
     def add_edge_obstacle(self, q1: int, r1: int, q2: int, r2: int, obstacle_type: str):
         """Add an edge obstacle (like Barbed Wire) between two adjacent hexes."""
+        if self.hex_distance(q1, r1, q2, r2) != 1:
+            raise ValueError(f"Edge terrain must join adjacent hexes: ({q1},{r1})-({q2},{r2})")
         key = self._edge_key(q1, r1, q2, r2)
         self.edge_obstacles[key] = obstacle_type
 

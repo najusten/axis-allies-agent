@@ -584,15 +584,23 @@ def load_scenario(path: str) -> Scenario:
 def scenario_from_dict(raw: dict, name: str = 'scenario') -> Scenario:
     board_spec = raw.get('board') or {}
     board = Board(int(board_spec.get('width', 10)), int(board_spec.get('height', 10)))
+    # coords: axial (default, what the engine/log use) or offset (on-screen column,row)
+    if (raw.get('coords') or board_spec.get('coords') or 'axial') == 'offset':
+        def H(pair):
+            return Board.offset_to_axial(int(pair[0]), int(pair[1]))
+    else:
+        def H(pair):
+            return int(pair[0]), int(pair[1])
     for terrain, hexes in (board_spec.get('terrain') or {}).items():
-        for q, r in hexes:
-            board.set_terrain(int(q), int(r), terrain)
+        for pair in hexes:
+            q, r = H(pair)
+            board.set_terrain(q, r, terrain)
     for eo in (board_spec.get('edge_obstacles') or []):
-        a, b = eo['a'], eo['b']
-        board.add_edge_obstacle(int(a[0]), int(a[1]), int(b[0]), int(b[1]), eo['type'])
+        a, b = H(eo['a']), H(eo['b'])
+        board.add_edge_obstacle(a[0], a[1], b[0], b[1], eo['type'])
 
     objective = raw.get('objective')
-    game_state = GameState(board, objective_position=tuple(objective) if objective else None)
+    game_state = GameState(board, objective_position=H(objective) if objective else None)
     game_state.current_phase = PHASES[raw.get('phase', 'movement')]
     game_state.active_player = raw.get('active_player', 'player1')
     game_state.turn_number = int(raw.get('turn', 1))
@@ -602,9 +610,9 @@ def scenario_from_dict(raw: dict, name: str = 'scenario') -> Scenario:
         unit = unit_from_spec(spec)
         alias = spec.get('id') or unit.name
         unit.id = alias if alias not in aliases else f"{alias}_{len(aliases)}"
-        q, r = spec['at']
+        q, r = H(spec['at'])
         health = spec.get('health', unit.defense_front)
-        us = UnitState(unit, (int(q), int(r)), spec['owner'], health)
+        us = UnitState(unit, (q, r), spec['owner'], health)
         if spec.get('facing') is not None:
             us.facing = parse_facing(spec['facing'])
         us.is_disrupted = bool(spec.get('disrupted', False))
@@ -631,8 +639,8 @@ def scenario_from_dict(raw: dict, name: str = 'scenario') -> Scenario:
             if carrier:
                 carrier.carried_unit_id = us.unit.id
 
-    for q, r in (raw.get('smoke') or []):
-        game_state.add_smoke(int(q), int(r))
+    for pair in (raw.get('smoke') or []):
+        game_state.add_smoke(*H(pair))
 
     dice = ScriptedDice(list(raw.get('dice') or []), random_seed=int(raw.get('seed', 0)))
     systems = build_systems(dice=dice)
