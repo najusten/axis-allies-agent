@@ -85,6 +85,10 @@ export class UI {
         <tr><th>vs Soldier</th><td>${c.per[0]}</td><td>${c.per[1]}</td><td>${c.per[2]}</td></tr>
         <tr><th>vs Vehicle</th><td>${c.veh[0]}</td><td>${c.veh[1]}</td><td>${c.veh[2]}</td></tr></table>
         <div>Defense <b>${c.defense_front}${c.defense_rear !== c.defense_front ? '/' + c.defense_rear : ''}</b> · Speed <b>${c.speed}</b> · Health <b>${u.health}</b></div>`;
+      const mine = s.human_players.includes(u.owner);
+      if (mine && !s.game_over) {
+        html += `<div style="margin:6px 0"><label class="chk" style="margin:0"><input type="checkbox" id="card-holdfire" ${u.hold_defensive_fire ? 'checked' : ''}> hold defensive fire (rulebook: optional)</label></div>`;
+      }
       if (c.abilities.length) {
         html += '<div class="ab">';
         for (const a of c.abilities) {
@@ -96,6 +100,8 @@ export class UI {
     }
     box.innerHTML = html;
     box.hidden = false;
+    const hf = box.querySelector('#card-holdfire');
+    if (hf) hf.onchange = () => this.h.onHoldFire(u.id, hf.checked);
   }
 
   abilityDesc(name) {

@@ -28,6 +28,7 @@ class App {
       onRedo: () => this.send({ type: 'redo' }),
       onNewGame: (opts) => this.newGame(opts),
       onHoverUnit: (id) => this.hoverUnit(id),
+      onHoldFire: (id, hold) => this.send({ type: 'hold_fire', unit_id: id, hold }),
       listScenarios: () => api.scenarios(),
     });
     this._setupZoomPan();

@@ -316,6 +316,16 @@ class GameSession:
                     self.controller.end_phase()
             return {'success': True, 'events': self.controller.events[start:]}
 
+        if kind == 'hold_fire':
+            us = self.game_state.get_unit_state(data.get('unit_id', ''))
+            if not us or self.players.get(us.owner) is not None:
+                return {'error': 'Not one of your units'}
+            us.hold_defensive_fire = bool(data.get('hold', True))
+            self.controller.events.append({'type': 'hold_fire', 'unit': us.unit.id, 'name': us.unit.name,
+                                           'hold': us.hold_defensive_fire,
+                                           'message': f"{us.unit.name} will {'hold' if us.hold_defensive_fire else 'use'} defensive fire"})
+            return {'success': True, 'events': []}
+
         if kind == 'set_facing':
             uid = data.get('unit_id')
             if not uid or uid != self.pending_facing:

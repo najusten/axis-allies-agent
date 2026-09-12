@@ -524,6 +524,32 @@ class DefensiveFireSystem:
 
         return False
     
+    def choose_attack_hex(self, game_state: GameState,
+                          opportunity: DefensiveFireOpportunity) -> Tuple[int, int]:
+        """
+        Rulebook: the defender may fire into the hex the mover started in or
+        the hex it is entering. Pick the hex with the better chance to disrupt
+        (rear armor, no cover); on a tie fire into the starting hex, which
+        stops the mover earliest.
+        """
+        from facing import calculate_facing_for_defensive_fire, is_front_arc_attack
+        target = opportunity.target_state.unit
+        best_hex, best_score = opportunity.to_hex, -1.0
+        for hex_ in (opportunity.from_hex, opportunity.to_hex):
+            is_rear = False
+            if 'Vehicle' in (target.unit_type or ''):
+                facing = calculate_facing_for_defensive_fire(opportunity.from_hex, opportunity.to_hex)
+                is_rear = not is_front_arc_attack(opportunity.defender_pos, hex_, facing)
+            defense, _ = self.get_defense_value(target, opportunity.target_state, is_rear, game_state)
+            hex_obj = game_state.board.hexes.get(hex_)
+            terrain = hex_obj.terrain if hex_obj else 'open'
+            cover = Board.gives_cover(terrain, target.unit_type)
+            # crude score: lower defense and no cover are better
+            score = 10 - defense - (3 if cover else 0)
+            if score > best_score or (score == best_score and hex_ == opportunity.from_hex):
+                best_hex, best_score = hex_, score
+        return best_hex
+
     def resolve_defensive_fire(
         self,
         game_state: GameState,

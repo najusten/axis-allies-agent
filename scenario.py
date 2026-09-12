@@ -602,9 +602,12 @@ def scenario_from_dict(raw: dict, name: str = 'scenario') -> Scenario:
         us.has_attacked = bool(spec.get('has_attacked', False))
         if spec.get('in_transport'):
             us.carried_by_id = spec['in_transport']
-        for key in ('strike_and_fade_available', 'is_aircraft_on_map', 'is_deployed'):
-            if key in spec:
-                setattr(us, key, bool(spec[key]))
+        # Any other UnitState flag can be set directly (hold_defensive_fire, is_deployed, ...)
+        reserved = {'id', 'name', 'owner', 'at', 'stats', 'facing', 'health', 'disrupted', 'damaged',
+                    'has_moved', 'has_attacked', 'in_transport'}
+        for key, value in spec.items():
+            if key not in reserved and hasattr(us, key):
+                setattr(us, key, value)
         game_state.add_unit(us)
         aliases[alias] = unit.id
 

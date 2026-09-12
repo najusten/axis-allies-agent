@@ -623,8 +623,13 @@ class ActionExecutor:
                 game_state, action.unit_id, step_from, step_to
             )
             for opportunity in df_opportunities:
+                # Rulebook: defensive fire is optional ("hold your fire") and the
+                # defender chooses the hex the mover started in or is entering
+                if opportunity.defender_state.hold_defensive_fire:
+                    continue
+                fire_hex = self.defensive_fire.choose_attack_hex(game_state, opportunity)
                 result = self.defensive_fire.resolve_defensive_fire(
-                    game_state, opportunity, attack_in_hex=step_to
+                    game_state, opportunity, attack_in_hex=fire_hex
                 )
                 df_results.append(result)
                 stopped_at = self.defensive_fire.apply_defensive_fire_result(game_state, result)

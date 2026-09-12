@@ -1,0 +1,15 @@
+name: defensive-fire-defender-picks-the-hex-with-rear-armor
+source: "Rulebook p.22 example: the PAK 38 chooses to fire when the Sherman is in the hex giving a rear shot with no cover"
+board: {width: 10, height: 8}
+units:
+  # tank drives (3,4) -> (4,3): facing during the move points from (3,4) toward (4,3)
+  - {id: tank, owner: player1, at: [3,4], facing: SE, stats: {unit_type: Vehicle, defense: "6/2", speed: 3, veh: [8,6,4], per: [6,4,2]}}
+  - {id: gun, owner: player2, at: [4,4], stats: {unit_type: Soldier, defense: "4", veh: [9,7,5], per: [4,3,2]}}
+phase: movement
+active_player: player1
+dice: [6,6,1,1,1,1,1,1,1]   # 9 dice, 2 successes: beats rear defense 2, not front 6
+actions:
+  - {type: move, unit: tank, to: [4,3]}
+expect:
+  events:
+    - {type: defensive_fire, defender: gun, target: tank, defense: 2, disrupted: true}
