@@ -1,368 +1,148 @@
-# Axis & Allies Miniatures - Implementation Status
+# Axis & Allies Miniatures — Implementation Status
 
-**Last Updated:** 2025-01-11 (Post-rulebook review)
+**Last updated:** 2026-09-11
 
-This document tracks the implementation status of all game systems **based solely on Axis & Allies Miniatures rules**. No features from other games included.
+Tracks what the engine implements, what it doesn't, known bugs, and the roadmap.
+Rules scope is Axis & Allies Miniatures only.
 
----
-
-## Legend
-- ✅ **FULLY IMPLEMENTED** - Production ready, tested
-- ⚠️ **SIMPLIFIED/PLACEHOLDER** - Working but missing features or using simplified logic
-- ❌ **NOT IMPLEMENTED** - Needs to be built
-- 🔧 **IN PROGRESS** - Currently being worked on
+Legend: ✅ implemented · ⚠️ partial / caveat · ❌ missing
 
 ---
 
-## Core Systems
+## Architecture
 
-### Board & Hex Grid
-- ✅ Axial coordinate system
-- ✅ Hex neighbor calculation
-- ✅ Hex distance calculation
-- ✅ Terrain types (open, forest, road, hill, building, water)
-- ✅ Hex coordinate conversion
-- ✅ Board initialization and management
-- ❌ **Half-hexes** (impassable hexes on map edges)
-- ❌ **Hex-side terrain** (streams, bluffs, hedges between hexes)
-- ❌ **Fringe terrain** (terrain affecting entry but not interior)
+| Module | Role |
+|---|---|
+| `board.py` | Hex grid (axial coords, flat-top), terrain, edge obstacles |
+| `units.py`, `game_setup.py` | Unit data from CSV, army building, board/unit placement |
+| `game_state.py` | `GameState`, `UnitState` (70+ per-unit flags), phases, clone, victory |
+| `movement.py` | Reachable hexes, terrain costs, line of sight |
+| `facing.py` | Vehicle facing, front/rear arcs |
+| `dice.py` | `DiceSystem`: attack rolls, cover saves, movement rolls, damage resolution |
+| `abilities.py` | `AbilitySystem`: 212 abilities parsed from CSV; modifiers and checks |
+| `action.py` | Action dataclasses (Move, Attack, UseAbility, Board/Dismount, Deploy, PlaceAircraft, Pass, EndPhase) |
+| `action_generator.py` | Legal action enumeration per phase |
+| `action_executor.py` | Action execution; attack resolution; movement rolls; ability effects |
+| `defensive_fire.py` | Defensive fire opportunities and resolution during moves |
+| `casualty.py` | Pending hit counters, casualty-phase resolution |
+| `initiative.py` | 2d6 initiative with commander/recon/organization bonuses |
+| `transport.py` | Transport capacity/loading rules |
+| `evaluation.py` | `GameStateEvaluator` heuristic (material, position, status, threat, objective) |
+| `game_runner.py` | AI-vs-AI runner; `RandomAgent`, `AggressiveRandomAgent`, `GreedyAgent` |
+| `mcts.py` | `MCTSAgent` (UCB1) — not yet usable in play, see Known Issues |
+| `visualization.py`, `game_visualizer.py` | Legacy HTML/SVG page generator (used by runner `--visualize`) |
+| `server.py` | Flask server: Human vs AI in the browser (port 8080) |
 
-### Movement System
-- ✅ BFS pathfinding for reachable hexes
-- ✅ Terrain-based movement costs
-- ✅ Forest/Hill double-cost for vehicles
-- ✅ Infantry terrain advantages
-- ✅ Movement range calculation
-- ✅ Obstacle/occupied hex detection
-- ✅ Assault movement (can move again in assault phase)
-- ❌ **Unit facing** (vehicles have facing direction)
-- ❌ **Stacking** (multiple units per hex)
-- ❌ **Movement roll terrain** (streams require roll to cross)
-- ❌ **Defensive fire** (units can fire when enemies move adjacent)
+Subsystem construction pattern (all systems need `AbilitySystem` + `MovementSystem`):
 
-### Line of Sight (LOS)
-- ✅ Geometric line calculation (center to center)
-- ✅ Interior hex blocking detection
-- ✅ Edge graze detection
-- ✅ Adjacent hex shared edge handling
-- ✅ Forest/building LOS blocking
-- ✅ Ability-based LOS modifiers
-- ❌ **Hill LOS blocking** (hills block LOS like forests)
-- ❌ **Spotters** (units that help indirect fire)
-
-### Combat System
-- ✅ Attack value calculation by range (short/medium/long)
-- ✅ Range categories (0-1, 2-4, 5-8 hexes)
-- ✅ Personnel vs Vehicle attack differentiation
-- ✅ Basic hit resolution
-- ✅ Damage application
-- ✅ Unit destruction
-- ⚠️ **Dice rolling (SIMPLIFIED)** - Using `random.randint(1,6)` instead of proper A&A dice mechanics
-  - ❌ Roll attack value or less to hit (e.g., attack 5 hits on 1-5)
-  - ❌ Multiple dice rolling (tanks can roll 11+ dice)
-- ⚠️ **Armor facing (NOT IMPLEMENTED)** - Currently always uses `defense_front`
-  - ❌ Unit facing direction not tracked
-  - ❌ Front arc vs rear arc (180° each)
-  - ❌ `defense_rear` not used (rear armor is weaker)
-- ❌ **Cover saving throws** (4+ for infantry, 5+ for vehicles in cover)
-- ❌ **Disrupted counters** (first hit disrupts, second destroys)
-- ❌ **Damaged counters** (vehicles can be damaged instead of destroyed)
-- ❌ **Simultaneous combat resolution** (hits applied after both sides fire)
-- ❌ **Defensive fire** (units fire when enemies move adjacent)
-
-### Abilities System
-- ✅ Ability data loading from CSV
-- ✅ Movement modifiers (speed bonus/penalty, terrain costs)
-- ✅ Attack modifiers (range bonuses, damage bonuses)
-- ✅ Defense modifiers (armor bonuses)
-- ✅ Special movement abilities
-- ✅ LOS modifiers
-- ✅ Unit categorization (soldier, vehicle, obstacle)
-- ⚠️ **Ability execution (PARTIALLY IMPLEMENTED)**
-  - ✅ Ability tracking (used/not used per turn)
-  - ⚠️ UseAbilityAction exists but effects not fully implemented
-  - ❌ Most abilities just tracked, not executed with full effects
-- ❌ **Commander abilities** (special bonuses from command units)
-
-### Game State Management
-- ✅ Complete game state representation
-- ✅ Unit state tracking (position, health, moved/attacked flags)
-- ✅ Turn/phase progression
-- ✅ Player switching
-- ✅ Action history tracking
-- ✅ Game state cloning (for AI lookahead)
-- ✅ Victory condition checking (elimination)
-- ❌ **Unit facing/orientation** (needed for front/rear armor)
-- ⚠️ **Status effects (FIELDS EXIST BUT UNUSED)** - Has `is_disrupted`, `is_damaged` but not used
-- ❌ **Objective-based victory** (control objectives)
-- ❌ **Point-based victory** (destroy more points of enemy)
+```python
+ability_system = AbilitySystem('Axis and Allies Unit Data for Analysis - Special_Abilities.csv')
+movement_system = MovementSystem(ability_system)
+action_generator = ActionGenerator(movement_system, None, ability_system)
+action_executor = ActionExecutor(movement_system, None, ability_system)
+initiative_system = InitiativeSystem(ability_system, movement_system)
+```
 
 ---
 
-## Game Phases (Axis & Allies Miniatures Actual Sequence)
+## Rules coverage
 
-### Currently Implemented
-- ✅ Phase enumeration (movement, assault)
-- ✅ Phase progression
-- ✅ Turn counter
-- ✅ Active player switching
+### Board & terrain
+- ✅ Axial hex grid, neighbors, distance (`board.py`)
+- ✅ Terrain: open, forest, building, water, road, hill, town, marsh, ruins (`Board.TERRAIN_TYPES`)
+- ✅ Edge obstacles: barbed wire, destroyed bridge (`Board.add_edge_obstacle`)
+- ✅ Objective hex with control check (`GameState.check_objective_control`)
+- ⚠️ `'stream'` and `'impassable'` are referenced by movement/setup code but are not valid `TERRAIN_TYPES`
+- ❌ Half-hexes (impassable map-edge hexes)
+- ❌ Hex-side terrain: streams, hedges, bluffs (only edge *obstacles* exist)
+- ⚠️ Board is a rectangle in axial (q, r) → renders as a parallelogram
 
-### Actual A&A Miniatures Sequence of Play
-**Per the rulebook, each turn consists of:**
+### Movement
+- ✅ BFS reachable hexes with terrain costs; vehicles pay double in forest/hill (`movement.py`)
+- ✅ Stacking: 3 units per hex, max 1 vehicle (`GameState.can_stack_at`)
+- ✅ Vehicle facing set after move; front/rear arcs (`facing.py`)
+- ✅ Movement rolls: forest bog, Weak Suspension on hills, barbed wire, destroyed bridge, tank obstacles (`action_executor._execute_move`) — see bug #1
+- ✅ Assault-phase relocation and Strike and Fade
+- ✅ Transports: board, move, dismount; capacity; fighting platform (`transport.py`, executor)
+- ✅ High Gear road movement
+- ❌ Artillery: speed 0 in movement phase / speed 2 in assault phase, move-or-fire
 
-A. **Initiative Phase** (both players)
-   - ❌ Roll 2d6, high roller chooses who goes first
-   - ❌ Commander units add bonus to initiative
+### Line of sight
+- ✅ Geometric centre-to-centre LOS, interior blocking, edge grazes (`movement.has_line_of_sight`)
+- ✅ Forest, building, hill block; smoke blocks
+- ✅ Superior Optics ignores one hill hex (`abilities.check_los_blocked`)
+- ✅ Spotters / Indirect Fire (`action_generator`, `action_executor._check_spotter_bonus`)
 
-B. **First Player's Movement Phase**
-   - ✅ Move units up to their speed
-   - ❌ Defensive fire when moving adjacent to enemies
+### Combat
+- ✅ Range bands short/medium/long; anti-soldier vs anti-vehicle values
+- ✅ Roll N dice, hit on ≤ threshold; hits vs defense (`dice.roll_attack`, `calculate_hits`)
+- ✅ Disrupted / Damaged / Destroyed state machine for soldiers and vehicles (`dice.resolve_*_damage`)
+- ✅ Cover saves: soldiers 4+, vehicles 5+, −1 if attacker in same hex (`dice.roll_cover_save`)
+- ✅ Rear-armor when attacked from rear arc
+- ✅ Close Assault dice override
+- ✅ Blast (hits every unit in target hex)
+- ✅ Defensive fire when moving adjacent: disrupt-only, can stop movement, Double Shot (`defensive_fire.py`)
+- ✅ Simultaneous resolution: hits recorded as face-down counters, applied in casualty phase (`casualty.py`)
+- ✅ Special attacks: rockets, bombs, salvo, hull cannons, flamethrower/fire hazards, rerolls (Guard Crew, Lead the Way, …)
+- ⚠️ Three separate cover-terrain lists (`action_executor.py:58`, `defensive_fire.py:645`, `combat.py:141`) — should be one constant
+- ⚠️ `combat.py` `CombatSystem.resolve_attack` is dead code; live path is `action_executor._resolve_attack_full`
 
-C. **Second Player's Movement Phase**
-   - ✅ Move units up to their speed
-   - ❌ Defensive fire when moving adjacent to enemies
+### Turn structure
+- ✅ Initiative: 2d6 + commander + recon, Organization reroll, tie-break (`initiative.py`)
+- ✅ Movement (first, second) · Assault (first, second) · Casualty — both `game_runner.py` and `server.py`
+- ✅ Flight / Airstrike phases for aircraft — `game_runner.py` only
+- ✅ Objective control victory at turn ≥ 7, turn-limit points tiebreak — `game_runner.py` only
+- ⚠️ `server.py` has its own phase sequencer: no flight/airstrike, no objective/turn-limit victory (elimination only), AI cannot voluntarily pass
+- ⚠️ `game_runner.py` resets pending hits per player assault phase; `server.py` never does — one of them is wrong (hits should persist until casualty phase)
 
-D. **First Player's Flight Phase** (if aircraft present)
-   - ❌ Place aircraft anywhere on board
-   - ❌ Aircraft with disruption can't be placed
+### Abilities
+- ✅ 212 abilities loaded; passive modifiers (attack, defense, movement, LOS) applied automatically
+- ✅ Manual activation via `UseAbilityAction` for many (Smoke Screen, Demolitions, change facing, …), exposed in the server UI
+- ❌ Activation missing for: Aggression (move-then-attack), Gliderborne / Partisan (special deployment), Vanguard (pre-game phase; runner only), AVRE (explicit obstacle destruction), Improved Indirect Fire (US commander target designation)
 
-E. **Second Player's Flight Phase**
-   - ❌ Place aircraft anywhere on board
+### AI
+- ✅ `RandomAgent`, `AggressiveRandomAgent`, `GreedyAgent` (one-ply via `GameStateEvaluator`)
+- ⚠️ `MCTSAgent` exists but is not playable: tree ignores phase transitions, simulations mutate executor-held state, branching factor (one `MoveAction` per reachable hex) is too high — see roadmap
 
-F. **First Player's Airstrike Phase**
-   - ❌ Aircraft attack
-
-G. **Second Player's Airstrike Phase**
-   - ❌ Aircraft attack
-
-H. **First Player's Assault Phase**
-   - ⚠️ Units can attack OR move again (implemented but simplified)
-   - ❌ Artillery moves at speed 2 only in assault phase
-
-I. **Second Player's Assault Phase**
-   - ⚠️ Units can attack OR move again
-
-J. **Casualty Phase** (both players)
-   - ❌ Apply all damage simultaneously
-   - ❌ Flip disrupted counters face-down
-   - ❌ Remove destroyed units
-
-K. **End of Turn Phase**
-   - ❌ Remove aircraft from board
-   - ✅ Prepare for next turn
-
----
-
-## Missing Core Features (Priority Order)
-
-### CRITICAL (Needed for accurate gameplay)
-
-1. ❌ **Proper Dice Rolling System**
-   - Roll attack value or less to hit (attack 5 = hit on 1,2,3,4,5)
-   - Defender rolls defense value or less for cover save
-   - Support for rolling many dice (11+ for some units)
-   - **Priority: HIGHEST** - Combat doesn't work correctly without this
-
-2. ❌ **Unit Facing/Orientation**
-   - Vehicles face one of 6 hex directions
-   - Front arc = 180° (3 hex faces)
-   - Rear arc = 180° (3 hex faces)
-   - Use `defense_front` for front arc attacks
-   - Use `defense_rear` for rear arc attacks
-   - **Priority: HIGHEST** - Critical game mechanic
-
-3. ❌ **Disrupted/Damaged Status Effects**
-   - First hit on infantry = disrupted
-   - Second hit on disrupted infantry = destroyed
-   - First hit on vehicle = disrupted OR damaged (cover save determines)
-   - Disrupted units have penalties
-   - Face-down disrupted counters flip face-up at end of turn
-   - **Priority: HIGH** - Units don't die in one hit
-
-4. ❌ **Cover System**
-   - Cover terrain: forests, hills, buildings, towns
-   - Infantry in cover: save on 4+ (roll 4,5,6 = reduced to disrupted)
-   - Vehicles in cover: save on 5+ (roll 5,6 = reduced to disrupted/damaged)
-   - Defensive fire only disrupts (can't destroy)
-   - **Priority: HIGH** - Major survival mechanic
-
-5. ❌ **Defensive Fire**
-   - Units fire when enemy moves into adjacent hex
-   - Defensive fire can only disrupt, not destroy
-   - Cover saves apply
-   - Movement can be stopped by defensive fire
-   - **Priority: HIGH** - Core tactical mechanic
-
-### HIGH PRIORITY (Needed for complete game)
-
-6. ❌ **Initiative System**
-   - Both players roll 2d6
-   - Commander units add initiative bonus
-   - Winner chooses who goes first this turn
-   - **Priority: MEDIUM** - Affects turn order
-
-7. ❌ **Stacking**
-   - Multiple units can occupy same hex
-   - All units in hex can be attacked
-   - **Priority: MEDIUM** - Tactical positioning
-
-8. ❌ **Simultaneous Combat Resolution**
-   - All attacks resolved simultaneously
-   - Units can kill each other
-   - Apply damage in Casualty Phase
-   - **Priority: MEDIUM** - Fair combat
-
-9. ❌ **Deployment Phase**
-   - Deploy within 5 hexes of your map edge
-   - No deployment in impassable terrain
-   - Special units (Partisans) can deploy anywhere
-   - **Priority: MEDIUM** - Game setup
-
-10. ❌ **Artillery Special Movement**
-    - Artillery has speed 0 in movement phase
-    - Artillery has speed 2 in assault phase only
-    - Must choose: move OR fire
-    - **Priority: LOW** - Specific unit type
-
-### MEDIUM PRIORITY (Expand gameplay)
-
-11. ❌ **Aircraft System**
-    - Aircraft don't occupy hexes
-    - Placed during Flight Phase
-    - Attack during Airstrike Phase
-    - Removed at end of turn
-    - **Priority: LOW** - Optional expansion
-
-12. ❌ **Commander Abilities**
-    - Initiative bonuses
-    - Special command abilities
-    - Affect nearby units
-    - **Priority: LOW** - Enhancement
-
-13. ❌ **Advanced Terrain**
-    - Hex-side terrain (streams, bluffs, hedges)
-    - Fringe terrain
-    - Movement roll terrain
-    - Half-hexes
-    - **Priority: LOW** - Map variety
-
-14. ❌ **Spotters & Indirect Fire**
-    - Spotter units
-    - Mortars can attack without LOS if spotter present
-    - **Priority: LOW** - Special mechanic
-
-15. ❌ **Special Unit Types**
-    - Snipers
-    - Paratroopers  
-    - Partisans (deploy anywhere)
-    - Obstacles
-    - **Priority: LOW** - Unit variety
+### Server / UI (`server.py`)
+- ✅ Human (player1) vs AI (player2): select unit → click highlighted hex to move/attack/board/dismount; ability panel; facing picker; undo/redo (blocked after any dice roll); zoom/pan; stat cards; event log
+- ❌ Hot-seat human vs human; AI choice in-game; MCTS option
+- ⚠️ Rendering is full-page HTML regenerated in Python and reloaded after every action (`location.reload()`); JS lives in Python string literals — being replaced by a JSON API + static frontend (roadmap Phase 3)
 
 ---
 
-## Known Bugs & Issues
+## Known bugs
 
-### Current Issues
-1. ⚠️ **Always uses `defense_front`** - Rear armor not implemented (see CRITICAL #2)
-2. ⚠️ **Wrong dice mechanics** - Should roll ≤ attack value to hit (see CRITICAL #1)
-3. ⚠️ **No disruption/damage** - Units die in one hit (see CRITICAL #3)
-4. ⚠️ **No cover saves** - Units always take full damage (see CRITICAL #4)
-5. ⚠️ **Ability actions generated but not executed** - UseAbilityAction exists but most abilities don't do anything
-6. ⚠️ **Status effect fields exist but unused** - `is_disrupted`, `is_damaged` in UnitState not used
-
-### Technical Debt
-1. Path calculation in MoveAction is simplified (just start→end, not full path)
-2. Movement cost calculation doesn't account for all terrain types
-3. No casualty phase - damage applied immediately
-4. No initiative rolls
+1. `action_executor.py:415,441` — `getattr(hex, 'has_road', False)` reads a *method* → always truthy → forest bog and Weak Suspension rolls never trigger.
+2. Three divergent cover-terrain lists (see Combat above).
+3. `'stream'` / `'impassable'` not in `Board.TERRAIN_TYPES` → `set_terrain` raises for them.
+4. `server.py:572` reads `pending.get('total')` but `casualty.get_pending_hits_summary` returns `{disrupted, damaged, destroyed}` → pending-hit badge always 0.
+5. `server.py` drops `parameters={'new_facing': N}` from change-facing ability actions → all facing buttons send no direction.
+6. `game_runner.py:107-109` — `AggressiveRandomAgent` ability filter compares against `type`, always False (no-op).
+7. `game_runner.py:670` — Vanguard phase calls `action_executor.execute` (does not exist; should be `execute_action`).
+8. `GameState.clone()` copies `UnitState` from a hand-maintained field list; new fields are silently dropped.
+9. Dice use the global `random` module (`DiceSystem`, `initiative.py:81,91`, `casualty.py:234`); no injectable RNG → games are not replayable and tests cannot script dice.
+10. `CasualtySystem._pending_hits` and `DefensiveFireSystem._units_fired_this_phase` live on the executor, not on `GameState` → any lookahead that executes actions on a cloned state corrupts the live game.
 
 ---
 
-## Testing Status
+## Tests
 
-### Tested Systems
-- ✅ Movement system with terrain costs
-- ✅ LOS geometric detection
-- ✅ Action generation
-- ✅ Action execution
-- ✅ Game state cloning
-- ✅ Turn progression
-
-### Untested Systems
-- ❌ Combat with correct dice (roll ≤ attack to hit)
-- ❌ Cover saves
-- ❌ Disruption/damage system
-- ❌ Defensive fire
-- ❌ Front/rear armor
-- ❌ Stacking
-- ❌ Initiative system
+- `test_game_engine.py` — smoke tests (action generation/execution, cloning, turn progression); print-based, no asserts, unseeded
+- `test_abilities.py` — 25 ability/obstacle/transport/combat tests; print-based, unseeded
+- Run with `python3 test_abilities.py` / `python3 test_game_engine.py` (require the CSVs in cwd; CSVs are gitignored)
+- No pytest setup yet; no deterministic scenario tests
 
 ---
 
-## Next Steps (Recommended Order)
+## Roadmap
 
-1. **Fix test suite** - Get `test_game_engine.py` passing with `defense_front` ✅ (in progress)
-2. **Implement proper dice system** - Roll ≤ attack value to hit
-3. **Add disruption/damage mechanics** - First hit disrupts, second destroys
-4. **Implement cover saves** - 4+ for infantry, 5+ for vehicles
-5. **Add unit facing** - Track orientation for front/rear armor
-6. **Implement defensive fire** - Units fire when enemies move adjacent
-7. **Add simultaneous combat** - Casualty phase applies all damage at once
-8. **Build initiative system** - 2d6 roll to determine turn order
-9. **Enable stacking** - Multiple units per hex
-10. **Build simple AI agent** - Random or heuristic for testing
+See `.claude/plans/` (session plan) for detail. Summary:
 
----
+- **Phase 1 — Engine foundations**: injectable RNG + `ScriptedDice`; move pending-hits / defensive-fire state into `GameState`; one `TurnController` shared by server and runner (adds flight/airstrike/objective victory to the server); structured `events` on `ActionResult`; `GameState.to_dict()`; YAML scenario loader (`scenario.py`). Fix bugs 1–10.
+- **Phase 2 — Rules verification**: pytest + `scenarios/*.yaml` regression suite (one per mechanic, plus forum/FAQ rulings); `simulate.py` AI-vs-AI fuzzer with invariant checks.
+- **Phase 3 — Frontend**: `GET /api/state`, `POST /api/action` → events; static `static/` SPA (vanilla JS + SVG, no build step) with a swappable renderer; hot-seat and vs-AI modes; rectangular board.
+- **Phase 4 — Agents**: fast `HeuristicAgent` with per-unit candidate actions; fix `MCTSAgent` to use `TurnController` and candidate actions; tournament benchmarking.
+- **Phase 5 — Visuals**: decide 2D art vs 3D after 3 & 4; only the renderer module changes.
 
-## File Inventory
-
-### Core Files (Production)
-- `board.py` - ✅ Board and hex grid system
-- `units.py` - ✅ Unit data loading
-- `movement.py` - ✅ Movement and LOS system
-- `combat.py` - ⚠️ Combat system (wrong dice mechanics, no facing)
-- `abilities.py` - ✅ Ability system
-- `game_state.py` - 🔧 Game state management (fixing defense attribute)
-- `action.py` - ✅ Action definitions
-- `action_generator.py` - ✅ Legal action generation
-- `action_executor.py` - ⚠️ Action execution (simplified combat)
-
-### Test Files
-- `test_game_engine.py` - 🔧 Integration tests (currently failing on defense attribute)
-- `movement.py` (test section) - ✅ Movement/LOS unit tests
-
-### Data Files
-- `Axis and Allies Unit Data for Analysis - Units.csv` - ✅ Unit database
-- `Axis and Allies Unit Data for Analysis - Special_Abilities.csv` - ✅ Abilities database
-
-### Missing Files (To Be Created)
-- `dice.py` - Proper A&A dice rolling system
-- `facing.py` - Unit orientation system
-- `status_effects.py` - Disrupted/Damaged mechanics
-- `cover.py` - Cover save system
-- `defensive_fire.py` - Defensive fire mechanics
-- `initiative.py` - Initiative roll system
-- `agent.py` - AI agent base class
-- `evaluation.py` - Position evaluation for AI
-
-### Tracking Document
-- `IMPLEMENTATION_STATUS.md` - ✅ This file
-
----
-
-## Questions to Resolve
-
-1. **Dice mechanics**: Confirm attack value = max die roll to hit (e.g., attack 5 hits on 1-5)?
-2. **Disruption**: First hit always disrupts, or only with cover save?
-3. **Facing**: Exactly 180° front arc (3 hex faces) and 180° rear arc (3 hex faces)?
-4. **Assault movement**: Can units that didn't move in movement phase move in assault phase?
-5. **Cover from defensive fire**: Defensive fire can only disrupt, never destroy?
-6. **Artillery movement**: Speed 0 in movement, speed 2 in assault, must choose move OR fire?
-
----
-
-**This document will be updated as:**
-- Features are implemented
-- Bugs are discovered
-- Rules are clarified
-- Design decisions are made
+Deferred: script sweep (remove unneeded modules once gameplay is complete), unit-card privacy in hot-seat, path-aware movement, remaining ability activations.
