@@ -126,11 +126,10 @@ The official **Advanced Rulebook** is in `document.pdf` (local only, gitignored)
 ## Known issues / open rules questions
 
 - Special attacks (rockets, hull cannons, remote control, bombs) roll their own dice outside `_resolve_attack_full`: no cover roll, no facing, no rerolls. They now at least record pending counters correctly. Should be unified.
-- Hex-side terrain (hedges 5+ to cross, streams need a movement roll, bluffs/cliffs), shell holes, and "road through forest/stream" (roads are their own terrain type here) are not modelled.
-- Speed-1 Vehicle "Minimum Movement" exception (may enter double-cost terrain in the movement phase) not implemented.
-- Defensive fire is automatic (rulebook: optional, and the defender chooses which of the two hexes to fire into).
-- Heavy Armor's "ignore the first Damaged counter" is no longer applied in simultaneous mode (counters are placed from raw hits).
-- Aircraft: flight/airstrike phases run for AI, but the UI has no placement controls; random armies for the UI exclude Aircraft.
+- Bluffs/cliffs (fringe terrain), shell holes, half-hexes, and "road through forest" (roads are their own terrain type here) are not modelled.
+- Defensive fire hex choice is automatic (best of the two hexes); holding fire is a per-unit standing order rather than a per-shot decision.
+- Deployment: human placement is by hex within the 5-column zone; Partisans/Paratroopers keep their own deployment rules (untested in the UI).
+- MCTS (`mcts.py`) still not playable.
 
 ### Implemented straight from the rulebook (Sep 2026)
 - Sequence of play; assault phase = each unit moves (as in the movement phase) **or** attacks; a unit may move in both phases.
@@ -143,7 +142,14 @@ The official **Advanced Rulebook** is in `document.pdf` (local only, gitignored)
 - Counters: 1st = Disrupted, 2nd = Damaged (Vehicle) / Destroyed (Soldier, Aircraft), 3rd = Destroyed; placed face-down, applied in the casualty phase; a damaged Vehicle receiving another Damaged counter is destroyed.
 - Disrupted: −1 attack die, −1 defense, can't move, no defensive fire. Damaged: −1 attack die, −1 defense, −1 speed; both at once = penalties applied once.
 - Defensive fire: disrupt-only, immediate, once per unit per phase; Soldiers don't provoke it from Vehicles.
-- Historical Army Limits and year restriction (New Game options).
+- Historical Army Limits and year restriction (New Game options); army builder with points budget.
+- Setup: coin flip, winner chooses deployment order, each side deploys within five hexes of its edge.
+- Initiative: winner chooses to go first or second.
+- Hex-side terrain: streams (roll 4+, roads bridge them), hedges (roll 5+, block LOS, cover when shot through).
+- Speed-1 Vehicle minimum movement; Heavy Armor ignores the first Damaged counter; a damaged Vehicle receiving another Damaged counter is destroyed.
+- Defensive fire is optional (hold-fire order) and the defender fires into the better of the two hexes.
+- Units may move through/into enemy hexes (stacking per army at the destination).
+- Aircraft: placement in the flight phase and airstrike attacks in the UI.
 - Spotter Q&A ([aamcardbase](http://www.aamcardbase.com/special_abilities_aam.aspx)): a Spotter that moves in the assault phase doesn't count.
 - Artillery assault-only movement, half-hexes, hex-side terrain: not implemented.
 - Ability activation UI missing for Aggression, Gliderborne, Partisan, AVRE, Improved Indirect Fire.
