@@ -47,6 +47,9 @@ class ActionResult:
         # so a frontend can animate it. Attack results also carry
         # combat_details; movement dice live only here.
         self.events: List[Dict] = events or []
+        # Set when a move is paused for a human defensive-fire decision:
+        # {'unit_id', 'step_from', 'step_to', 'remaining_path', 'opportunities'}
+        self.interrupted: Optional[Dict] = None
     
     def __str__(self):
         return f"{'✓' if self.success else '✗'} {self.message}"
@@ -80,6 +83,12 @@ class ActionExecutor:
         self.defensive_fire = DefensiveFireSystem(ability_system, dice=self.dice)
         self.casualty_system = CasualtySystem(dice=self.dice)
         self.use_simultaneous_combat = use_simultaneous_combat
+        # Defensive-fire decisions. df_asker(game_state, opportunity) -> True
+        # means "a human must decide": the move is interrupted at that step
+        # (ActionResult.interrupted) and resumed with df_decisions =
+        # {defender_id: 'from' | 'to' | 'hold'} for the interrupted step.
+        self.df_asker = None
+        self.df_decisions: Dict[str, str] = {}
         self.validator = ActionValidator(
             None, movement_system, combat_system, ability_system
         )
@@ -609,15 +618,50 @@ class ActionExecutor:
                 stop_reason = reason
                 break
 
-            df_opportunities = self.defensive_fire.check_defensive_fire_triggered(
-                game_state, action.unit_id, step_from, step_to
-            )
+            df_opportunities = [
+                o for o in self.defensive_fire.check_defensive_fire_triggered(
+                    game_state, action.unit_id, step_from, step_to)
+                if not o.defender_state.hold_defensive_fire]
+
+            # A human defender decides per shot: pause the move here unless the
+            # decisions for this step were supplied (resumed move).
+            decisions = self.df_decisions if i == 0 else {}
+            need_ask = [o for o in df_opportunities
+                        if self.df_asker is not None and o.defender_id not in decisions
+                        and self.df_asker(game_state, o)]
+            if need_ask:
+                interrupt = {
+                    'unit_id': action.unit_id, 'step_from': step_from, 'step_to': step_to,
+                    'remaining_path': path[i:],
+                    'opportunities': need_ask,
+                }
+                if step_from != from_hex:
+                    # commit the part of the move already made (no has_moved yet)
+                    game_state.move_unit(action.unit_id, step_from[0], step_from[1])
+                    unit_state.movement_used += i
+                    if is_vehicle:
+                        unit_state.facing = calculate_facing_after_move(path[i - 1], step_from).value
+                    move_events.append({'type': 'move', 'unit': unit.id, 'name': unit.name,
+                                        'from': list(from_hex), 'to': list(step_from),
+                                        'path': [list(h) for h in path[:i + 1]], 'facing': unit_state.facing,
+                                        'stopped': False})
+                res = ActionResult(True, f"{unit.name} moving… (defensive fire decision pending)",
+                                   defensive_fire_results=df_results, events=move_events)
+                res.interrupted = interrupt
+                return res
+
             for opportunity in df_opportunities:
                 # Rulebook: defensive fire is optional ("hold your fire") and the
                 # defender chooses the hex the mover started in or is entering
-                if opportunity.defender_state.hold_defensive_fire:
+                choice = decisions.get(opportunity.defender_id)
+                if choice == 'hold':
                     continue
-                fire_hex = self.defensive_fire.choose_attack_hex(game_state, opportunity)
+                if choice == 'from':
+                    fire_hex = step_from
+                elif choice == 'to':
+                    fire_hex = step_to
+                else:
+                    fire_hex = self.defensive_fire.choose_attack_hex(game_state, opportunity)
                 result = self.defensive_fire.resolve_defensive_fire(
                     game_state, opportunity, attack_in_hex=fire_hex
                 )

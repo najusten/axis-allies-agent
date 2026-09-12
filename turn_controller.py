@@ -75,6 +75,9 @@ class TurnController:
         self._actions_this_phase: int = 0
         self._started = False
         self._vanguard_moved: set = set()
+        # A move paused for a human's defensive-fire decision (see resume_defensive_fire)
+        self.pending_df: Optional[dict] = None
+        self.executor.df_asker = lambda gs, opp: self.is_human(opp.defender_state.owner)
 
     # ------------------------------------------------------------------
     # Queries
@@ -108,7 +111,7 @@ class TurnController:
     def legal_actions(self) -> List[Action]:
         """Legal actions for the current (phase, player), without Pass/EndPhase."""
         cur = self.current()
-        if not cur:
+        if not cur or self.pending_df:
             return []
         phase, player = cur
         if phase == VANGUARD_PHASE:
@@ -172,6 +175,22 @@ class TurnController:
         result = self.executor.execute_action(self.game_state, action)
         self._actions_this_phase += 1
         self._record_action(player, action, result)
+        if getattr(result, 'interrupted', None):
+            info = result.interrupted
+            opps = info['opportunities']
+            self.pending_df = {
+                'player': opps[0].defender_state.owner,
+                'mover_player': player,
+                'action': action,
+                'unit_id': info['unit_id'],
+                'step_from': info['step_from'],
+                'step_to': info['step_to'],
+                'remaining_path': info['remaining_path'],
+                'opportunities': opps,
+            }
+            self._emit('defensive_fire_pending', player=self.pending_df['player'],
+                       mover=info['unit_id'], step_from=list(info['step_from']), step_to=list(info['step_to']),
+                       defenders=[o.defender_id for o in opps])
         if phase == VANGUARD_PHASE and result.success and isinstance(action, MoveAction):
             us = self.game_state.get_unit_state(action.unit_id)
             if us:
@@ -183,7 +202,7 @@ class TurnController:
     def end_phase(self):
         """Finish the current phase and advance (runs casualty / new turn as needed)."""
         cur = self.current()
-        if not cur:
+        if not cur or self.pending_df:
             return
         phase, player = cur
         if phase in (INITIATIVE_PHASE, DEPLOY_ORDER_PHASE):
@@ -202,6 +221,30 @@ class TurnController:
         else:
             self._enter_phase()
 
+    def resume_defensive_fire(self, decisions: Dict[str, str]):
+        """
+        Answer a pending defensive-fire decision ({defender_id: 'from'|'to'|'hold'})
+        and continue the interrupted move from where it paused.
+        """
+        pend = self.pending_df
+        if not pend:
+            return
+        self.pending_df = None
+        orig = pend['action']
+        path = pend['remaining_path']
+        cont = MoveAction(orig.unit_id, path[0][0], path[0][1], path[-1][0], path[-1][1],
+                          path=list(path), movement_cost=getattr(orig, 'movement_cost', 0),
+                          is_strike_and_fade=getattr(orig, 'is_strike_and_fade', False),
+                          is_relocate=getattr(orig, 'is_relocate', False),
+                          max_speed=getattr(orig, 'max_speed', None))
+        # defenders not answered keep the automatic choice; unanswered 'ask' would re-pause
+        self.executor.df_decisions = {o.defender_id: decisions.get(o.defender_id, 'auto')
+                                      for o in pend['opportunities']}
+        try:
+            self.apply(cont)
+        finally:
+            self.executor.df_decisions = {}
+
     def run_until_human(self, max_actions_per_phase: Optional[int] = None) -> List[dict]:
         """
         Drive AI phases and skip empty human phases until a human has
@@ -211,7 +254,7 @@ class TurnController:
         if not self._started:
             self.start()
         guard = 0
-        while not self.game_over and guard < 1000:
+        while not self.game_over and guard < 1000 and not self.pending_df:
             guard += 1
             cur = self.current()
             if cur is None:
@@ -437,7 +480,7 @@ class TurnController:
             n_units = len([u for u in gs.get_units_by_owner(player) if u.is_alive])
             max_actions = max(20, 3 * n_units)
         for _ in range(max_actions):
-            if self.game_over:
+            if self.game_over or self.pending_df:
                 return
             legal = self.legal_actions()
             if not legal:

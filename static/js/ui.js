@@ -230,6 +230,34 @@ export class UI {
     });
   }
 
+  showDefensiveFireChoice(pend, state) {
+    const unitName = (id) => state.game.units.find(u => u.id === id)?.card.name || id;
+    const hexLabel = (h) => `(${h.q},${h.r}) ${h.terrain}${h.cover ? ' · cover' : ''}${h.rear ? ' · REAR armor' : ''} · def ${h.defense} · ${h.dice} dice · ${Math.round(h.p_disrupt * 100)}% disrupt`;
+    const decisions = {};
+    return new Promise(resolve => {
+      const rows = pend.options.map((o, i) => `
+        <div class="df-row" data-i="${i}" style="border:1px solid var(--line);border-radius:6px;padding:8px;margin:6px 0">
+          <div style="font-weight:700;margin-bottom:4px">${esc(o.defender_name)} <span style="color:var(--muted)">at (${o.defender_pos[0]},${o.defender_pos[1]})</span></div>
+          ${o.hexes.map(h => `<label class="chk" style="display:block;margin:2px 0"><input type="radio" name="df-${i}" value="${h.which}" ${o.suggested === h.which ? 'checked' : ''}> Fire while it is in ${esc(hexLabel(h))}${o.suggested === h.which ? ' <b>(suggested)</b>' : ''}</label>`).join('')}
+          <label class="chk" style="display:block;margin:2px 0"><input type="radio" name="df-${i}" value="hold"> Hold fire (keep this unit's defensive fire for later this phase)</label>
+        </div>`).join('');
+      const box = this._modal(`<h2 class="${pend.player === 'player1' ? 'p1' : 'p2'}">${this.playerName(pend.player)}: defensive fire?</h2>
+        <p>${esc(unitName(pend.mover_id))} is moving from (${pend.step_from[0]},${pend.step_from[1]}) to (${pend.step_to[0]},${pend.step_to[1]}) past your unit${pend.options.length > 1 ? 's' : ''}. Defensive fire can only disrupt; a hit stops the move in that hex.</p>
+        ${rows}
+        <div class="actions"><button class="btn primary" id="df-ok">Resolve</button></div>`);
+      box.className = 'modal-box';
+      box.style.maxWidth = '640px';
+      box.querySelector('#df-ok').onclick = () => {
+        pend.options.forEach((o, i) => {
+          const v = box.querySelector(`input[name="df-${i}"]:checked`);
+          decisions[o.defender_id] = v ? v.value : o.suggested;
+        });
+        this.closeModal();
+        resolve(decisions);
+      };
+    });
+  }
+
   showGameOver(result) {
     const box = this._modal(`<h2>${esc(result.winner)} wins</h2>
       <p>by ${esc(result.reason)} on turn ${result.turns}</p>

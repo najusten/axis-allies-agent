@@ -1,0 +1,9 @@
+name: demo-defensive-fire-decision
+source: "Playable demo for the defensive-fire dialog: player2's tank next to player1's MG team"
+board: {width: 10, height: 8, terrain: {forest: [[3,5]]}}
+units:
+  - {id: mg, owner: player1, at: [4,4], stats: {unit_type: Soldier, defense: "4", speed: 2, per: [10,8,6], veh: [6,4,2]}}
+  - {id: tank, owner: player2, at: [5,3], facing: NW, stats: {unit_type: Vehicle, defense: "5/3", speed: 3, veh: [8,6,4], per: [8,6,4]}}
+phase: movement
+active_player: player1
+actions: []

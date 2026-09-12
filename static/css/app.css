@@ -163,6 +163,7 @@ button { font: inherit; }
 .modal-box select, .modal-box input { flex: 1; background: var(--panel-2); color: var(--text);
   border: 1px solid var(--line); border-radius: 5px; padding: 5px 8px; font: inherit; }
 .modal-box .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.modal-box .df-row label { width: auto; color: var(--text); }
 .modal-box.handoff { text-align: center; }
 .modal-box.handoff h2 { font-size: 28px; }
 .modal-box.handoff h2.p1 { color: var(--p1-light); }

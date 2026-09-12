@@ -94,6 +94,19 @@ class App {
       this._followUp = { type: 'choose_deploy_order', first };
       return;
     }
+    if (s.pending_defensive_fire && !s.game_over) {
+      const pend = s.pending_defensive_fire;
+      this.render();
+      this.renderer.setHighlights([
+        { q: pend.step_from[0], r: pend.step_from[1], kind: 'target', label: 'from' },
+        { q: pend.step_to[0], r: pend.step_to[1], kind: 'target', label: 'to' },
+        ...pend.options.map(o => ({ q: o.defender_pos[0], r: o.defender_pos[1], kind: 'ability', label: '★' })),
+      ]);
+      if (s.mode === 'hotseat' && this.lastHumanPlayer && this.lastHumanPlayer !== pend.player) await this.ui.showHandoff(pend.player);
+      const decisions = await this.ui.showDefensiveFireChoice(pend, state);
+      this._followUp = { type: 'defensive_fire_decision', decisions };
+      return;
+    }
     // Deployment: auto-select the next unit to place so clicks go straight to the map
     if (s.current_phase === 'deployment' && s.is_human_turn) {
       const sel = this.selected && state.game.units.find(u => u.id === this.selected);

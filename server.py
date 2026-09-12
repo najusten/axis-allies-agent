@@ -225,6 +225,7 @@ class GameSession:
                 'pending_facing': self.pending_facing,
                 'pending_initiative': (player if phase == INITIATIVE_PHASE else None),
                 'pending_deploy_order': (player if phase == DEPLOY_ORDER_PHASE else None),
+                'pending_defensive_fire': self._pending_df_payload(),
                 'deployment_zone': ([list(h) for h in gs.deployment_zone(player)]
                                     if phase == DEPLOYMENT_PHASE else None),
                 'can_undo': bool(self._undo_stack) and self.is_human_turn(),
@@ -236,6 +237,48 @@ class GameSession:
             },
             'unit_actions': self.compute_unit_actions(),
             'log': self.log_lines(),
+        }
+
+    def _pending_df_payload(self):
+        pend = self.controller.pending_df
+        if not pend:
+            return None
+        gs = self.game_state
+        from facing import calculate_facing_for_defensive_fire, is_front_arc_attack
+        from agents import hit_distribution
+        mover = gs.get_unit_state(pend['unit_id'])
+        options = []
+        for o in pend['opportunities']:
+            d = o.defender_state
+            hexes = []
+            for label, hex_ in (('from', pend['step_from']), ('to', pend['step_to'])):
+                is_rear = False
+                if 'Vehicle' in (mover.unit.unit_type or ''):
+                    facing = calculate_facing_for_defensive_fire(pend['step_from'], pend['step_to'])
+                    is_rear = not is_front_arc_attack(d.position, hex_, facing)
+                defense, _ = self.systems.executor.defensive_fire.get_defense_value(mover.unit, mover, is_rear, gs)
+                terrain = gs.board.get_hex(*hex_).terrain
+                from board import Board
+                cover = Board.gives_cover(terrain, mover.unit.unit_type)
+                dist = gs.board.hex_distance(d.position[0], d.position[1], hex_[0], hex_[1])
+                dice, _mod = self.systems.executor.defensive_fire.get_attack_dice(d.unit, mover.unit, dist, d)
+                p1, p2, p3 = hit_distribution(dice, defense, 5 if (d.is_disrupted or d.is_damaged) else 4)
+                p_hit = p1 + p2 + p3
+                if cover:
+                    p_hit *= (1 - (2 / 6 if 'Vehicle' in (mover.unit.unit_type or '') else 3 / 6))
+                hexes.append({'which': label, 'q': hex_[0], 'r': hex_[1], 'terrain': terrain, 'cover': cover,
+                              'rear': is_rear, 'defense': defense, 'dice': dice, 'p_disrupt': round(p_hit, 2)})
+            suggested_hex = self.systems.executor.defensive_fire.choose_attack_hex(gs, o)
+            options.append({
+                'defender_id': d.unit.id, 'defender_name': d.unit.name, 'defender_pos': list(d.position),
+                'hexes': hexes,
+                'suggested': 'from' if tuple(suggested_hex) == tuple(pend['step_from']) else 'to',
+            })
+        return {
+            'player': pend['player'],
+            'mover_id': mover.unit.id, 'mover_name': mover.unit.name, 'mover_owner': mover.owner,
+            'step_from': list(pend['step_from']), 'step_to': list(pend['step_to']),
+            'options': options,
         }
 
     def compute_unit_actions(self) -> dict:
@@ -342,6 +385,24 @@ class GameSession:
                     self.controller.end_phase()
             return {'success': True, 'events': self.controller.events[start:]}
 
+        if kind == 'defensive_fire_decision':
+            pend = self.controller.pending_df
+            if not pend or self.players.get(pend['player']) is not None:
+                return {'error': 'No defensive-fire decision pending'}
+            decisions = data.get('decisions') or {}
+            self._clear_undo()
+            mover_id = pend['unit_id']
+            self.controller.resume_defensive_fire(decisions)
+            mover = self.game_state.get_unit_state(mover_id)
+            # A human vehicle that completed its move (not stopped) still picks a facing
+            if (mover and mover.is_alive and self.players.get(mover.owner) is None
+                    and 'Vehicle' in (mover.unit.unit_type or '') and not self.controller.pending_df
+                    and not mover.is_disrupted):
+                self.pending_facing = mover_id
+                return {'success': True, 'events': self.controller.events[start:]}
+            self.controller.run_until_human()
+            return {'success': True, 'events': self.controller.events[start:]}
+
         if kind == 'choose_deploy_order':
             cur = self.controller.current()
             if not cur or cur[0] != DEPLOY_ORDER_PHASE or self.players.get(cur[1]) is not None:
@@ -392,6 +453,8 @@ class GameSession:
 
         if self.pending_facing:
             return {'error': 'Choose a facing for your vehicle first'}
+        if self.controller.pending_df:
+            return {'error': 'Resolve the defensive-fire decision first'}
         if not self.is_human_turn():
             return {'error': 'Not your turn'}
 
@@ -424,7 +487,7 @@ class GameSession:
                for ev in self.controller.events[start:] for e in [ev] + ev.get('events', [])):
             self._clear_undo()
 
-        if isinstance(action, MoveAction):
+        if isinstance(action, MoveAction) and not self.controller.pending_df:
             us = self.game_state.get_unit_state(action.unit_id)
             if us and 'Vehicle' in (us.unit.unit_type or '') and us.is_alive:
                 self.pending_facing = action.unit_id
