@@ -335,6 +335,22 @@ export class BoardRenderer {
     this.layers.overlay.appendChild(el('polygon', { points: polygonPoints(pos[0], pos[1]) }, 'sel-ring'));
   }
 
+  showPath(path, rolls) {
+    this.hidePath();
+    if (!path || path.length < 2) return;
+    const g = el('g', {}, 'path-preview');
+    const pts = path.map(([q, r]) => { const p = axialToPixel(q, r); return `${p.x.toFixed(1)},${p.y.toFixed(1)}`; }).join(' ');
+    g.appendChild(el('polyline', { points: pts, fill: 'none', stroke: '#fff', 'stroke-width': 3, 'stroke-dasharray': '6 5', 'stroke-linejoin': 'round', opacity: .9, 'pointer-events': 'none' }));
+    for (const roll of rolls || []) {
+      const p = axialToPixel(roll.q, roll.r);
+      g.appendChild(el('circle', { cx: p.x, cy: p.y - 24, r: 9, fill: '#fbbf24', stroke: '#000', 'pointer-events': 'none' }));
+      g.appendChild(txt(p.x, p.y - 24, '🎲', 'badge', { 'font-size': 11 }));
+      const t = el('title'); t.textContent = roll.reason; g.appendChild(t);
+    }
+    this.layers.overlay.appendChild(g);
+  }
+  hidePath() { this.layers.overlay.querySelectorAll('.path-preview').forEach(e => e.remove()); }
+
   showLos(a, b) {
     this.hideLos();
     const p1 = axialToPixel(a[0], a[1]), p2 = axialToPixel(b[0], b[1]);
@@ -392,6 +408,10 @@ export class BoardRenderer {
         }
       } else if (ev.type === 'initiative') {
         await this._banner(`Turn ${ev.turn} — Initiative`, `${ev.rolls.player1.text}\n${ev.rolls.player2.text}\n→ ${ev.winner} wins initiative`, 1400 * speed);
+      } else if (ev.type === 'coin_flip') {
+        await this._banner('Coin flip', `${ev.winner} wins the toss and chooses who deploys first`, 1600 * speed);
+      } else if (ev.type === 'deploy_order') {
+        await this._banner('Deployment', `${ev.first} deploys first`, 900 * speed);
       } else if (ev.type === 'turn_order') {
         await this._banner(`Turn ${ev.turn}`, `${ev.first} goes first`, 700 * speed);
       } else if (ev.type === 'casualty') {

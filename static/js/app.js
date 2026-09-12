@@ -202,6 +202,22 @@ class App {
     } else {
       this.renderer.hideLos();
     }
+    // route preview for moves (debounced; shows where terrain rolls will happen)
+    const key = hl && hl.kind === 'move' && this.selected ? `${this.selected}:${hl.q},${hl.r}` : null;
+    if (key !== this._hoverKey) {
+      this._hoverKey = key;
+      clearTimeout(this._hoverTimer);
+      this.renderer.hidePath();
+      if (key) {
+        const [uid, q, r] = [this.selected, hl.q, hl.r];
+        this._hoverTimer = setTimeout(async () => {
+          try {
+            const res = await api.path(uid, q, r);
+            if (this._hoverKey === key) this.renderer.showPath(res.path, res.rolls);
+          } catch (e) { /* ignore */ }
+        }, 120);
+      }
+    }
   }
 
   hoverUnit(id) { /* sidebar hover: could highlight on board; keep minimal */ }
@@ -260,7 +276,10 @@ class App {
       this.renderer.unitEls.forEach(g => g.remove());
       this.renderer.unitEls.clear();
       this.ui.busy(false);
-      await this.applyState(res.state, []);
+      // draw the board first, then replay the setup events (coin flip, AI deployment)
+      this.renderer.render(res.state);
+      this.fitBoard();
+      await this.applyState(res.state, (res.events || []).filter(e => e.type !== 'action'));
       this.fitBoard();
       this.ui.toast(`New game — seed ${res.state.session.seed}`);
     } catch (e) {

@@ -1,0 +1,32 @@
+name: "Demo: stream, bridge, fords and hedges"
+playable: true
+description: "A stream crosses the map with a road bridge and two fords; hedges ring the village. Crossing the stream off the bridge needs a 4+ roll, hedges 5+, and hedges block shots through them."
+board:
+  width: 12
+  height: 8
+  terrain: {road: [[1,4],[2,4],[3,4],[4,4],[5,4],[6,4],[7,4],[8,4]], town: [[7,2],[8,2]]}
+  edge_obstacles:
+    - {a: [5,0], b: [6,0], type: stream}
+    - {a: [5,1], b: [6,0], type: stream}
+    - {a: [5,1], b: [6,1], type: stream}
+    - {a: [5,2], b: [6,1], type: stream}
+    - {a: [5,2], b: [6,2], type: stream}
+    - {a: [5,3], b: [6,3], type: stream}
+    - {a: [5,4], b: [6,3], type: stream}
+    - {a: [5,4], b: [6,4], type: stream}
+    - {a: [5,5], b: [6,5], type: stream}
+    - {a: [5,6], b: [6,5], type: stream}
+    - {a: [7,2], b: [7,3], type: hedge}
+    - {a: [8,2], b: [8,3], type: hedge}
+    - {a: [7,2], b: [6,3], type: hedge}
+objective: [8,3]
+units:
+  - {id: t1, owner: player1, name: "M4A1 Sherman", at: [2,3], facing: SE}
+  - {id: i1, owner: player1, name: "M1 Garand Rifle", at: [2,5]}
+  - {id: i2, owner: player1, name: "BAR Gunner", at: [3,2]}
+  - {id: e1, owner: player2, name: "Panzergrenadier", at: [8,2]}
+  - {id: e2, owner: player2, name: "Panzerfaust 30", at: [7,2]}
+  - {id: e3, owner: player2, name: "MG 42 Machine Gun Team", at: [9,4]}
+phase: movement
+active_player: player1
+actions: []

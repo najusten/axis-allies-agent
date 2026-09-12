@@ -1,0 +1,14 @@
+name: "Demo: transports"
+playable: true
+description: "Load riflemen onto the half-track (they must be in its hex, and boarding uses their move), drive them forward next turn, then dismount. A boarded unit can't attack or be attacked; a destroyed transport takes its passengers with it."
+board: {width: 12, height: 8, terrain: {forest: [[6,2],[6,5]]}}
+objective: [8,4]
+units:
+  - {id: ht, owner: player1, name: "M3 Half-Track", at: [2,3], facing: SE}
+  - {id: r1, owner: player1, name: "M1 Garand Rifle", at: [2,3]}
+  - {id: r2, owner: player1, name: "BAR Gunner", at: [1,4]}
+  - {id: e1, owner: player2, name: "MG 42 Machine Gun Team", at: [8,3]}
+  - {id: e2, owner: player2, name: "Mauser Kar 98k", at: [9,5]}
+phase: movement
+active_player: player1
+actions: []

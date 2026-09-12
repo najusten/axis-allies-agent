@@ -207,15 +207,17 @@ class MovementSystem:
         start_hex = board.get_hex(start_q, start_r)
         start_terrain = start_hex.terrain if start_hex else 'open'
 
-        # State: (q, r, movement_left, previous_terrain, road_bonus_available)
-        queue = deque([(start_q, start_r, max_speed, start_terrain, road_bonus)])
-        # best movement left per (hex, bonus_available)
-        visited = {(start_q, start_r, road_bonus): max_speed}
-        best_left: Dict[Tuple[int, int], int] = {(start_q, start_r): max_speed}
+        # State: (q, r, movement_left, previous_terrain, road_bonus_available, rolls_so_far)
+        # "rolls" counts terrain/hex-side movement rolls the route requires; at
+        # equal movement cost the route with fewer rolls is preferred.
+        queue = deque([(start_q, start_r, max_speed, start_terrain, road_bonus, 0)])
+        visited = {(start_q, start_r, road_bonus): (max_speed, 0)}
+        best_left: Dict[Tuple[int, int], Tuple[int, int]] = {(start_q, start_r): (max_speed, 0)}
         came_from: Dict[Tuple[int, int], Tuple[int, int]] = {}
+        edge_rolls = board.edge_obstacles
 
         while queue:
-            q, r, movement, prev_terrain, bonus = queue.popleft()
+            q, r, movement, prev_terrain, bonus, rolls = queue.popleft()
             here = board.get_hex(q, r)
             here_road = bool(here and here.has_road)
 
@@ -274,16 +276,29 @@ class MovementSystem:
                 if (nq, nr) == (start_q, start_r):
                     continue
 
+                # Movement rolls this step would require (forest for Vehicles,
+                # streams/hedges unless along a road)
+                new_rolls = rolls
+                if is_vehicle and terrain == 'forest' and not along_road \
+                        and not movement_mods.get('ignore_forest_terrain', False):
+                    new_rolls += 1
+                if edge_rolls and not along_road:
+                    kind = board.get_edge_obstacle(q, r, nq, nr)
+                    if kind and (kind in Board.EDGE_STREAM or kind in Board.EDGE_HEDGE
+                                 or kind == 'barbed wire'):
+                        new_rolls += 1
+
                 key = (nq, nr, new_bonus)
-                if key in visited and visited[key] >= new_movement:
+                rank = (new_movement, -new_rolls)
+                if key in visited and visited[key] >= rank:
                     continue
-                visited[key] = new_movement
-                if best_left.get((nq, nr), -1) < new_movement:
-                    best_left[(nq, nr)] = new_movement
+                visited[key] = rank
+                if best_left.get((nq, nr), (-1, 0)) < rank:
+                    best_left[(nq, nr)] = rank
                     came_from[(nq, nr)] = (q, r)
                 if not passthrough_only:
                     reachable.add((nq, nr))
-                queue.append((nq, nr, new_movement, terrain, new_bonus))
+                queue.append((nq, nr, new_movement, terrain, new_bonus, new_rolls))
 
         self._last_came_from = came_from   # consumed by find_path()
         self._last_road_came_from = {}

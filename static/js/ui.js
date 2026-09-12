@@ -283,21 +283,27 @@ export class UI {
         <option value="greedy">Greedy (old evaluator)</option>
         <option value="random">Random</option></select></div>
       <div class="row"><label>Armies</label><select id="ng-armies">
-        <option value="showcase">Showcase (fixed, ability-rich)</option>
         <option value="random">Random armies (points budget)</option>
-        <option value="custom">Build my own (points budget)</option></select></div>
+        <option value="custom">Build my own (points budget)</option>
+        <option value="showcase">Showcase (fixed, ability-rich)</option></select></div>
       <div id="ng-custom" hidden class="row"><label></label><span style="color:var(--muted)">You'll pick units for each human side next; AI sides are built automatically.</span></div>
       <div class="row"><label>Points/side</label><input id="ng-points" value="100" inputmode="numeric"></div>
       <div class="row"><label>Max year</label><select id="ng-year"><option value="">any</option>
         ${[1939,1940,1941,1942,1943,1944,1945].map(y => `<option value="${y}">${y}</option>`).join('')}</select></div>
       <div class="row"><label>Historical</label><label style="width:auto"><input type="checkbox" id="ng-hist"> enforce historical army limits (rulebook p.27)</label></div>
       <div class="row"><label>Seed</label><input id="ng-seed" placeholder="random" inputmode="numeric"></div>
-      <div class="row"><label>Scenario</label><select id="ng-scenario"><option value="">Showcase armies (default)</option>
-        ${scenarios.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('')}</select></div>
+      <div class="row"><label>Situation</label><select id="ng-scenario"><option value="">Full game (armies as above)</option>
+        ${scenarios.map(s => `<option value="${esc(s.file)}" title="${esc(s.description)}">${esc(s.name)}</option>`).join('')}</select></div>
+      <div id="ng-scen-desc" class="row" hidden><label></label><span style="color:var(--muted);font-size:12px"></span></div>
       <div class="actions"><button class="btn" id="ng-cancel">Cancel</button><button class="btn primary" id="ng-start">Start</button></div>`);
     box.className = 'modal-box';
     box.querySelector('#ng-cancel').onclick = () => this.closeModal();
     box.querySelector('#ng-armies').onchange = (e) => { box.querySelector('#ng-custom').hidden = e.target.value !== 'custom'; };
+    box.querySelector('#ng-scenario').onchange = (e) => {
+      const sc = scenarios.find(s => s.file === e.target.value);
+      const d = box.querySelector('#ng-scen-desc');
+      d.hidden = !sc; if (sc) d.querySelector('span').textContent = sc.description;
+    };
     box.querySelector('#ng-start').onclick = async () => {
       const opts = {
         mode: box.querySelector('#ng-mode').value,

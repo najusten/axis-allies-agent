@@ -33,6 +33,7 @@ from agents import HeuristicAgent, LookaheadAgent
 from evaluation import GameStateEvaluator
 from game_runner import AggressiveRandomAgent, GreedyAgent, RandomAgent
 from game_setup import load_all_units, GameSetup, GameSetupConfig
+from board import Board
 from game_state import GameState, GamePhase, UnitState
 from scenario import build_action, build_systems, find_legal_action, load_scenario, ABILITY_CSV
 from turn_controller import (TurnController, format_event, VANGUARD_PHASE, INITIATIVE_PHASE,
@@ -72,7 +73,7 @@ class GameSession:
 
     def __init__(self, mode: str = 'vs_ai', ai_type: str = 'heuristic',
                  points: int = 100, seed: Optional[int] = None,
-                 scenario: Optional[str] = None, armies: str = 'showcase',
+                 scenario: Optional[str] = None, armies: str = 'random',
                  max_year: Optional[int] = None, historical: bool = False,
                  p1_units: Optional[list] = None, p2_units: Optional[list] = None,
                  deploy: bool = True):
@@ -487,9 +488,9 @@ class GameSession:
                for ev in self.controller.events[start:] for e in [ev] + ev.get('events', [])):
             self._clear_undo()
 
-        if isinstance(action, MoveAction) and not self.controller.pending_df:
+        if isinstance(action, (MoveAction, DeployAction)) and not self.controller.pending_df:
             us = self.game_state.get_unit_state(action.unit_id)
-            if us and 'Vehicle' in (us.unit.unit_type or '') and us.is_alive:
+            if us and 'Vehicle' in (us.unit.unit_type or '') and us.is_alive and us.is_deployed:
                 self.pending_facing = action.unit_id
                 return {'success': True, 'events': self.controller.events[start:]}
 
@@ -576,7 +577,7 @@ def api_new_game():
                 points=int(data.get('points', 100)),
                 seed=int(data['seed']) if data.get('seed') not in (None, '') else None,
                 scenario=data.get('scenario') or None,
-                armies=data.get('armies', 'showcase'),
+                armies=data.get('armies', 'random'),
                 p1_units=data.get('p1_units'), p2_units=data.get('p2_units'),
                 deploy=bool(data.get('deploy', True)),
                 max_year=int(data['max_year']) if data.get('max_year') not in (None, '') else None,
@@ -586,7 +587,8 @@ def api_new_game():
             import traceback
             traceback.print_exc()
             return jsonify({'error': f'Could not start game: {e}'}), 400
-        return jsonify({'success': True, 'state': _session.state_payload()})
+        return jsonify({'success': True, 'state': _session.state_payload(),
+                        'events': _session.controller.events})
 
 
 @app.route('/api/los')
@@ -624,6 +626,37 @@ def api_units():
     return jsonify(out)
 
 
+@app.route('/api/path')
+def api_path():
+    """Route a move would take: {path: [[q,r]...], rolls: [{q,r,reason}]} (hover preview)."""
+    with _session_lock:
+        session = _get_session()
+        gs = session.game_state
+        us = gs.get_unit_state(request.args.get('unit', ''))
+        if not us:
+            return jsonify({'error': 'unknown unit'}), 400
+        to_q, to_r = int(request.args.get('q')), int(request.args.get('r'))
+        legal = find_legal_action(session.controller.legal_actions(),
+                                  {'type': 'move', 'unit_id': us.unit.id, 'to_q': to_q, 'to_r': to_r})
+        friendly = {f.position for f in gs.get_units_by_owner(us.owner) if f.is_alive and f.unit.id != us.unit.id}
+        path = session.systems.movement.find_path(
+            gs.board, us.position[0], us.position[1], to_q, to_r, us.unit,
+            max_speed=getattr(legal, 'max_speed', None), friendly_positions=friendly)
+        rolls = []
+        is_vehicle = 'Vehicle' in (us.unit.unit_type or '')
+        for a, b in zip(path, path[1:]):
+            h = gs.board.get_hex(*b)
+            ha = gs.board.get_hex(*a)
+            along_road = bool(ha and ha.has_road and h and h.has_road)
+            if h and h.terrain == 'forest' and is_vehicle and not along_road:
+                rolls.append({'q': b[0], 'r': b[1], 'reason': 'forest 4+'})
+            kind = gs.board.get_edge_obstacle(a[0], a[1], b[0], b[1])
+            if kind and not along_road:
+                need = '5+' if kind in Board.EDGE_HEDGE else '4+'
+                rolls.append({'q': b[0], 'r': b[1], 'reason': f'{kind} {need}'})
+        return jsonify({'path': [list(h) for h in path], 'rolls': rolls})
+
+
 @app.route('/api/abilities')
 def api_abilities():
     return jsonify(ABILITY_DESCRIPTIONS)
@@ -631,8 +664,19 @@ def api_abilities():
 
 @app.route('/api/scenarios')
 def api_scenarios():
-    files = sorted(glob.glob(os.path.join(SCENARIO_DIR, '**', '*.yaml'), recursive=True))
-    return jsonify([os.path.relpath(f, SCENARIO_DIR) for f in files])
+    """Playable situations (playable: true) with name/description; test scenarios are omitted."""
+    import yaml
+    out = []
+    for f in sorted(glob.glob(os.path.join(SCENARIO_DIR, '**', '*.yaml'), recursive=True)):
+        try:
+            with open(f) as fh:
+                d = yaml.safe_load(fh) or {}
+        except Exception:
+            continue
+        if d.get('playable'):
+            out.append({'file': os.path.relpath(f, SCENARIO_DIR), 'name': d.get('name', f),
+                        'description': d.get('description', '')})
+    return jsonify(out)
 
 
 if __name__ == '__main__':
