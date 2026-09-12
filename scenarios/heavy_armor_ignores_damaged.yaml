@@ -1,0 +1,15 @@
+name: heavy-armor-ignores-first-damaged-counter
+source: "Heavy Armor: ignore the first Damaged counter this unit receives each game; aamcardbase Q&A: with 3 hits the tank still takes the Destroyed counter"
+board: {width: 10, height: 8}
+units:
+  - {id: tiger, owner: player1, at: [3,3], facing: SE, stats: {unit_type: Vehicle, defense: "4/3", speed: 2, veh: [10,8,6], per: [8,6,4], abilities: "Heavy Armor"}}
+  - {id: gun, owner: player2, at: [5,3], stats: {unit_type: Soldier, defense: "4", veh: [9,7,5], per: [4,3,2]}}
+phase: assault
+active_player: player2
+dice: [6,6,6,6,6,1,1]     # 7 dice, 5 successes vs front 4 → 2 hits: disrupted + damaged (damaged cancelled)
+actions:
+  - {type: attack, unit: gun, target: tiger}
+  - {type: casualty}
+expect:
+  units:
+    tiger: {status: disrupted, heavy_armor_used: true}

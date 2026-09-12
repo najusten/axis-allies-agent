@@ -144,7 +144,8 @@ class MovementSystem:
                            unit, max_speed: int = None, road_only: bool = False,
                            include_road_bonus: bool = True,
                            friendly_positions: Set[Tuple[int, int]] = None,
-                           is_damaged: bool = False) -> Set[Tuple[int, int]]:
+                           is_damaged: bool = False,
+                           minimum_movement: bool = False) -> Set[Tuple[int, int]]:
         """
         All hexes reachable from the start with the unit's speed, using the
         rulebook movement rules:
@@ -237,6 +238,11 @@ class MovementSystem:
                         cost = 1            # along a road every hex counts as one
                 else:
                     cost = self._get_terrain_cost_with_entry(unit, terrain, prev_terrain, movement_mods)
+                    # Rulebook "Minimum Movement": a speed-1 Vehicle may enter a
+                    # double-cost hex as its whole move in the movement phase
+                    if (minimum_movement and is_vehicle and max_speed == 1 and cost == 2
+                            and (q, r) == (start_q, start_r)):
+                        cost = 1
 
                 new_movement = movement - cost
                 if new_movement < 0:

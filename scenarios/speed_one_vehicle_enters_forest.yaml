@@ -1,0 +1,13 @@
+name: speed-1-vehicle-may-enter-forest-in-movement-phase
+source: "Rulebook p.24 Minimum Movement: a Vehicle with a speed of 1 moving in the movement phase can move into a hill or forest hex; not in the assault phase"
+board: {width: 10, height: 8, terrain: {forest: [[4,3]]}}
+units:
+  - {id: slow, owner: player1, at: [3,3], facing: SE, stats: {unit_type: Vehicle, defense: "4/3", speed: 1, veh: [6,4,2], per: [6,4,2]}}
+  - {id: enemy, owner: player2, at: [9,0], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+phase: movement
+active_player: player1
+actions:
+  - {type: set_phase, phase: movement}
+expect:
+  legal:
+    - {type: move, unit: slow, to: [4,3], allowed: true}

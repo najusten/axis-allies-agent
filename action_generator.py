@@ -723,7 +723,8 @@ class ActionGenerator:
                 continue  # No movement remaining
             reachable = self.movement_system.get_reachable_hexes(
                 game_state.board, q, r, unit, max_speed=effective_speed,
-                friendly_positions=friendly_positions
+                friendly_positions=friendly_positions,
+                minimum_movement=(movement_spent == 0)   # speed-1 Vehicles may enter forest/hill
             )
 
             # High Gear: If unit has High Gear, also calculate road-only moves with bonus

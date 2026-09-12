@@ -1522,6 +1522,20 @@ class ActionExecutor:
                     target.unit_type,
                     min(3, result.get('effective_hits', result['hits']))
                 )
+                # Heavy Armor: ignore the first Damaged counter this unit receives each
+                # game (Q&A: with 3 hits it still takes the Destroyed counter)
+                if (any(a.lower() == 'heavy armor' for a in (getattr(target, 'abilities', []) or []))
+                        and not target_state.heavy_armor_used):
+                    from casualty import HitCounterType
+                    pend = game_state.pending_hits.get(action.target_id)
+                    if pend and HitCounterType.DAMAGED in counter_types:
+                        for c in reversed(pend.counters):
+                            if c.counter_type == HitCounterType.DAMAGED and not c.face_up:
+                                pend.counters.remove(c)
+                                break
+                        counter_types = [ct for ct in counter_types if ct != HitCounterType.DAMAGED]
+                        target_state.heavy_armor_used = True
+                        result['notes'].append("Heavy Armor: ignored the Damaged counter")
 
             # Check if unit will be destroyed (for message purposes)
             will_destroy = self.casualty_system.unit_has_pending_destroyed(game_state, action.target_id)
@@ -2164,7 +2178,8 @@ class ActionExecutor:
         target_has_heavy_armor = any(
             a.lower() == 'heavy armor' for a in (getattr(target, 'abilities', []) or [])
         )
-        if target_has_heavy_armor and not target_state.heavy_armor_used:
+        if target_has_heavy_armor and not target_state.heavy_armor_used and not self.use_simultaneous_combat:
+            # Immediate mode only; counter mode handles Heavy Armor when recording hits
             # Check if Damaged counter would be placed
             if damage_result.new_status == UnitStatus.DAMAGED:
                 # Ignore the Damaged counter entirely
