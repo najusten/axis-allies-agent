@@ -386,7 +386,9 @@ export class BoardRenderer {
           await this._animateMove(ev.unit, [ev.from, ev.to], speed);
         }
       } else if (ev.type === 'initiative') {
-        await this._banner(`Turn ${ev.turn} — Initiative`, `${ev.rolls.player1.text}\n${ev.rolls.player2.text}\n→ ${ev.first} first`, 1400 * speed);
+        await this._banner(`Turn ${ev.turn} — Initiative`, `${ev.rolls.player1.text}\n${ev.rolls.player2.text}\n→ ${ev.winner} wins initiative`, 1400 * speed);
+      } else if (ev.type === 'turn_order') {
+        await this._banner(`Turn ${ev.turn}`, `${ev.first} goes first`, 700 * speed);
       } else if (ev.type === 'casualty') {
         for (const [uid, name] of ev.destroyed || []) {
           const g = this.unitEls.get(uid);

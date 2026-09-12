@@ -75,6 +75,11 @@ class App {
     } else {
       this.renderer.hideFacingPicker();
     }
+    if (s.pending_initiative && !s.game_over) {
+      const first = await this.ui.showInitiativeChoice(s.pending_initiative, state);
+      await this.send({ type: 'choose_order', first });
+      return;
+    }
     if (s.game_over && (!prev || !prev.session.game_over)) this.ui.showGameOver(s.result);
   }
 

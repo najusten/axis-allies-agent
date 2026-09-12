@@ -27,6 +27,7 @@ from action import (Action, MoveAction, AttackAction, PassAction, EndPhaseAction
 
 
 VANGUARD_PHASE = "vanguard"
+INITIATIVE_PHASE = "initiative"   # waiting for the initiative winner to choose first/second
 OBJECTIVE_CHECK_TURN = 7     # rulebook: end of turn 7, then every turn
 POINTS_CHECK_TURN = 10       # rulebook: end of turn 10, points decide (if not tied)
 
@@ -110,6 +111,8 @@ class TurnController:
         phase, player = cur
         if phase == VANGUARD_PHASE:
             return self._vanguard_actions(player)
+        if phase == INITIATIVE_PHASE:
+            return []      # answered via choose_order(), not an action
         actions = self.generator.get_all_legal_actions(self.game_state, player)
         return [a for a in actions if not isinstance(a, (PassAction, EndPhaseAction))]
 
@@ -154,6 +157,8 @@ class TurnController:
         if not cur:
             return
         phase, player = cur
+        if phase == INITIATIVE_PHASE:
+            return    # must be answered with choose_order()
         self._exit_phase(phase, player)
         self.phase_idx += 1
         if self.phase_idx >= len(self.phase_queue):
@@ -180,7 +185,7 @@ class TurnController:
                 break
             phase, player = cur
             if self.is_human(player):
-                if self.legal_actions():
+                if phase == INITIATIVE_PHASE or self.legal_actions():
                     break
                 self._emit('skip', phase=phase, player=player, reason='no legal actions')
                 self.end_phase()
@@ -212,6 +217,7 @@ class TurnController:
             'result': dict(self.result) if self.result else None,
             'vanguard_moved': set(self._vanguard_moved),
             'started': self._started,
+            'initiative_winner': getattr(self, 'initiative_winner', None),
         }
 
     def restore(self, snap: dict):
@@ -223,20 +229,58 @@ class TurnController:
         self.result = dict(snap['result']) if snap['result'] else None
         self._vanguard_moved = set(snap['vanguard_moved'])
         self._started = snap['started']
+        self.initiative_winner = snap.get('initiative_winner')
 
     # ------------------------------------------------------------------
     # Turn structure
     # ------------------------------------------------------------------
 
     def _start_turn(self):
+        """Roll initiative. The winner chooses to go first or second (rulebook):
+        an AI decides at once; a human gets an INITIATIVE_PHASE to answer in."""
         gs = self.game_state
-        first, p1_res, p2_res = self.initiative.determine_first_player(gs)
-        second = "player2" if first == "player1" else "player1"
-        self.turn_order = [first, second]
         self._emit('turn_start', turn=gs.turn_number)
-        self._emit('initiative', turn=gs.turn_number, first=first,
+        winner, p1_res, p2_res = self._roll_initiative_winner(gs)
+        self._emit('initiative', turn=gs.turn_number, winner=winner,
                    rolls={"player1": self._init_result_dict(p1_res),
                           "player2": self._init_result_dict(p2_res)})
+        self.initiative_winner = winner
+        agent = self.players.get(winner)
+        if agent is None:
+            self.phase_queue = [(INITIATIVE_PHASE, winner)]
+            self.phase_idx = 0
+            gs.active_player = winner
+            self._emit('phase', phase=INITIATIVE_PHASE, player=winner)
+            return
+        chooser = getattr(agent, 'choose_initiative', None)
+        goes_first = True
+        if chooser is not None:
+            try:
+                goes_first = chooser(gs, winner) != 'second'
+            except Exception:
+                goes_first = True
+        self.choose_order(winner if goes_first else self._other(winner))
+
+    def _roll_initiative_winner(self, gs):
+        for _ in range(20):
+            p1 = self.initiative.roll_initiative(gs, "player1")
+            p2 = self.initiative.roll_initiative(gs, "player2")
+            if p1.final_total != p2.final_total:
+                return ("player1" if p1.final_total > p2.final_total else "player2"), p1, p2
+            if p1.commander_bonus != p2.commander_bonus:
+                return ("player1" if p1.commander_bonus > p2.commander_bonus else "player2"), p1, p2
+            self._emit('initiative_reroll', turn=gs.turn_number)
+        return "player1", p1, p2
+
+    @staticmethod
+    def _other(player: str) -> str:
+        return "player2" if player == "player1" else "player1"
+
+    def choose_order(self, first: str):
+        """The initiative winner's decision: who is the first player this turn."""
+        gs = self.game_state
+        self.turn_order = [first, self._other(first)]
+        self._emit('turn_order', turn=gs.turn_number, first=first, chosen_by=getattr(self, 'initiative_winner', first))
 
         self.phase_queue = []
         for p in self.turn_order:
@@ -494,8 +538,12 @@ def format_event(ev: dict) -> Optional[str]:
     if t == 'initiative':
         lines = [f"  🎲 {ev['rolls']['player1']['text']}",
                  f"  🎲 {ev['rolls']['player2']['text']}",
-                 f"  → {ev['first']} goes first"]
+                 f"  → {ev['winner']} wins the initiative"]
         return "\n".join(lines)
+    if t == 'turn_order':
+        return f"  → {ev['first']} goes first"
+    if t == 'initiative_reroll':
+        return "  🎲 tie — reroll"
     if t == 'phase':
         return f"— {ev['player']} {ev['phase']} phase —"
     if t == 'skip':

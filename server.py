@@ -35,7 +35,7 @@ from game_runner import AggressiveRandomAgent, GreedyAgent, RandomAgent
 from game_setup import load_all_units, GameSetup, GameSetupConfig
 from game_state import GameState, GamePhase, UnitState
 from scenario import build_action, build_systems, find_legal_action, load_scenario, ABILITY_CSV
-from turn_controller import TurnController, format_event, VANGUARD_PHASE
+from turn_controller import TurnController, format_event, VANGUARD_PHASE, INITIATIVE_PHASE
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
 SCENARIO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'scenarios')
@@ -47,6 +47,7 @@ _session: Optional['GameSession'] = None
 PHASE_LABELS = {
     'movement': 'Movement', 'assault': 'Assault', 'flight': 'Flight',
     'airstrike': 'Airstrike', 'deployment': 'Deployment', VANGUARD_PHASE: 'Vanguard',
+    INITIATIVE_PHASE: 'Initiative',
 }
 PHASE_HINTS = {
     'movement': 'Select a unit, then click a green hex to move. Yellow = board transport, orange OUT = dismount, purple = ability. Vehicles roll 4+ to enter forest.',
@@ -54,6 +55,7 @@ PHASE_HINTS = {
     'flight': 'Select an Aircraft in the sidebar, then click any cyan hex to place it. Antiair units may fire at it. Aircraft leave the map at the end of the turn.',
     'airstrike': 'Select an Aircraft on the map and click a red ⚔ hex to attack.',
     VANGUARD_PHASE: 'Pre-game Vanguard move (speed 4).',
+    INITIATIVE_PHASE: 'You won the initiative roll: choose whether to go first or second this turn.',
 }
 DICE_EVENT_TYPES = {'attack', 'cover_save', 'movement_roll', 'defensive_fire', 'initiative', 'casualty'}
 
@@ -205,6 +207,7 @@ class GameSession:
                 'phase_hint': PHASE_HINTS.get(phase, ''),
                 'is_human_turn': self.is_human_turn(),
                 'pending_facing': self.pending_facing,
+                'pending_initiative': (player if phase == INITIATIVE_PHASE else None),
                 'can_undo': bool(self._undo_stack) and self.is_human_turn(),
                 'can_redo': bool(self._redo_stack) and self.is_human_turn(),
                 'game_over': self.controller.game_over,
@@ -318,6 +321,17 @@ class GameSession:
                     self.controller.end_phase()
             return {'success': True, 'events': self.controller.events[start:]}
 
+        if kind == 'choose_order':
+            cur = self.controller.current()
+            if not cur or cur[0] != INITIATIVE_PHASE or self.players.get(cur[1]) is not None:
+                return {'error': 'No initiative choice pending'}
+            winner = cur[1]
+            first = winner if data.get('first', True) else ('player2' if winner == 'player1' else 'player1')
+            self._clear_undo()
+            self.controller.choose_order(first)
+            self.controller.run_until_human()
+            return {'success': True, 'events': self.controller.events[start:]}
+
         if kind == 'hold_fire':
             us = self.game_state.get_unit_state(data.get('unit_id', ''))
             if not us or self.players.get(us.owner) is not None:
@@ -350,6 +364,8 @@ class GameSession:
             return {'error': 'Not your turn'}
 
         if kind == 'pass':
+            if self.controller.current_phase() == INITIATIVE_PHASE:
+                return {'error': 'Choose whether to go first or second'}
             self.pending_facing = None
             self._clear_undo()
             self.controller.end_phase()

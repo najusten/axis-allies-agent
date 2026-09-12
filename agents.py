@@ -154,6 +154,11 @@ class HeuristicAgent:
 
     # -- interface --------------------------------------------------------
 
+    def choose_initiative(self, game_state: GameState, player: str) -> str:
+        """Initiative winner's choice. Reacting to the opponent's moves suits a
+        static evaluator, except late when grabbing the objective first matters."""
+        return 'first' if game_state.turn_number >= 6 else 'second'
+
     def choose_action(self, game_state: GameState, legal_actions: List[Action], player: str) -> Action:
         self._los_cache.clear()
         scored = self.score_actions(game_state, legal_actions, player)

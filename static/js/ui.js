@@ -205,6 +205,19 @@ export class UI {
     });
   }
 
+  showInitiativeChoice(player, state) {
+    const rolls = (state.log || []).filter(l => l.includes('🎲')).slice(-2).map(esc).join('<br>');
+    return new Promise(resolve => {
+      const box = this._modal(`<h2 class="${player === 'player1' ? 'p1' : 'p2'}">${this.playerName(player)} wins the initiative</h2>
+        <p style="font-family:monospace">${rolls}</p>
+        <p>Go first (act before the opponent) or second (see their moves, then react)?</p>
+        <div class="actions"><button class="btn" id="m-second">Go second</button><button class="btn primary" id="m-first">Go first</button></div>`);
+      box.className = 'modal-box handoff';
+      box.querySelector('#m-first').onclick = () => { this.closeModal(); resolve(true); };
+      box.querySelector('#m-second').onclick = () => { this.closeModal(); resolve(false); };
+    });
+  }
+
   showGameOver(result) {
     const box = this._modal(`<h2>${esc(result.winner)} wins</h2>
       <p>by ${esc(result.reason)} on turn ${result.turns}</p>
