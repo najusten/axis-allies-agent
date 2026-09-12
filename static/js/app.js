@@ -30,6 +30,7 @@ class App {
       onHoverUnit: (id) => this.hoverUnit(id),
       onHoldFire: (id, hold) => this.send({ type: 'hold_fire', unit_id: id, hold }),
       listScenarios: () => api.scenarios(),
+      listUnits: () => api.units(),
     });
     this._setupZoomPan();
     $('chk-coords').onchange = (e) => this.renderer.setCoords(e.target.checked);

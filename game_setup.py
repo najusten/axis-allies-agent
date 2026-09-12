@@ -870,21 +870,39 @@ class GameSetup:
 
         return p1_unit_states, p2_unit_states
 
+    def army_from_names(self, names: List[str], owner: str) -> Army:
+        """Hand-picked army: unit names (duplicates allowed) from the catalog."""
+        import copy
+        catalog = {u.name: u for u in load_all_units()}
+        units = []
+        for n in names:
+            if n not in catalog:
+                raise ValueError(f"Unknown unit: {n}")
+            units.append(copy.deepcopy(catalog[n]))
+        return Army(units=units, owner=owner)
+
     def create_game(self,
                     build_method: str = 'balanced',
-                    terrain_density: float = 0.15) -> GameState:
+                    terrain_density: float = 0.15,
+                    p1_names: List[str] = None,
+                    p2_names: List[str] = None) -> GameState:
         """
         Create a complete game state ready to play.
 
         Args:
             build_method: 'random' or 'balanced' army building
             terrain_density: How much terrain to add to the board
+            p1_names / p2_names: hand-picked unit lists (None = build automatically)
 
         Returns:
             Fully configured GameState
         """
         # Build armies
         p1_army, p2_army = self.build_armies(build_method)
+        if p1_names:
+            p1_army = self.army_from_names(p1_names, 'player1')
+        if p2_names:
+            p2_army = self.army_from_names(p2_names, 'player2')
 
         # Create board
         board = self.create_board(terrain_density)

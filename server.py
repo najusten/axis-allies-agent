@@ -68,7 +68,8 @@ class GameSession:
     def __init__(self, mode: str = 'vs_ai', ai_type: str = 'heuristic',
                  points: int = 100, seed: Optional[int] = None,
                  scenario: Optional[str] = None, armies: str = 'showcase',
-                 max_year: Optional[int] = None, historical: bool = False):
+                 max_year: Optional[int] = None, historical: bool = False,
+                 p1_units: Optional[list] = None, p2_units: Optional[list] = None):
         self.mode = mode
         self.ai_type = ai_type
         self.seed = seed if seed is not None else random.randrange(1, 10 ** 6)
@@ -82,10 +83,10 @@ class GameSession:
             self.scenario_name = sc.name
         else:
             self.systems = build_systems(seed=self.seed)
-            if armies == 'random':
+            if armies in ('random', 'custom'):
                 cfg = GameSetupConfig(points_per_side=points, historical=historical,
                                       year_range=(1939, max_year) if max_year else None)
-                game_state = GameSetup(cfg).create_game()
+                game_state = GameSetup(cfg).create_game(p1_names=p1_units or None, p2_names=p2_units or None)
             else:
                 game_state = self._create_showcase_game()
             self.scenario_name = None
@@ -463,6 +464,7 @@ def api_new_game():
                 seed=int(data['seed']) if data.get('seed') not in (None, '') else None,
                 scenario=data.get('scenario') or None,
                 armies=data.get('armies', 'showcase'),
+                p1_units=data.get('p1_units'), p2_units=data.get('p2_units'),
                 max_year=int(data['max_year']) if data.get('max_year') not in (None, '') else None,
                 historical=bool(data.get('historical', False)),
             )
@@ -492,6 +494,20 @@ def api_los():
                 gs.board, us.unit, q, r, tq, tr, smoke_screens=gs.smoke_screens)
             (visible if ok else blocked).append([tq, tr])
         return jsonify({'unit': us.unit.id, 'from': [q, r], 'visible': visible, 'blocked': blocked})
+
+
+@app.route('/api/units')
+def api_units():
+    """Unit catalog for the army builder: [{name, nation, unit_type, year, cost, speed, defense, abilities, side}]"""
+    from game_setup import load_all_units, AXIS_NATIONS, ALLIED_NATIONS
+    out = []
+    for u in load_all_units():
+        side = 'axis' if u.nation in AXIS_NATIONS else 'allies' if u.nation in ALLIED_NATIONS else 'other'
+        d = u.to_dict()
+        d['side'] = side
+        out.append(d)
+    out.sort(key=lambda d: (d['side'], d['nation'], d['cost'], d['name']))
+    return jsonify(out)
 
 
 @app.route('/api/abilities')

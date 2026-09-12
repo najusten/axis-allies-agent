@@ -19,4 +19,5 @@ export const api = {
   abilities: () => req('/api/abilities'),
   los: (unitId) => req('/api/los?unit=' + encodeURIComponent(unitId)),
   scenarios: () => req('/api/scenarios'),
+  units: () => req('/api/units'),
 };

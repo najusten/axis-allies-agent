@@ -231,7 +231,9 @@ export class UI {
         <option value="random">Random</option></select></div>
       <div class="row"><label>Armies</label><select id="ng-armies">
         <option value="showcase">Showcase (fixed, ability-rich)</option>
-        <option value="random">Random armies (points budget)</option></select></div>
+        <option value="random">Random armies (points budget)</option>
+        <option value="custom">Build my own (points budget)</option></select></div>
+      <div id="ng-custom" hidden class="row"><label></label><span style="color:var(--muted)">You'll pick units for each human side next; AI sides are built automatically.</span></div>
       <div class="row"><label>Points/side</label><input id="ng-points" value="100" inputmode="numeric"></div>
       <div class="row"><label>Max year</label><select id="ng-year"><option value="">any</option>
         ${[1939,1940,1941,1942,1943,1944,1945].map(y => `<option value="${y}">${y}</option>`).join('')}</select></div>
@@ -242,7 +244,8 @@ export class UI {
       <div class="actions"><button class="btn" id="ng-cancel">Cancel</button><button class="btn primary" id="ng-start">Start</button></div>`);
     box.className = 'modal-box';
     box.querySelector('#ng-cancel').onclick = () => this.closeModal();
-    box.querySelector('#ng-start').onclick = () => {
+    box.querySelector('#ng-armies').onchange = (e) => { box.querySelector('#ng-custom').hidden = e.target.value !== 'custom'; };
+    box.querySelector('#ng-start').onclick = async () => {
       const opts = {
         mode: box.querySelector('#ng-mode').value,
         ai: box.querySelector('#ng-ai').value,
@@ -254,7 +257,64 @@ export class UI {
         historical: box.querySelector('#ng-hist').checked,
       };
       this.closeModal();
+      if (opts.armies === 'custom') {
+        const humans = opts.mode === 'hotseat' ? ['player1', 'player2'] : opts.mode === 'vs_ai' ? ['player1'] : [];
+        for (const p of humans) {
+          const picked = await this.showArmyBuilder(p, opts);
+          if (!picked) return;           // cancelled
+          opts[p === 'player1' ? 'p1_units' : 'p2_units'] = picked;
+        }
+      }
       this.h.onNewGame(opts);
     };
+  }
+
+  // ------------------------------------------------------------- army builder
+  async showArmyBuilder(player, opts) {
+    let units = [];
+    try { units = await this.h.listUnits(); } catch (e) { this.toast('Could not load unit list', true); return null; }
+    const side = player === 'player1' ? 'allies' : 'axis';
+    const maxYear = opts.max_year ? parseInt(opts.max_year, 10) : 9999;
+    const pool = units.filter(u => u.side === side && (u.year || 0) <= maxYear && u.unit_type !== 'Aircraft');
+    const nations = [...new Set(pool.map(u => u.nation))].sort();
+    const budget = opts.points || 100;
+    const picked = [];
+    return new Promise(resolve => {
+      const box = this._modal(`<h2>${this.playerName(player)} — build your army</h2>
+        <div class="row"><label>Nation</label><select id="ab-nation"><option value="">all ${side}</option>${nations.map(n => `<option>${esc(n)}</option>`).join('')}</select>
+          <label style="width:auto">Type</label><select id="ab-type"><option value="">all</option><option>Soldier</option><option>Vehicle</option></select>
+          <input id="ab-search" placeholder="search…" style="flex:1"></div>
+        <div style="display:flex;gap:10px;height:360px">
+          <div id="ab-list" style="flex:1;overflow:auto;border:1px solid var(--line);border-radius:6px"></div>
+          <div style="width:260px;display:flex;flex-direction:column">
+            <div id="ab-total" style="font-weight:700;margin-bottom:6px"></div>
+            <div id="ab-picked" style="flex:1;overflow:auto;border:1px solid var(--line);border-radius:6px"></div>
+          </div></div>
+        <div class="actions"><button class="btn" id="ab-cancel">Cancel</button><button class="btn primary" id="ab-done">Done</button></div>`);
+      box.className = 'modal-box';
+      box.style.maxWidth = '900px';
+      const list = box.querySelector('#ab-list'), pickedEl = box.querySelector('#ab-picked'), total = box.querySelector('#ab-total');
+      const cost = () => picked.reduce((s, u) => s + (u.cost || 0), 0);
+      const renderPicked = () => {
+        const c = cost();
+        total.textContent = `${c} / ${budget} points · ${picked.length} units`;
+        total.style.color = c > budget ? 'var(--bad)' : 'var(--text)';
+        pickedEl.innerHTML = picked.map((u, i) => `<div class="unit-item" data-i="${i}"><span class="nm">${esc(u.name)}</span><span class="st">${u.cost}</span><span class="tag">✕</span></div>`).join('') || '<div style="padding:8px;color:var(--muted)">Click units on the left to add them.</div>';
+        pickedEl.querySelectorAll('.unit-item').forEach(el => el.onclick = () => { picked.splice(+el.dataset.i, 1); renderPicked(); });
+        box.querySelector('#ab-done').disabled = picked.length === 0 || c > budget;
+      };
+      const renderList = () => {
+        const n = box.querySelector('#ab-nation').value, t = box.querySelector('#ab-type').value, q = box.querySelector('#ab-search').value.toLowerCase();
+        const rows = pool.filter(u => (!n || u.nation === n) && (!t || (u.unit_type || '').startsWith(t)) && (!q || u.name.toLowerCase().includes(q)));
+        list.innerHTML = rows.map(u => `<div class="unit-item" title="${esc((u.abilities || []).join(', '))}" data-name="${esc(u.name)}">
+          <span class="nm">${esc(u.name)}</span><span class="st">${esc(u.nation)} · ${u.year} · ${esc(u.unit_type)} · def ${u.defense_front}${u.defense_rear !== u.defense_front ? '/' + u.defense_rear : ''} · spd ${u.speed}</span><span class="tag">${u.cost}</span></div>`).join('');
+        list.querySelectorAll('.unit-item').forEach(el => el.onclick = () => { picked.push(rows.find(u => u.name === el.dataset.name)); renderPicked(); });
+      };
+      ['#ab-nation', '#ab-type'].forEach(sel => box.querySelector(sel).onchange = renderList);
+      box.querySelector('#ab-search').oninput = renderList;
+      renderList(); renderPicked();
+      box.querySelector('#ab-cancel').onclick = () => { this.closeModal(); resolve(null); };
+      box.querySelector('#ab-done').onclick = () => { this.closeModal(); resolve(picked.map(u => u.name)); };
+    });
   }
 }
