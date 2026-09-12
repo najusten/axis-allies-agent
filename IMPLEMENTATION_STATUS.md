@@ -56,16 +56,16 @@ initiative_system = InitiativeSystem(ability_system, movement_system)
 - ✅ Terrain: open, forest, building, water, road, hill, town, marsh, ruins (`Board.TERRAIN_TYPES`)
 - ✅ Edge obstacles: barbed wire, destroyed bridge (`Board.add_edge_obstacle`)
 - ✅ Objective hex with control check (`GameState.check_objective_control`)
-- ⚠️ `'stream'` and `'impassable'` are referenced by movement/setup code but are not valid `TERRAIN_TYPES`
+- ✅ `stream` / `impassable` terrain types exist (no rules for streams yet)
 - ❌ Half-hexes (impassable map-edge hexes)
 - ❌ Hex-side terrain: streams, hedges, bluffs (only edge *obstacles* exist)
-- ⚠️ Board is a rectangle in axial (q, r) → renders as a parallelogram
+- ✅ Rectangular board in even-q offset coordinates (`Board.offset_to_axial`), addressed by axial everywhere
 
 ### Movement
 - ✅ BFS reachable hexes with terrain costs; vehicles pay double in forest/hill (`movement.py`)
 - ✅ Stacking: 3 units per hex, max 1 vehicle (`GameState.can_stack_at`)
 - ✅ Vehicle facing set after move; front/rear arcs (`facing.py`)
-- ✅ Movement rolls: forest bog, Weak Suspension on hills, barbed wire, destroyed bridge, tank obstacles (`action_executor._execute_move`) — see bug #1
+- ✅ Movement rolls: forest bog, Weak Suspension on hills, barbed wire, destroyed bridge, tank obstacles (`action_executor._execute_move`)
 - ✅ Assault-phase relocation and Strike and Fade
 - ✅ Transports: board, move, dismount; capacity; fighting platform (`transport.py`, executor)
 - ✅ High Gear road movement
@@ -88,7 +88,7 @@ initiative_system = InitiativeSystem(ability_system, movement_system)
 - ✅ Defensive fire when moving adjacent: disrupt-only, can stop movement, Double Shot (`defensive_fire.py`)
 - ✅ Simultaneous resolution: hits recorded as face-down counters, applied in casualty phase (`casualty.py`)
 - ✅ Special attacks: rockets, bombs, salvo, hull cannons, flamethrower/fire hazards, rerolls (Guard Crew, Lead the Way, …)
-- ⚠️ Three separate cover-terrain lists (`action_executor.py:58`, `defensive_fire.py:645`, `combat.py:141`) — should be one constant
+- ✅ One cover-terrain constant (`Board.COVER_TERRAIN`)
 - ⚠️ `combat.py` `CombatSystem.resolve_attack` is dead code; live path is `action_executor._resolve_attack_full`
 
 ### Turn structure (`turn_controller.py`, shared by server and runner)
@@ -104,7 +104,7 @@ initiative_system = InitiativeSystem(ability_system, movement_system)
 
 ### AI
 - ✅ `RandomAgent`, `AggressiveRandomAgent`, `GreedyAgent` (one-ply via `GameStateEvaluator`)
-- ⚠️ `MCTSAgent` exists but is not playable: tree ignores phase transitions, simulations mutate executor-held state, branching factor (one `MoveAction` per reachable hex) is too high — see roadmap
+- ⚠️ `MCTSAgent` exists but is not playable: tree ignores phase transitions and the branching factor (one `MoveAction` per reachable hex) is too high — see roadmap Phase 4 (executor-state corruption is fixed)
 
 ### Server / UI (`server.py` + `static/`)
 - ✅ JSON API; frontend updates in place (no reload); moves animate; dice popups for attacks, cover rolls, movement rolls, defensive fire; LOS line; casualty fades; initiative banner; click to skip
