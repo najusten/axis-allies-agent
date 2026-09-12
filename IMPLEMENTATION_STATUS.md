@@ -1,6 +1,6 @@
 # Axis & Allies Miniatures — Implementation Status
 
-**Last updated:** 2026-09-11
+**Last updated:** 2026-09-11 (evening — after Phases 0–3 of the rebuild)
 
 Tracks what the engine implements, what it doesn't, known bugs, and the roadmap.
 Rules scope is Axis & Allies Miniatures only.
@@ -28,10 +28,14 @@ Legend: ✅ implemented · ⚠️ partial / caveat · ❌ missing
 | `initiative.py` | 2d6 initiative with commander/recon/organization bonuses |
 | `transport.py` | Transport capacity/loading rules |
 | `evaluation.py` | `GameStateEvaluator` heuristic (material, position, status, threat, objective) |
-| `game_runner.py` | AI-vs-AI runner; `RandomAgent`, `AggressiveRandomAgent`, `GreedyAgent` |
+| `turn_controller.py` | **Sequence of play** (initiative → movement → flight → assault → airstrike → casualty → victory), human or AI per player, structured event log, snapshot/restore |
+| `scenario.py` | YAML scenario loader + `ScriptedDice`; `build_action()` shared with the server |
+| `simulate.py` | AI-vs-AI fuzzer/benchmark with invariant checks |
+| `game_runner.py` | AI-vs-AI runner (thin wrapper over TurnController); `RandomAgent`, `AggressiveRandomAgent`, `GreedyAgent` |
 | `mcts.py` | `MCTSAgent` (UCB1) — not yet usable in play, see Known Issues |
-| `visualization.py`, `game_visualizer.py` | Legacy HTML/SVG page generator (used by runner `--visualize`) |
-| `server.py` | Flask server: Human vs AI in the browser (port 8080) |
+| `visualization.py`, `game_visualizer.py` | Legacy HTML/SVG page generator (only `game_runner --visualize`; candidate for removal) |
+| `server.py` | Flask JSON API (`/api/state`, `/api/action`, `/api/new_game`, …) serving `static/` |
+| `static/` | Frontend: `js/renderer.js` (swappable SVG board), `js/ui.js`, `js/app.js`, `js/hex.js`, `js/api.js` |
 
 Subsystem construction pattern (all systems need `AbilitySystem` + `MovementSystem`):
 
@@ -87,13 +91,11 @@ initiative_system = InitiativeSystem(ability_system, movement_system)
 - ⚠️ Three separate cover-terrain lists (`action_executor.py:58`, `defensive_fire.py:645`, `combat.py:141`) — should be one constant
 - ⚠️ `combat.py` `CombatSystem.resolve_attack` is dead code; live path is `action_executor._resolve_attack_full`
 
-### Turn structure
+### Turn structure (`turn_controller.py`, shared by server and runner)
 - ✅ Initiative: 2d6 + commander + recon, Organization reroll, tie-break (`initiative.py`)
-- ✅ Movement (first, second) · Assault (first, second) · Casualty — both `game_runner.py` and `server.py`
-- ✅ Flight / Airstrike phases for aircraft — `game_runner.py` only
-- ✅ Objective control victory at turn ≥ 7, turn-limit points tiebreak — `game_runner.py` only
-- ⚠️ `server.py` has its own phase sequencer: no flight/airstrike, no objective/turn-limit victory (elimination only), AI cannot voluntarily pass
-- ⚠️ `game_runner.py` resets pending hits per player assault phase; `server.py` never does — one of them is wrong (hits should persist until casualty phase)
+- ✅ Vanguard pre-game phase (speed 4) · Movement ×2 · Flight ×2 (if aircraft) · Assault ×2 · Airstrike ×2 (if aircraft) · Casualty
+- ✅ Pending hits persist across both assault phases until the casualty phase
+- ✅ Elimination, objective control at turn ≥ 7, turn-limit points tiebreak
 
 ### Abilities
 - ✅ 212 abilities loaded; passive modifiers (attack, defense, movement, LOS) applied automatically
@@ -104,34 +106,38 @@ initiative_system = InitiativeSystem(ability_system, movement_system)
 - ✅ `RandomAgent`, `AggressiveRandomAgent`, `GreedyAgent` (one-ply via `GameStateEvaluator`)
 - ⚠️ `MCTSAgent` exists but is not playable: tree ignores phase transitions, simulations mutate executor-held state, branching factor (one `MoveAction` per reachable hex) is too high — see roadmap
 
-### Server / UI (`server.py`)
-- ✅ Human (player1) vs AI (player2): select unit → click highlighted hex to move/attack/board/dismount; ability panel; facing picker; undo/redo (blocked after any dice roll); zoom/pan; stat cards; event log
-- ❌ Hot-seat human vs human; AI choice in-game; MCTS option
-- ⚠️ Rendering is full-page HTML regenerated in Python and reloaded after every action (`location.reload()`); JS lives in Python string literals — being replaced by a JSON API + static frontend (roadmap Phase 3)
+### Server / UI (`server.py` + `static/`)
+- ✅ JSON API; frontend updates in place (no reload); moves animate; dice popups for attacks, cover rolls, movement rolls, defensive fire; LOS line; casualty fades; initiative banner; click to skip
+- ✅ Modes: Human vs AI, hot-seat Human vs Human (handoff screen, opponent's card hidden), AI vs AI (step)
+- ✅ New Game dialog: mode, AI type, seed, or load a scenario file
+- ✅ Select unit → highlighted hexes (move/attack/board/dismount), ability panel with per-target buttons, facing picker, undo/redo (blocked after any dice roll), zoom (fit/±/ctrl-wheel) and drag-pan, stat cards with ability descriptions, event log, coords toggle
+- ✅ Rectangular board (even-q offset), landscape default 18×12
+- ❌ MCTS / heuristic AI selectable (Phase 4)
+- ❌ Path-aware movement (choose route), aircraft placement UI, deployment phase UI
 
 ---
 
-## Known bugs
+## Known issues / open rules questions
 
-1. `action_executor.py:415,441` — `getattr(hex, 'has_road', False)` reads a *method* → always truthy → forest bog and Weak Suspension rolls never trigger.
-2. Three divergent cover-terrain lists (see Combat above).
-3. `'stream'` / `'impassable'` not in `Board.TERRAIN_TYPES` → `set_terrain` raises for them.
-4. `server.py:572` reads `pending.get('total')` but `casualty.get_pending_hits_summary` returns `{disrupted, damaged, destroyed}` → pending-hit badge always 0.
-5. `server.py` drops `parameters={'new_facing': N}` from change-facing ability actions → all facing buttons send no direction.
-6. `game_runner.py:107-109` — `AggressiveRandomAgent` ability filter compares against `type`, always False (no-op).
-7. `game_runner.py:670` — Vanguard phase calls `action_executor.execute` (does not exist; should be `execute_action`).
-8. `GameState.clone()` copies `UnitState` from a hand-maintained field list; new fields are silently dropped.
-9. Dice use the global `random` module (`DiceSystem`, `initiative.py:81,91`, `casualty.py:234`); no injectable RNG → games are not replayable and tests cannot script dice.
-10. `CasualtySystem._pending_hits` and `DefensiveFireSystem._units_fired_this_phase` live on the executor, not on `GameState` → any lookahead that executes actions on a cloned state corrupts the live game.
+- Special attacks (rockets, hull cannons, remote control, bombs) roll their own dice outside `_resolve_attack_full`: no cover roll, no facing, no rerolls. They now at least record pending counters correctly. Should be unified.
+- `dice.resolve_soldier_damage`: a cover-saved hit on an *already disrupted* soldier does nothing. Rulebook says a second Disrupted result destroys — verify with a scenario.
+- Cover terrain = forest, building, hill, town, ruins (marsh excluded) — verify ruins/marsh.
+- Artillery assault-only movement, half-hexes, hex-side terrain: not implemented.
+- Ability activation UI missing for Aggression, Gliderborne, Partisan, AVRE, Improved Indirect Fire.
+- Log/coordinates are axial (q, r); the UI's coords toggle shows the same. Fine for debugging, may want offset (col,row) for players.
+
+### Fixed in the Sep 2026 rebuild
+forest bog / Weak Suspension rolls never triggered (`has_road` method read as attribute) · cover saves ignored in simultaneous combat (raw hits recorded as counters) · cover roll made before the attack roll · three divergent cover lists · High Gear moves rejected by the validator · six special attacks crashed on use (`attack_result` kwarg, `is_alive` assignment, tuple≠Hex) · once-per-game "instead of attack" abilities offered after attacking · Vanguard phase called a nonexistent method · `clone()` dropped ~15 UnitState fields · pending hits/defensive-fire tracking lived on the executor (lookahead corrupted the live game) · global-RNG dice · `AggressiveRandomAgent` no-op filter · missing `get_all_alive_units`.
 
 ---
 
 ## Tests
 
-- `test_game_engine.py` — smoke tests (action generation/execution, cloning, turn progression); print-based, no asserts, unseeded
-- `test_abilities.py` — 25 ability/obstacle/transport/combat tests; print-based, unseeded
-- Run with `python3 test_abilities.py` / `python3 test_game_engine.py` (require the CSVs in cwd; CSVs are gitignored)
-- No pytest setup yet; no deterministic scenario tests
+- `python3 -m pytest` — `tests/`: every `scenarios/*.yaml` (scripted dice, expectations), clone completeness, determinism, lookahead isolation
+- `python3 scenario.py scenarios/x.yaml` — run one scenario and print each step
+- `python3 simulate.py -n 30 --p1 aggressive --p2 greedy --seed 1` — fuzz + benchmark (invariants, crashes, generator/executor mismatches)
+- Legacy: `python3 test_abilities.py` (25 pass), `python3 test_game_engine.py` (6/7 — fixture units out of range)
+- Dev deps: `pip3 install -r requirements-dev.txt`
 
 ---
 
@@ -139,10 +145,10 @@ initiative_system = InitiativeSystem(ability_system, movement_system)
 
 See `.claude/plans/` (session plan) for detail. Summary:
 
-- **Phase 1 — Engine foundations**: injectable RNG + `ScriptedDice`; move pending-hits / defensive-fire state into `GameState`; one `TurnController` shared by server and runner (adds flight/airstrike/objective victory to the server); structured `events` on `ActionResult`; `GameState.to_dict()`; YAML scenario loader (`scenario.py`). Fix bugs 1–10.
-- **Phase 2 — Rules verification**: pytest + `scenarios/*.yaml` regression suite (one per mechanic, plus forum/FAQ rulings); `simulate.py` AI-vs-AI fuzzer with invariant checks.
-- **Phase 3 — Frontend**: `GET /api/state`, `POST /api/action` → events; static `static/` SPA (vanilla JS + SVG, no build step) with a swappable renderer; hot-seat and vs-AI modes; rectangular board.
-- **Phase 4 — Agents**: fast `HeuristicAgent` with per-unit candidate actions; fix `MCTSAgent` to use `TurnController` and candidate actions; tournament benchmarking.
-- **Phase 5 — Visuals**: decide 2D art vs 3D after 3 & 4; only the renderer module changes.
+- ✅ **Phase 1 — Engine foundations** (done): injectable RNG + `ScriptedDice`; game bookkeeping on `GameState`; `TurnController`; structured events; `to_dict()`; scenario loader.
+- 🔧 **Phase 2 — Rules verification** (infrastructure done, scenarios ongoing): 8 scenarios so far; add one per mechanic and per forum/FAQ ruling.
+- ✅ **Phase 3 — Frontend** (done, plain 2D): JSON API + static SVG frontend; hot-seat and vs-AI.
+- **Phase 4 — Agents**: fast `HeuristicAgent` with per-unit candidate actions; fix `MCTSAgent` (phases via `TurnController`, candidate actions, open-loop chance handling); tournament benchmarking with `simulate.py`.
+- **Phase 5 — Visuals**: decide 2D art vs 3D; only `static/js/renderer.js` changes.
 
 Deferred: script sweep (remove unneeded modules once gameplay is complete), unit-card privacy in hot-seat, path-aware movement, remaining ability activations.
