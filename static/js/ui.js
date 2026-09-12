@@ -58,10 +58,12 @@ export class UI {
         if (u.is_disrupted) tags.push('<span class="tag dis">disrupted</span>');
         if (u.is_damaged) tags.push('<span class="tag dmg">damaged</span>');
         if (u.carried_by_id) tags.push('<span class="tag">aboard</span>');
+        if (u.card.unit_type === 'Aircraft' && !u.is_aircraft_on_map) tags.push('<span class="tag">off-map</span>');
         if (u.has_moved && u.has_attacked) tags.push('<span class="tag done">done</span>');
         else if (u.has_moved) tags.push('<span class="tag done">moved</span>');
         else if (u.has_attacked) tags.push('<span class="tag done">fired</span>');
-        li.innerHTML = `<span class="nm">${esc(u.card.name)}</span>${tags.join('')}<span class="st">${u.position[0]},${u.position[1]}</span>`;
+        const pos = (u.card.unit_type === 'Aircraft' && !u.is_aircraft_on_map) ? '✈' : `${u.position[0]},${u.position[1]}`;
+        li.innerHTML = `<span class="nm">${esc(u.card.name)}</span>${tags.join('')}<span class="st">${pos}</span>`;
         li.onclick = () => this.h.onSelectUnit(u.id);
         li.onmouseenter = () => this.h.onHoverUnit(u.id);
         li.onmouseleave = () => this.h.onHoverUnit(null);

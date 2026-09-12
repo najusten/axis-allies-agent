@@ -28,7 +28,7 @@ from typing import Optional
 from flask import Flask, jsonify, request, send_from_directory
 
 from action import (MoveAction, AttackAction, UseAbilityAction,
-                    BoardTransportAction, DismountTransportAction)
+                    BoardTransportAction, DismountTransportAction, PlaceAircraftAction)
 from agents import HeuristicAgent, LookaheadAgent
 from evaluation import GameStateEvaluator
 from game_runner import AggressiveRandomAgent, GreedyAgent, RandomAgent
@@ -51,8 +51,8 @@ PHASE_LABELS = {
 PHASE_HINTS = {
     'movement': 'Select a unit, then click a green hex to move. Yellow = board transport, orange OUT = dismount, purple = ability. Vehicles roll 4+ to enter forest.',
     'assault': 'Select a unit: red ⚔ = attack, orange IDF = indirect fire via spotter (no LOS needed), green = move instead of attacking. LOS checkbox shades what the unit cannot see.',
-    'flight': 'Place aircraft on the board.',
-    'airstrike': 'Aircraft attack.',
+    'flight': 'Select an Aircraft in the sidebar, then click any cyan hex to place it. Antiair units may fire at it. Aircraft leave the map at the end of the turn.',
+    'airstrike': 'Select an Aircraft on the map and click a red ⚔ hex to attack.',
     VANGUARD_PHASE: 'Pre-game Vanguard move (speed 4).',
 }
 DICE_EVENT_TYPES = {'attack', 'cover_save', 'movement_roll', 'defensive_fire', 'initiative', 'casualty'}
@@ -84,8 +84,7 @@ class GameSession:
             self.systems = build_systems(seed=self.seed)
             if armies == 'random':
                 cfg = GameSetupConfig(points_per_side=points, historical=historical,
-                                      year_range=(1939, max_year) if max_year else None,
-                                      exclude_aircraft=True)
+                                      year_range=(1939, max_year) if max_year else None)
                 game_state = GameSetup(cfg).create_game()
             else:
                 game_state = self._create_showcase_game()
@@ -225,7 +224,7 @@ class GameSession:
                 continue
             pending = self.systems.executor.casualty_system.get_pending_hits_summary(gs, uid)
             out[uid] = {
-                'moves': [], 'attacks': [], 'board': [], 'dismount': [], 'abilities': [],
+                'moves': [], 'attacks': [], 'board': [], 'dismount': [], 'abilities': [], 'place': [],
                 'pending_hits': pending.get('total', 0),
             }
         if not self.is_human_turn() or self.pending_facing:
@@ -264,6 +263,8 @@ class GameSession:
             elif isinstance(action, DismountTransportAction):
                 entry['dismount'].append({'q': action.to_q, 'r': action.to_r,
                                           'transport_id': action.transport_id})
+            elif isinstance(action, PlaceAircraftAction):
+                entry['place'].append([action.to_q, action.to_r])
         return out
 
     # -- undo -------------------------------------------------------------

@@ -103,6 +103,7 @@ class App {
     for (const a of ua.attacks) out.push({ q: a.q, r: a.r, kind: a.indirect ? 'indirect' : 'attack', label: a.indirect ? 'IDF' : '⚔', data: { type: 'attack', unit_id: id, target_id: a.target_id, target_q: a.q, target_r: a.r } });
     for (const b of ua.board) out.push({ q: b.q, r: b.r, kind: 'board', label: 'BOARD', data: { type: 'board_transport', unit_id: id, transport_id: b.transport_id, pos_q: b.q, pos_r: b.r } });
     for (const d of ua.dismount) out.push({ q: d.q, r: d.r, kind: 'dismount', label: 'OUT', data: { type: 'dismount', unit_id: id, transport_id: d.transport_id, to_q: d.q, to_r: d.r } });
+    for (const [q, r] of (ua.place || [])) out.push({ q, r, kind: 'place', data: { type: 'place', unit_id: id, to_q: q, to_r: r } });
     return out;
   }
 

@@ -50,7 +50,8 @@ import yaml
 
 from abilities import AbilitySystem
 from action import (Action, MoveAction, AttackAction, UseAbilityAction,
-                    BoardTransportAction, DismountTransportAction, PassAction)
+                    BoardTransportAction, DismountTransportAction, PassAction,
+                    PlaceAircraftAction)
 from action_executor import ActionExecutor, ActionResult
 from action_generator import ActionGenerator
 from board import Board
@@ -236,6 +237,10 @@ def build_action(game_state: GameState, data: dict,
                                 target_r=target_hex[1] if target_hex else None,
                                 parameters=params or None)
 
+    if kind == 'place':
+        to = hexpair(('to_q', 'to_r'), 'to')
+        return PlaceAircraftAction(unit_id, to[0], to[1])
+
     if kind == 'pass':
         return PassAction(unit_id)
 
@@ -288,6 +293,9 @@ def find_legal_action(legal: List[Action], data: dict,
             elif flags or getattr(a, 'improvised_attack', None):
                 continue    # plain attack requested; skip special variants
             return a
+        elif kind == 'place' and isinstance(a, PlaceAircraftAction):
+            if (a.to_q, a.to_r) == dest():
+                return a
         elif kind in ('board', 'board_transport') and isinstance(a, BoardTransportAction):
             tid = ali(data.get('transport') or data.get('transport_id'))
             if not tid or a.transport_id == tid:
