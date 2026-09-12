@@ -29,6 +29,7 @@ from action import (MoveAction, AttackAction, PassAction,
                     UseAbilityAction)
 from movement import MovementSystem
 from game_runner import AggressiveRandomAgent, GreedyAgent, RandomAgent
+from turn_controller import TurnController, format_event
 
 # Locate ability CSV (same logic as game_runner.py)
 _ABILITY_CSV = (
@@ -59,7 +60,6 @@ class GameSession:
 
         self.human_player = 'player1'
         self.ai_player = 'player2'
-        self.events: list[str] = []  # game log (most recent last)
         self.pending_facing: str | None = None  # unit_id awaiting facing choice
         self._undo_stack: list = []  # list of (game_state_copy, events_copy, pending_facing) for undo
         self._redo_stack: list = []  # list of snapshots for redo
@@ -74,15 +74,36 @@ class GameSession:
             self.ai_agent = AggressiveRandomAgent("AI (Aggressive)")
 
         # Create game state with curated units that showcase abilities
-        self.game_state: GameState = self._create_showcase_game()
+        game_state: GameState = self._create_showcase_game()
 
-        # Phase sequencing
-        self.turn_order: list[str] = [self.human_player, self.ai_player]
-        self.phase_sequence: list[tuple[str, str]] = []  # (phase, player)
-        self.phase_idx: int = 0
+        # Sequence of play lives in TurnController; None = human player
+        self.controller = TurnController(
+            game_state, self.action_executor, self.action_generator,
+            self.initiative_system,
+            {self.human_player: None, self.ai_player: self.ai_agent},
+            movement_system=self.movement_system,
+        )
+        self.controller.run_until_human()
 
-        # Start first turn
-        self._start_turn()
+    @property
+    def game_state(self) -> GameState:
+        return self.controller.game_state
+
+    @property
+    def events(self) -> list[str]:
+        """Text log derived from the controller's structured events."""
+        lines = []
+        for ev in self.controller.events:
+            line = format_event(ev)
+            if line:
+                lines.extend(line.split("\n"))
+        return lines
+
+    def _is_human_turn(self) -> bool:
+        return self.controller.is_human_turn()
+
+    def _human_legal_actions(self) -> list:
+        return self.controller.legal_actions() if self._is_human_turn() else []
 
     # ------------------------------------------------------------------
     # Showcase game with curated units
@@ -183,178 +204,26 @@ class GameSession:
     # Turn / Phase management
     # ------------------------------------------------------------------
 
-    def _start_turn(self):
-        first, p1_result, p2_result = self.initiative_system.determine_first_player(self.game_state)
-        second = self.ai_player if first == self.human_player else self.human_player
-        self.turn_order = [first, second]
-
-        self.events.append(
-            f"▶ Turn {self.game_state.turn_number} — Initiative roll:"
-        )
-        self.events.append(f"  🎲 {p1_result}")
-        self.events.append(f"  🎲 {p2_result}")
-        self.events.append(f"  → {first} goes first")
-
-        fp, sp = first, second
-        self.phase_sequence = [
-            (GamePhase.MOVEMENT, fp),
-            (GamePhase.MOVEMENT, sp),
-            (GamePhase.ASSAULT, fp),
-            (GamePhase.ASSAULT, sp),
-        ]
-        self.phase_idx = 0
-        self._apply_phase()
-
-        # Reset action executor phase tracking
-        self.action_executor.reset_defensive_fire_phase(self.game_state)
-
-        # Advance past any AI / empty phases until human has actions
-        self._run_until_human_turn()
-
-    def _apply_phase(self):
-        """Set game_state fields to match current phase_idx."""
-        if self.phase_idx < len(self.phase_sequence):
-            phase, player = self.phase_sequence[self.phase_idx]
-            self.game_state.current_phase = phase
-            self.game_state.active_player = player
-
-    def _advance_phase(self):
-        self.phase_idx += 1
-        if self.phase_idx >= len(self.phase_sequence):
-            self._end_turn()
-        else:
-            self._apply_phase()
-
-    def _end_turn(self):
-        # Casualty phase
-        try:
-            results = self.action_executor.resolve_casualty_phase(self.game_state)
-            destroyed = results.get('units_destroyed', [])
-            if destroyed:
-                for uid in destroyed:
-                    unit_state = self.game_state.units.get(uid)
-                    name = unit_state.unit.name if unit_state else uid
-                    self.events.append(f"  💥 {name} destroyed")
-        except Exception:
-            pass
-
-        if self.game_state.is_game_over():
-            return
-
-        # Reset all unit flags for the new turn
-        for unit_state in self.game_state.units.values():
-            unit_state.reset_for_turn()
-
-        # Clear smoke screens
-        self.game_state.smoke_screens.clear()
-
-        # Advance turn counter
-        self.game_state.turn_number += 1
-        self._start_turn()
-
-    # ------------------------------------------------------------------
-    # Legal action helpers
-    # ------------------------------------------------------------------
-
-    def _get_phase_actions(self, player: str) -> list:
-        """Get legal actions for player in the current phase."""
-        phase = self.game_state.current_phase
-        try:
-            all_actions = self.action_generator.get_all_legal_actions(self.game_state, player)
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            return []
-
-        if phase == GamePhase.MOVEMENT:
-            return [a for a in all_actions
-                    if isinstance(a, (MoveAction, BoardTransportAction,
-                                     DismountTransportAction, UseAbilityAction))]
-        elif phase == GamePhase.ASSAULT:
-            return [a for a in all_actions
-                    if isinstance(a, (AttackAction, MoveAction, UseAbilityAction))]
-        return all_actions
-
-    # ------------------------------------------------------------------
-    # AI auto-play
-    # ------------------------------------------------------------------
-
-    def _run_until_human_turn(self):
-        """Play AI turns / skip empty phases until human has actions."""
-        MAX = 300
-        for _ in range(MAX):
-            if self.game_state.is_game_over():
-                return
-            if self.phase_idx >= len(self.phase_sequence):
-                return
-
-            phase, player = self.phase_sequence[self.phase_idx]
-
-            if player == self.human_player:
-                # Always show assault phase to human so they see when in range
-                if phase == GamePhase.ASSAULT:
-                    return
-                # Movement: skip only if truly no moves
-                legal = self._get_phase_actions(self.human_player)
-                if legal:
-                    return  # human has moves
-                self.events.append(
-                    f"  {self.human_player} has no {phase} actions — skipping"
-                )
-                self._advance_phase()
-            else:
-                # Run full AI phase
-                self._run_ai_phase(player, phase)
-                self._advance_phase()
-
-    def _run_ai_phase(self, player: str, phase: str):
-        self.events.append(f"  AI {phase.lower()} phase:")
-        if phase == GamePhase.MOVEMENT:
-            self.action_executor.reset_defensive_fire_phase(self.game_state)
-
-        for _ in range(30):  # cap iterations per phase
-            legal = self._get_phase_actions(player)
-            if not legal:
-                break
-            action = self.ai_agent.choose_action(self.game_state, legal, player)
-            result = self.action_executor.execute_action(self.game_state, action)
-            if result.success:
-                self.events.append(f"    {result.message}")
-            else:
-                break
-
     # ------------------------------------------------------------------
     # Human action entry point
     # ------------------------------------------------------------------
 
     def _save_undo_state(self):
         """Save current state for undo."""
-        self._undo_stack.append({
-            'game_state': deepcopy(self.game_state),
-            'events': list(self.events),
-            'pending_facing': self.pending_facing,
-            'phase_idx': self.phase_idx,
-            'phase_sequence': list(self.phase_sequence),
-        })
+        self._undo_stack.append(self._snapshot())
         self._redo_stack.clear()  # New action invalidates redo history
 
     def _snapshot(self):
         """Create a snapshot of current state."""
         return {
-            'game_state': deepcopy(self.game_state),
-            'events': list(self.events),
+            'controller': self.controller.snapshot(),
             'pending_facing': self.pending_facing,
-            'phase_idx': self.phase_idx,
-            'phase_sequence': list(self.phase_sequence),
         }
 
     def _restore(self, snapshot):
         """Restore state from a snapshot."""
-        self.game_state = snapshot['game_state']
-        self.events = snapshot['events']
+        self.controller.restore(snapshot['controller'])
         self.pending_facing = snapshot['pending_facing']
-        self.phase_idx = snapshot['phase_idx']
-        self.phase_sequence = snapshot['phase_sequence']
 
     def _undo(self) -> bool:
         """Restore the last saved state. Returns True if successful."""
@@ -383,14 +252,12 @@ class GameSession:
         # Handle undo
         if action_type == 'undo':
             if self._undo():
-                self.events.append("  ↩ Undo")
                 return {"success": True}
             return {"error": "Nothing to undo"}
 
         # Handle redo
         if action_type == 'redo':
             if self._redo():
-                self.events.append("  ↪ Redo")
                 return {"success": True}
             return {"error": "Nothing to redo"}
 
@@ -404,39 +271,31 @@ class GameSession:
                 if us:
                     us.facing = facing
                     from facing import get_direction_name, HexDirection
-                    self.events.append(
-                        f"  You: {us.unit.name} faces {get_direction_name(HexDirection(facing))}")
+                    self.controller.events.append({
+                        'type': 'facing', 'unit': uid, 'name': us.unit.name,
+                        'facing': facing,
+                        'message': f"{us.unit.name} faces {get_direction_name(HexDirection(facing))}"})
                 self.pending_facing = None
-                # Check if human still has actions; if not, advance
-                remaining = self._get_phase_actions(self.human_player)
-                if not remaining and not self.pending_facing:
-                    self._advance_phase()
-                    self._run_until_human_turn()
+                self._advance_if_done()
                 return {"success": True}
             return {"error": "No facing selection expected"}
 
-        if self.game_state.is_game_over():
+        if self.controller.game_over:
             return {"error": "Game is already over"}
-
-        if self.phase_idx >= len(self.phase_sequence):
-            return {"error": "No active phase"}
 
         # Block other actions while facing is pending
         if self.pending_facing:
             return {"error": "Select facing direction for your vehicle first"}
 
-        _, current_player = self.phase_sequence[self.phase_idx]
-        if current_player != self.human_player:
+        if not self._is_human_turn():
             return {"error": "Not your turn"}
 
         if action_type == 'pass':
-            phase = self.game_state.current_phase
-            self.events.append(f"  {self.human_player} ends {phase}")
             self.pending_facing = None
             self._undo_stack.clear()  # Can't undo after ending phase
             self._redo_stack.clear()
-            self._advance_phase()
-            self._run_until_human_turn()
+            self.controller.end_phase()
+            self.controller.run_until_human()
             return {"success": True}
 
         # Save state before move/attack for undo
@@ -446,15 +305,11 @@ class GameSession:
         if action is None:
             return {"error": "Could not build action from data"}
 
-        result = self.action_executor.execute_action(self.game_state, action)
+        result = self.controller.apply(action)
         if not result.success:
+            # Roll back the failed attempt so it doesn't linger in the log/undo stack
+            self._undo_stack.pop()
             return {"error": result.message}
-
-        self.events.append(f"  You: {result.message}")
-
-        # If the unit destroyed something, note it
-        if getattr(result, 'unit_destroyed', None):
-            self.events.append(f"    💥 {result.unit_destroyed} destroyed")
 
         # Any action involving dice rolls — no undo (prevents re-rolling)
         # Attacks always involve dice. Moves may involve bog checks or defensive fire.
@@ -476,13 +331,16 @@ class GameSession:
                 self.pending_facing = action.unit_id
                 return {"success": True, "message": result.message}
 
-        # Check if human still has actions; if not, advance
-        remaining = self._get_phase_actions(self.human_player)
-        if not remaining:
-            self._advance_phase()
-            self._run_until_human_turn()
-
+        self._advance_if_done()
         return {"success": True, "message": result.message}
+
+    def _advance_if_done(self):
+        """If the human has nothing left to do this phase, move the game on."""
+        if self.pending_facing or self.controller.game_over:
+            return
+        if self._is_human_turn() and not self.controller.legal_actions():
+            self.controller.end_phase()
+            self.controller.run_until_human()
 
     def _build_action(self, data: dict):
         unit_id = data.get('unit_id')
@@ -581,12 +439,9 @@ class GameSession:
                 'is_damaged': us.is_damaged,
             }
 
-        if self.phase_idx >= len(self.phase_sequence):
+        if not self._is_human_turn():
             return unit_actions
-
-        phase, active_player = self.phase_sequence[self.phase_idx]
-        if active_player != self.human_player:
-            return unit_actions
+        phase = gs.current_phase
 
         try:
             all_actions = self.action_generator.get_all_legal_actions(gs, self.human_player)
@@ -1336,10 +1191,7 @@ def _inject_overlay(html: str, session: 'GameSession') -> str:
     else:
         raw_phase = gs.current_phase
         phase_label = _PHASE_LABELS.get(raw_phase, raw_phase.upper())
-        is_human = (
-            session.phase_idx < len(session.phase_sequence) and
-            session.phase_sequence[session.phase_idx][1] == session.human_player
-        )
+        is_human = session._is_human_turn()
 
     if session.pending_facing:
         us = gs.get_unit_state(session.pending_facing)

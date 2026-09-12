@@ -302,13 +302,8 @@ class GreedyAgent(Agent):
 class GameRunner:
     """
     Runs complete games between two agents.
-    
-    Simplified game flow (per turn):
-    1. Player 1 Movement Phase
-    2. Player 2 Movement Phase  
-    3. Player 1 Assault Phase
-    4. Player 2 Assault Phase
-    5. End of Turn (clear disruption from previous turn, check victory)
+
+    Sequence of play is owned by turn_controller.TurnController.
     """
     
     def __init__(self, ability_file: str = None, verbose: bool = True,
@@ -379,32 +374,15 @@ class GameRunner:
                  agent1: Agent, agent2: Agent,
                  max_turns: int = 20) -> dict:
         """
-        Run a complete game between two agents.
-        
-        Args:
-            game_state: Initial game state
-            agent1: Agent controlling player1
-            agent2: Agent controlling player2
-            max_turns: Maximum turns before draw
-        
-        Returns:
-            Dictionary with game results
+        Run a complete game between two agents via TurnController.
+
+        Returns a result dict: winner, reason, turns, remaining units/points,
+        and the controller's structured event list under 'events'.
         """
+        from turn_controller import TurnController, format_event
+
         agents = {"player1": agent1, "player2": agent2}
-
-        # Wire up action executor for GreedyAgent instances
-        if isinstance(agent1, GreedyAgent):
-            agent1.set_action_executor(self.action_executor)
-        if isinstance(agent2, GreedyAgent):
-            agent2.set_action_executor(self.action_executor)
-
-        # Wire up MCTSAgent instances
-        evaluator = GameStateEvaluator()
-        for agent in [agent1, agent2]:
-            if isinstance(agent, MCTSAgent):
-                agent.set_action_executor(self.action_executor)
-                agent.set_action_generator(self.action_generator)
-                agent.set_evaluator(evaluator)
+        self._wire_agents(agent1, agent2)
 
         self.log("=" * 70)
         self.log("GAME START")
@@ -412,443 +390,42 @@ class GameRunner:
         self.log(f"Player 1: {agent1.name}")
         self.log(f"Player 2: {agent2.name}")
         self.log(f"Max turns: {max_turns}")
-        self.log("")
 
-        turn_history = []
+        controller = TurnController(
+            game_state, self.action_executor, self.action_generator,
+            self.initiative_system, agents, max_turns=max_turns,
+            movement_system=self.movement_system,
+        )
+        controller.start()
+        last_turn = None
+        while not controller.game_over:
+            controller.run_until_human()
+            if self.visualize and game_state.turn_number != last_turn:
+                last_turn = game_state.turn_number
+                self.update_visualization(game_state, open_browser=(last_turn == 1))
+        if self.verbose:
+            for ev in controller.events:
+                line = format_event(ev)
+                if line:
+                    self.log(line)
+
+        res = controller.result
+        out = self._game_result(res['winner'] if res['winner'] != 'draw' else None,
+                                game_state, [], res['reason'])
+        out['events'] = controller.events
+        return out
+
+    def _wire_agents(self, *agents):
+        """Give lookahead agents the executor/generator/evaluator they need."""
+        evaluator = GameStateEvaluator()
+        for agent in agents:
+            if isinstance(agent, GreedyAgent):
+                agent.set_action_executor(self.action_executor)
+            if isinstance(agent, MCTSAgent):
+                agent.set_action_executor(self.action_executor)
+                agent.set_action_generator(self.action_generator)
+                agent.set_evaluator(evaluator)
 
-        # === VANGUARD PHASE (pre-game movement) ===
-        # After deployment, units with Vanguard can move at speed 4 before turn 1
-        vanguard_events = self._run_vanguard_phase(game_state, agents)
-        if vanguard_events:
-            turn_history.append({'phase': 'vanguard', 'events': vanguard_events})
-
-        while game_state.turn_number <= max_turns:
-            turn_events = []
-
-            self.log(f"\n{'='*60}")
-            self.log(f"TURN {game_state.turn_number}")
-            self.log(f"{'='*60}")
-
-            # === INITIATIVE PHASE ===
-            first_player, p1_init, p2_init = self.initiative_system.determine_first_player(game_state)
-            second_player = "player2" if first_player == "player1" else "player1"
-            turn_order = [first_player, second_player]
-
-            self.log(f"\n--- Initiative Phase ---")
-            self.log(f"  {p1_init}")
-            self.log(f"  {p2_init}")
-            self.log(f"  → {first_player} goes first")
-
-            # === MOVEMENT PHASE ===
-            for player in turn_order:
-                game_state.current_phase = GamePhase.MOVEMENT
-                game_state.active_player = player
-                agent = agents[player]
-
-                # Reset defensive fire tracking for this phase
-                self.action_executor.reset_defensive_fire_phase(game_state)
-
-                # Exert Will: At beginning of movement phase, remove Disrupted from adjacent friendly Soldiers
-                self._apply_exert_will(game_state, player)
-
-                self.log(f"\n--- {player} Movement Phase ---")
-
-                phase_actions = self._run_phase(
-                    game_state, agent, player, max_actions=10
-                )
-                turn_events.extend(phase_actions)
-
-                # Hard Charger: At end of movement phase, remove Disrupted from units with this ability
-                self._apply_hard_charger(game_state, player)
-
-                # Check for victory after each phase
-                winner = game_state.check_victory_conditions()
-                if winner:
-                    return self._game_result(winner, game_state, turn_history, "elimination")
-            
-            # === FLIGHT PHASE (Aircraft placement) ===
-            for player in turn_order:
-                game_state.current_phase = GamePhase.FLIGHT
-                game_state.active_player = player
-                agent = agents[player]
-
-                # Check if player has any Aircraft to place
-                player_units = game_state.get_units_by_owner(player)
-                has_aircraft = any(
-                    u.unit.unit_type == 'Aircraft' and not u.is_aircraft_on_map
-                    for u in player_units if u.is_alive
-                )
-
-                if has_aircraft:
-                    self.log(f"\n--- {player} Flight Phase ---")
-                    phase_actions = self._run_phase(
-                        game_state, agent, player, max_actions=5
-                    )
-                    turn_events.extend(phase_actions)
-
-            # === ASSAULT PHASE (ground units) ===
-            for player in turn_order:
-                game_state.current_phase = GamePhase.ASSAULT
-                game_state.active_player = player
-                agent = agents[player]
-
-                # Pending (face-down) hits persist across both assault phases
-                # and are resolved in the casualty phase — no reset here.
-
-                self.log(f"\n--- {player} Assault Phase ---")
-
-                phase_actions = self._run_phase(
-                    game_state, agent, player, max_actions=20
-                )
-                turn_events.extend(phase_actions)
-
-            # === AIRSTRIKE PHASE (Aircraft attacks) ===
-            for player in turn_order:
-                game_state.current_phase = GamePhase.AIRSTRIKE
-                game_state.active_player = player
-                agent = agents[player]
-
-                # Check if player has any Aircraft on map
-                player_units = game_state.get_units_by_owner(player)
-                has_aircraft_on_map = any(
-                    u.unit.unit_type == 'Aircraft' and u.is_aircraft_on_map
-                    for u in player_units if u.is_alive
-                )
-
-                if has_aircraft_on_map:
-                    self.log(f"\n--- {player} Airstrike Phase ---")
-                    phase_actions = self._run_phase(
-                        game_state, agent, player, max_actions=10
-                    )
-                    turn_events.extend(phase_actions)
-
-            # === CASUALTY PHASE ===
-            self.log(f"\n--- Casualty Phase ---")
-            casualty_results = self.action_executor.resolve_casualty_phase(game_state)
-            
-            # Log casualty phase results
-            if casualty_results['units_destroyed']:
-                for unit_id in casualty_results['units_destroyed']:
-                    self.log(f"  💀 {unit_id} destroyed")
-            if casualty_results['units_damaged']:
-                for unit_id in casualty_results['units_damaged']:
-                    self.log(f"  🔧 {unit_id} damaged")
-            if casualty_results['units_disrupted']:
-                for unit_id in casualty_results['units_disrupted']:
-                    self.log(f"  ⚡ {unit_id} disrupted")
-            if casualty_results['disruption_cleared']:
-                for unit_id in casualty_results['disruption_cleared']:
-                    self.log(f"  ✓ {unit_id} disruption cleared")
-            
-            if not any([casualty_results['units_destroyed'], 
-                       casualty_results['units_damaged'],
-                       casualty_results['units_disrupted']]):
-                self.log(f"  (no casualties)")
-            
-            # Check for victory after casualty phase
-            winner = game_state.check_victory_conditions()
-            if winner:
-                return self._game_result(winner, game_state, turn_history, "elimination")
-
-            # === OBJECTIVE CONTROL CHECK (Turn 7+) ===
-            if game_state.turn_number >= 7:
-                obj_controller = game_state.check_objective_control()
-                if obj_controller:
-                    obj_q, obj_r = game_state.objective_position
-                    self.log(f"\n*** {obj_controller} CONTROLS OBJECTIVE at ({obj_q},{obj_r})! ***")
-                    return self._game_result(obj_controller, game_state, turn_history, "objective")
-
-            # === END OF TURN ===
-            self._end_of_turn(game_state)
-            turn_history.append(turn_events)
-
-            # Update visualization if enabled
-            self.update_visualization(game_state, open_browser=(game_state.turn_number == 1))
-
-            # Increment turn
-            game_state.turn_number += 1
-
-            # Reset unit flags for next turn
-            for unit_state in game_state.units.values():
-                unit_state.has_moved = False
-                unit_state.has_attacked = False
-                unit_state.abilities_used.clear()
-
-        # Turn 10 tiebreaker: winner by points
-        p1_points = game_state.get_total_points("player1")
-        p2_points = game_state.get_total_points("player2")
-
-        if p1_points > p2_points:
-            return self._game_result("player1", game_state, turn_history, "points")
-        elif p2_points > p1_points:
-            return self._game_result("player2", game_state, turn_history, "points")
-        else:
-            return self._game_result(None, game_state, turn_history, "draw")
-
-    def _run_vanguard_phase(self, game_state: GameState, agents: dict) -> List[dict]:
-        """
-        Vanguard Phase: After deployment, units with Vanguard can move at speed 4
-        before the first turn begins.
-
-        Returns list of vanguard movement events.
-        """
-        events = []
-
-        # Check if any units have Vanguard ability
-        has_vanguard_units = False
-        for player in ["player1", "player2"]:
-            for unit_state in game_state.get_units_by_owner(player):
-                if not unit_state.is_alive:
-                    continue
-                abilities = getattr(unit_state.unit, 'abilities', []) or []
-                if any(a.lower() == 'vanguard' for a in abilities):
-                    has_vanguard_units = True
-                    break
-            if has_vanguard_units:
-                break
-
-        if not has_vanguard_units:
-            return events
-
-        self.log(f"\n{'='*60}")
-        self.log("VANGUARD PHASE (Pre-Game Movement)")
-        self.log(f"{'='*60}")
-
-        # Both players move their Vanguard units (player 1 first)
-        for player in ["player1", "player2"]:
-            player_units = game_state.get_units_by_owner(player)
-            vanguard_units = []
-
-            for unit_state in player_units:
-                if not unit_state.is_alive:
-                    continue
-                abilities = getattr(unit_state.unit, 'abilities', []) or []
-                if any(a.lower() == 'vanguard' for a in abilities):
-                    vanguard_units.append(unit_state)
-
-            if not vanguard_units:
-                continue
-
-            self.log(f"\n--- {player} Vanguard Movement ---")
-
-            for unit_state in vanguard_units:
-                unit = unit_state.unit
-                q, r = unit_state.position
-
-                # Generate possible moves at speed 4
-                reachable = self.movement_system.get_reachable_hexes(
-                    game_state.board, q, r, unit, max_speed=4
-                )
-
-                if not reachable or len(reachable) <= 1:
-                    continue
-
-                # Let agent choose the move
-                agent = agents[player]
-                move_actions = []
-                for (dest_q, dest_r) in reachable:
-                    if (dest_q, dest_r) != (q, r):
-                        move_action = MoveAction(
-                            unit_id=unit.id,
-                            from_q=q, from_r=r,
-                            to_q=dest_q, to_r=dest_r
-                        )
-                        move_actions.append(move_action)
-
-                if not move_actions:
-                    continue
-
-                # Add pass option (don't move)
-                move_actions.append(PassAction(unit_id=unit.id))
-
-                # Agent chooses action
-                game_state.current_phase = GamePhase.MOVEMENT
-                game_state.active_player = player
-                chosen_action = agent.choose_action(game_state, move_actions, player)
-
-                if isinstance(chosen_action, MoveAction):
-                    # Execute the move
-                    result = self.action_executor.execute(game_state, chosen_action)
-                    if result.success:
-                        self.log(f"  {unit.name} moves from ({q},{r}) to ({chosen_action.to_q},{chosen_action.to_r})")
-                        events.append({
-                            'player': player,
-                            'unit': unit.name,
-                            'action': 'vanguard_move',
-                            'from': (q, r),
-                            'to': (chosen_action.to_q, chosen_action.to_r)
-                        })
-                        # Reset has_moved flag so unit can move again in turn 1
-                        unit_state.has_moved = False
-                else:
-                    self.log(f"  {unit.name} stays at ({q},{r})")
-
-        return events
-
-    def _apply_exert_will(self, game_state: GameState, player: str):
-        """
-        Exert Will: At the beginning of movement phase, remove all Disrupted
-        counters from friendly Soldiers adjacent to units with this ability.
-        """
-        player_units = game_state.get_units_by_owner(player)
-
-        for unit_state in player_units:
-            if not unit_state.is_alive:
-                continue
-
-            unit = unit_state.unit
-            abilities = getattr(unit, 'abilities', []) or []
-            has_exert_will = any(a.lower() == 'exert will' for a in abilities)
-
-            if not has_exert_will:
-                continue
-
-            # Find adjacent friendly Soldiers and remove their Disrupted counters
-            unit_pos = unit_state.position
-            for friendly_state in player_units:
-                if not friendly_state.is_alive:
-                    continue
-                if friendly_state.unit.id == unit.id:
-                    continue
-                if friendly_state.unit.unit_type != 'Soldier':
-                    continue
-                if not friendly_state.is_disrupted:
-                    continue
-
-                # Check if adjacent
-                friendly_pos = friendly_state.position
-                dist = game_state.board.hex_distance(
-                    unit_pos[0], unit_pos[1], friendly_pos[0], friendly_pos[1]
-                )
-                if dist <= 1:
-                    friendly_state.is_disrupted = False
-                    self.log(f"  Exert Will: {friendly_state.unit.name} Disrupted removed by {unit.name}")
-
-    def _apply_hard_charger(self, game_state: GameState, player: str):
-        """
-        Hard Charger: At the end of movement phase, remove any face-up
-        Disrupted counters from units with this ability.
-        """
-        player_units = game_state.get_units_by_owner(player)
-
-        for unit_state in player_units:
-            if not unit_state.is_alive:
-                continue
-            if not unit_state.is_disrupted:
-                continue
-
-            unit = unit_state.unit
-            abilities = getattr(unit, 'abilities', []) or []
-            has_hard_charger = any(a.lower() == 'hard charger' for a in abilities)
-
-            if has_hard_charger:
-                unit_state.is_disrupted = False
-                self.log(f"  Hard Charger: {unit.name} Disrupted removed")
-
-    def _run_phase(self, game_state: GameState, agent: Agent,
-                   player: str, max_actions: int = 10) -> List[dict]:
-        """
-        Run a single phase for one player.
-        
-        Returns list of action events.
-        """
-        events = []
-        actions_taken = 0
-        
-        while actions_taken < max_actions:
-            # Get legal actions
-            legal_actions = self.action_generator.get_all_legal_actions(
-                game_state, player
-            )
-            
-            # Filter to phase-appropriate actions
-            if game_state.current_phase == GamePhase.MOVEMENT:
-                # In movement phase, only moves (no attacks)
-                legal_actions = [a for a in legal_actions 
-                               if isinstance(a, MoveAction)]
-            
-            # Always allow passing/ending phase
-            if not legal_actions:
-                self.log(f"  {player}: No actions available, ending phase")
-                break
-            
-            # Add pass option
-            legal_actions.append(PassAction(player))
-            
-            # Agent chooses action
-            action = agent.choose_action(game_state, legal_actions, player)
-            
-            # Handle pass
-            if isinstance(action, PassAction):
-                self.log(f"  {player}: Passes")
-                break
-            
-            # Execute action
-            result = self.action_executor.execute_action(game_state, action)
-            
-            event = {
-                'player': player,
-                'action': str(action),
-                'success': result.success,
-                'message': result.message
-            }
-            events.append(event)
-            
-            if result.success:
-                self.log(f"  {result.message}")
-                
-                # Check if unit was destroyed
-                if result.unit_destroyed:
-                    self.log(f"    💥 {result.unit_destroyed} destroyed!")
-            else:
-                self.log(f"  FAILED: {result.message}")
-            
-            actions_taken += 1
-            
-            # After an attack, the unit can't do more this phase
-            if isinstance(action, AttackAction):
-                # In simplified rules, one attack per unit per turn is already enforced
-                pass
-        
-        return events
-    
-    def _end_of_turn(self, game_state: GameState):
-        """
-        Process end of turn effects.
-
-        In full rules this would:
-        - Apply simultaneous damage (Casualty Phase)
-        - Clear face-up disrupted counters from previous turn
-        - Flip face-down counters face-up
-
-        Simplified: Just clear disruption that's been active for a turn
-        """
-        self.log(f"\n--- End of Turn {game_state.turn_number} ---")
-
-        # Report surviving units
-        p1_units = game_state.get_units_by_owner("player1")
-        p2_units = game_state.get_units_by_owner("player2")
-
-        self.log(f"  Player 1: {len(p1_units)} units remaining")
-        self.log(f"  Player 2: {len(p2_units)} units remaining")
-
-        # Report objective status
-        obj_q, obj_r = game_state.objective_position
-        obj_controller = game_state.check_objective_control()
-        p1_adj = len(game_state.get_units_adjacent_to_objective("player1"))
-        p2_adj = len(game_state.get_units_adjacent_to_objective("player2"))
-
-        if obj_controller:
-            self.log(f"  Objective ({obj_q},{obj_r}): CONTROLLED by {obj_controller}")
-        else:
-            status = "CONTESTED" if (p1_adj > 0 and p2_adj > 0) else "UNCONTROLLED"
-            self.log(f"  Objective ({obj_q},{obj_r}): {status} (P1:{p1_adj}, P2:{p2_adj} adjacent)")
-
-        if game_state.turn_number >= 6:
-            turns_until = 7 - game_state.turn_number
-            if turns_until > 0:
-                self.log(f"  *** Objective victory check in {turns_until} turn(s)! ***")
-    
     def _game_result(self, winner: Optional[str], game_state: GameState,
                      turn_history: List, reason: str) -> dict:
         """Create game result dictionary"""
