@@ -468,30 +468,8 @@ class ActionExecutor:
         # Robust: "While disrupted, this unit has speed 1" - allows movement when disrupted
         # Charge: Can move while disrupted if moving closer to an enemy Soldier
         if unit_state.is_disrupted and not (is_strike_and_fade or is_relocate):
-            unit_abilities = getattr(unit_state.unit, 'abilities', []) or []
-            has_robust = any(a.lower() == 'robust' for a in unit_abilities)
-            has_charge = any(a.lower() == 'charge' for a in unit_abilities)
-
-            can_move = False
-            if has_robust:
-                can_move = True
-            elif has_charge:
-                # Charge: Can move if moving closer to an enemy Soldier
-                enemy_owner = "player2" if unit_state.owner == "player1" else "player1"
-                enemy_units = game_state.get_units_by_owner(enemy_owner)
-                from_pos = (action.from_q, action.from_r)
-                to_pos = (action.to_q, action.to_r)
-
-                for enemy_state in enemy_units:
-                    if enemy_state.is_alive and 'Soldier' in (enemy_state.unit.unit_type or ''):
-                        enemy_pos = enemy_state.position
-                        dist_from = game_state.board.hex_distance(
-                            from_pos[0], from_pos[1], enemy_pos[0], enemy_pos[1])
-                        dist_to = game_state.board.hex_distance(
-                            to_pos[0], to_pos[1], enemy_pos[0], enemy_pos[1])
-                        if dist_to < dist_from:
-                            can_move = True
-                            break
+            can_move = self.movement_system.disrupted_move_allowed(
+                game_state, unit_state, (action.to_q, action.to_r))
 
             if not can_move:
                 return ActionResult(False, f"{unit_state.unit.name} is disrupted and cannot move")

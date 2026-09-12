@@ -62,7 +62,7 @@ def check_invariants(gs: GameState) -> List[str]:
     board = gs.board
     by_hex: Dict[tuple, list] = {}
     for uid, us in gs.units.items():
-        if not us.is_alive:
+        if not us.is_alive or not us.is_deployed:
             continue
         q, r = us.position
         if board.get_hex(q, r) is None and not us.carried_by_id:
@@ -118,11 +118,20 @@ class CheckingController(TurnController):
 # ----------------------------------------------------------------------
 
 def play_one(seed: int, p1: str, p2: str, points: int, max_turns: int,
-             events_out=None) -> dict:
+             events_out=None, deploy: bool = False, historical: bool = False) -> dict:
     random.seed(seed)                      # setup/agent randomness
     systems = build_systems(seed=seed)     # dice
-    gs = quick_setup_broad(points=points).create_game()
+    from game_setup import GameSetup, GameSetupConfig
+    gs = GameSetup(GameSetupConfig(points_per_side=points, historical=historical)).create_game()
     gs.rng_seed = seed
+    if deploy:   # exercise the rulebook deployment phase instead of the fixed placement
+        for us in gs.units.values():
+            if 'Aircraft' not in (us.unit.unit_type or ''):
+                h = gs.board.get_hex(*us.position)
+                if h is not None and h.unit is us.unit:
+                    h.unit = None
+                us.is_deployed = False
+                us.position = (-99, -99)
     agents = {"player1": make_agent(p1, f"P1-{p1}", systems),
               "player2": make_agent(p2, f"P2-{p2}", systems)}
     tc = CheckingController(gs, systems.executor, systems.generator, systems.initiative,
@@ -157,6 +166,8 @@ def main(argv=None):
     ap.add_argument('--max-turns', type=int, default=20)
     ap.add_argument('--events', help='write all events as JSON lines to this file')
     ap.add_argument('--show-failed', action='store_true', help='print failed action messages')
+    ap.add_argument('--deploy', action='store_true', help='run the coin-flip/deployment phase (AI policy) instead of fixed placement')
+    ap.add_argument('--historical', action='store_true', help='apply historical army limits')
     args = ap.parse_args(argv)
 
     out = open(args.events, 'w') if args.events else None
@@ -169,7 +180,8 @@ def main(argv=None):
     bad = []
     for i in range(args.games):
         seed = args.seed + i
-        r = play_one(seed, args.p1, args.p2, args.points, args.max_turns, out)
+        r = play_one(seed, args.p1, args.p2, args.points, args.max_turns, out,
+                     deploy=args.deploy, historical=args.historical)
         wins[r['winner']] += 1
         reasons[r['reason']] += 1
         total_time += r['seconds']

@@ -104,6 +104,35 @@ class MovementSystem:
         # All other terrain uses base cost
         return self.BASE_TERRAIN_COSTS.get(current_terrain, 1)
     
+    @staticmethod
+    def disrupted_move_allowed(game_state, unit_state, to_pos) -> bool:
+        """
+        Rulebook: disrupted units can't move. Abilities that override it:
+        Robust / SS Determination / Hardened Veteran / Veteran Crew / Veteran
+        Guard (any move); Courage (only closer to the nearest enemy unit);
+        Charge (only closer to an enemy Soldier). Heroes ignore Disrupted.
+        """
+        abilities = [a.lower() for a in (getattr(unit_state.unit, 'abilities', []) or [])]
+        if any(a in ('robust', 'ss determination', 'hardened veteran', 'veteran crew', 'veteran guard', 'hero')
+               for a in abilities):
+            return True
+        board = game_state.board
+        from_pos = unit_state.position
+        enemy_owner = "player2" if unit_state.owner == "player1" else "player1"
+        enemies = [e for e in game_state.get_units_by_owner(enemy_owner) if e.is_alive and e.is_deployed]
+        if 'courage' in abilities and enemies:
+            nearest = min(enemies, key=lambda e: board.hex_distance(from_pos[0], from_pos[1], *e.position))
+            d0 = board.hex_distance(from_pos[0], from_pos[1], *nearest.position)
+            d1 = board.hex_distance(to_pos[0], to_pos[1], *nearest.position)
+            if d1 < d0:
+                return True
+        if 'charge' in abilities:
+            for e in enemies:
+                if 'Soldier' in (e.unit.unit_type or ''):
+                    if board.hex_distance(to_pos[0], to_pos[1], *e.position) < board.hex_distance(from_pos[0], from_pos[1], *e.position):
+                        return True
+        return False
+
     def get_effective_speed(self, unit, ability_mods: dict = None, is_disrupted: bool = False) -> int:
         """
         Get unit's effective speed considering abilities and disruption.

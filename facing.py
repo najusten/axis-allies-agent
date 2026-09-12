@@ -162,25 +162,11 @@ def is_front_arc_attack(
     # Same hex is ALWAYS rear
     if attacker_pos == defender_pos:
         return False
-    
-    # Get direction attack is coming from
-    attack_dir = get_attack_direction(attacker_pos, defender_pos)
-    
-    if attack_dir is None:
-        # Not adjacent - need to calculate general direction
-        # For non-adjacent attacks, use the rough direction
-        dq = attacker_pos[0] - defender_pos[0]
-        dr = attacker_pos[1] - defender_pos[1]
-        
-        # Normalize to find closest hex direction
-        # This is a simplification for long-range attacks
-        attack_dir = _approximate_direction(dq, dr)
-    
-    # Get front arc directions
-    front_arc = get_front_arc_directions(defender_facing)
-    
-    # Check if attack direction is in front arc
-    return attack_dir in front_arc
+    # Rulebook: the attack is from the front if the line from the defender's
+    # centre to the attacker's centre leaves through one of the three front hex
+    # sides. Directly left/right (the two side corners, exactly 90°) is neither
+    # front nor behind, and "other attacks apply to the rear defense".
+    return _angle_in_front_arc(defender_pos, attacker_pos, defender_facing)
 
 
 def is_target_in_front_arc(
@@ -200,23 +186,25 @@ def is_target_in_front_arc(
     Returns:
         True if target is in attacker's front arc, False otherwise
     """
-    # Same hex - can always attack (close assault)
+    # Rulebook: "The hex that the unit is in is also neither in front of nor
+    # behind the unit" — a fixed gun can't fire at a unit sharing its hex
     if attacker_pos == target_pos:
-        return True
+        return False
+    return _angle_in_front_arc(attacker_pos, target_pos, attacker_facing)
 
-    # Get direction from attacker to target
-    dq = target_pos[0] - attacker_pos[0]
-    dr = target_pos[1] - attacker_pos[1]
 
-    # Adjacent check
-    attack_direction = VECTOR_TO_DIRECTION.get((dq, dr))
-    if attack_direction is None:
-        # Non-adjacent - approximate direction
-        attack_direction = _approximate_direction(dq, dr)
-
-    # Check if direction to target is in front arc
-    front_arc = get_front_arc_directions(attacker_facing)
-    return attack_direction in front_arc
+def _angle_in_front_arc(origin: Tuple[int, int], other: Tuple[int, int], facing: HexDirection) -> bool:
+    """True if `other` lies strictly within 90° of `facing` as seen from `origin`."""
+    import math
+    dq = other[0] - origin[0]
+    dr = other[1] - origin[1]
+    fq, fr = DIRECTION_VECTORS[HexDirection(facing)]
+    # flat-top axial -> cartesian (any consistent embedding works)
+    ax, ay = 1.5 * dq, math.sqrt(3) * (dr + dq / 2)
+    fx, fy = 1.5 * fq, math.sqrt(3) * (fr + fq / 2)
+    a = math.atan2(ay, ax) - math.atan2(fy, fx)
+    a = (a + math.pi) % (2 * math.pi) - math.pi          # normalise to (-pi, pi]
+    return abs(a) < math.pi / 2 - 1e-9
 
 
 def _approximate_direction(dq: int, dr: int) -> HexDirection:

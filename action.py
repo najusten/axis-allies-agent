@@ -314,8 +314,13 @@ class ActionValidator:
     
     def validate_attack(self, action: AttackAction, unit, target, game_state) -> ActionValidation:
         """Validate an attack action"""
-        # Check if unit can still attack (supports Double Shot - allows 2 attacks)
-        if not game_state.can_unit_attack(unit.id):
+        # Check if unit can still attack (supports Double Shot - allows 2 attacks).
+        # Ability-granted extra attacks are gated by their own once-per-turn
+        # flags in the generator, not by the attack count.
+        extra = any(getattr(action, f, False) for f in (
+            'is_extra_mg', 'is_firepower', 'is_all_guns_blazing', 'is_strafe',
+            'is_additional_hull_cannon', 'is_extra_hull_cannon', 'is_speed_boost'))
+        if not extra and not game_state.can_unit_attack(unit.id):
             return ActionValidation(False, "Unit has already used all attacks this turn")
 
         # Check range - calculate max range from attack values

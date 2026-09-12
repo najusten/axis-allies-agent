@@ -743,6 +743,10 @@ class ActionGenerator:
             # Create a move action for each reachable hex
             unit_type = getattr(unit, 'unit_type', 'Soldier')
             for (dest_q, dest_r) in reachable:
+                # Disrupted: only destinations the unit's ability allows (Courage/Charge = closer)
+                if unit_state.is_disrupted and (dest_q, dest_r) != (q, r) and \
+                        not self.movement_system.disrupted_move_allowed(game_state, unit_state, (dest_q, dest_r)):
+                    continue
                 if (dest_q, dest_r) == (q, r):
                     # Vehicles may "move zero hexes" just to change facing
                     if ('Vehicle' in (unit_type or '') and not unit_state.is_disrupted
@@ -2380,7 +2384,8 @@ class ActionGenerator:
                 to_q=dest_q,
                 to_r=dest_r,
                 path=[(q, r), (dest_q, dest_r)],
-                movement_cost=0
+                movement_cost=0,
+                max_speed=relocate_speed   # validator/pathfinder must use the Relocate speed
             )
             # Mark this as a Relocate move
             move_action.is_relocate = True
