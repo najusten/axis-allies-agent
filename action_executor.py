@@ -32,13 +32,18 @@ class ActionResult:
     def __init__(self, success: bool, message: str = "", 
                  hits: int = 0, unit_destroyed: str = None,
                  combat_details: Dict = None,
-                 defensive_fire_results: List[DefensiveFireResult] = None):
+                 defensive_fire_results: List[DefensiveFireResult] = None,
+                 events: List[Dict] = None):
         self.success = success
         self.message = message
         self.hits = hits  # Number of hits scored (0, 1, 2, or 3)
         self.unit_destroyed = unit_destroyed
         self.combat_details = combat_details or {}
         self.defensive_fire_results = defensive_fire_results or []
+        # Structured record of what happened (dice rolls, status changes...)
+        # so a frontend can animate it. Attack results also carry
+        # combat_details; movement dice live only here.
+        self.events: List[Dict] = events or []
     
     def __str__(self):
         return f"{'✓' if self.success else '✗'} {self.message}"
@@ -314,6 +319,11 @@ class ActionExecutor:
         # Update validator's board reference
         self.validator.board = game_state.board
         
+        result = self._dispatch(game_state, action)
+        self._attach_combat_events(game_state, action, result)
+        return result
+
+    def _dispatch(self, game_state: GameState, action: Action) -> ActionResult:
         # Route to appropriate handler based on action type
         if isinstance(action, MoveAction):
             return self._execute_move(game_state, action)
@@ -348,6 +358,86 @@ class ActionExecutor:
         else:
             return ActionResult(False, f"Unknown action type: {type(action)}")
     
+    def _attach_combat_events(self, game_state: GameState, action: Action, result: ActionResult):
+        """
+        Turn combat_details / defensive_fire_results into structured events
+        (attack, cover_save, status, destroyed) so every dice roll of an
+        action is available to a frontend or a test without parsing text.
+        """
+        if not result.success:
+            return
+        d = result.combat_details or {}
+        if d.get('attack_rolls') is not None:
+            attacker_id = getattr(action, 'unit_id', None)
+            target_id = getattr(action, 'target_id', None)
+            tgt = game_state.get_unit_state(target_id) if target_id else None
+            result.events.append({
+                'type': 'attack',
+                'attacker': attacker_id,
+                'attacker_name': d.get('attacker'),
+                'target': target_id,
+                'target_name': d.get('target'),
+                'target_hex': list(tgt.position) if tgt else None,
+                'distance': d.get('distance'),
+                'dice': d.get('attack_dice'),
+                'rolls': list(d.get('attack_rolls') or []),
+                'threshold': d.get('hit_threshold'),
+                'successes': d.get('successes'),
+                'defense': d.get('defense'),
+                'hits': d.get('hits'),
+                'outcome': d.get('outcome'),
+                'notes': list(d.get('notes') or []),
+            })
+            if d.get('cover_rolled'):
+                result.events.append({
+                    'type': 'cover_save', 'unit': target_id, 'name': d.get('target'),
+                    'roll': d.get('cover_roll'), 'needed': d.get('cover_threshold'),
+                    'success': d.get('cover_success'),
+                })
+            if d.get('pending_counters') or d.get('pending_destroyed'):
+                result.events.append({
+                    'type': 'pending_hits', 'unit': target_id, 'name': d.get('target'),
+                    'counters': list(d.get('pending_counters') or []),
+                    'destroyed': bool(d.get('pending_destroyed')),
+                })
+            elif d.get('target_new_status') or d.get('target_destroyed'):
+                result.events.append({
+                    'type': 'status', 'unit': target_id, 'name': d.get('target'),
+                    'change': 'destroyed' if d.get('target_destroyed') else d.get('target_new_status'),
+                    'cause': 'attack',
+                })
+            for other_state, other in (d.get('blast_results') or []):
+                try:
+                    result.events.append({
+                        'type': 'attack', 'blast': True,
+                        'attacker': attacker_id, 'attacker_name': d.get('attacker'),
+                        'target': other_state.unit.id, 'target_name': other_state.unit.name,
+                        'target_hex': list(other_state.position),
+                        'dice': other.get('attack_dice'), 'rolls': list(other.get('attack_rolls') or []),
+                        'threshold': other.get('hit_threshold'), 'successes': other.get('successes'),
+                        'defense': other.get('defense'), 'hits': other.get('hits'),
+                        'outcome': other.get('outcome'), 'notes': list(other.get('notes') or []),
+                    })
+                except Exception:
+                    pass
+        for r in result.defensive_fire_results or []:
+            result.events.append({
+                'type': 'defensive_fire',
+                'defender': getattr(r, 'defender_id', None),
+                'target': getattr(r, 'target_id', None),
+                'attack_hex': list(getattr(r, 'attack_hex', None) or []) or None,
+                'dice': getattr(r, 'dice_rolled', 0),
+                'rolls': list(getattr(r, 'rolls', []) or []),
+                'successes': getattr(r, 'successes', 0),
+                'defense': getattr(r, 'target_defense', None),
+                'hit': getattr(r, 'hit', False),
+                'cover_roll': getattr(r, 'cover_roll', None),
+                'cover_success': getattr(r, 'cover_success', None),
+                'disrupted': getattr(r, 'target_disrupted', False),
+                'movement_stopped': getattr(r, 'movement_stopped', False),
+                'message': getattr(r, 'message', ''),
+            })
+
     def _execute_move(self, game_state: GameState, action: MoveAction) -> ActionResult:
         """Execute a movement action with defensive fire checks"""
         unit_state = game_state.get_unit_state(action.unit_id)
@@ -414,33 +504,43 @@ class ActionExecutor:
         to_hex_obj = game_state.board.get_hex(action.to_q, action.to_r)
         unit_abilities = getattr(unit, 'abilities', []) or []
 
+        move_events: List[Dict] = []
+        movement_mods = self.ability_system.get_movement_modifiers(unit)
+        roll_bonus = movement_mods.get('movement_roll_bonus', 0)
+
+        def movement_roll(reason: str, allow_lead_the_way: bool = True):
+            """Roll 4+ (with Robust/Mountaineering bonus); Lead the Way rerolls once per turn."""
+            roll, success = self.dice.roll_movement(roll_bonus)
+            rerolled = False
+            if not success and allow_lead_the_way:
+                has_lead_the_way = any(a.lower() == 'lead the way' for a in unit_abilities)
+                if has_lead_the_way and not unit_state.lead_the_way_used:
+                    roll, success = self.dice.roll_movement(roll_bonus)
+                    unit_state.lead_the_way_used = True
+                    rerolled = True
+            move_events.append({'type': 'movement_roll', 'unit': unit.id, 'name': unit.name,
+                                'reason': reason, 'roll': roll, 'needed': 4 - roll_bonus,
+                                'success': success, 'reroll': rerolled})
+            return roll, success
+
         # Vehicle bog check: Vehicles must roll 4+ to enter forest hexes
         # Exception: Brushcutters ability ignores forest terrain rolls
-        # Exception: Roads through forest don't require a roll
+        # (Roads are their own terrain type, so a road hex is never a forest hex.)
         movement_roll_note = ""  # Track successful movement rolls for the message
         if (to_hex_obj and to_hex_obj.terrain == 'forest'
                 and 'Vehicle' in (unit.unit_type or '')):
-            movement_mods = self.ability_system.get_movement_modifiers(unit)
-            has_road = getattr(to_hex_obj, 'has_road', False)
             ignore_forest = movement_mods.get('ignore_forest_terrain', False)
 
-            if not has_road and not ignore_forest:
-                roll_bonus = movement_mods.get('movement_roll_bonus', 0)
-                roll, success = self.dice.roll_movement(roll_bonus)
-
-                # Lead the Way: Once per turn, reroll a movement roll
-                if not success:
-                    has_lead_the_way = any(a.lower() == 'lead the way' for a in unit_abilities)
-                    if has_lead_the_way and not unit_state.lead_the_way_used:
-                        roll, success = self.dice.roll_movement(roll_bonus)
-                        unit_state.lead_the_way_used = True
+            if not to_hex_obj.has_road and not ignore_forest:
+                roll, success = movement_roll('forest')
 
                 if not success:
                     # Failed bog check consumes the unit's movement
                     unit_state.has_moved = True
                     return ActionResult(
                         True,
-                        f"{unit.name} bogged down entering {to_hex_obj.terrain} (rolled {roll}, needed {4 - roll_bonus}+) — stuck at ({action.from_q},{action.from_r})"
+                        f"{unit.name} bogged down entering {to_hex_obj.terrain} (rolled {roll}, needed {4 - roll_bonus}+) — stuck at ({action.from_q},{action.from_r})",
+                        events=move_events
                     )
                 else:
                     movement_roll_note = f" [forest entry roll: {roll}, needed {4 - roll_bonus}+ ✓]"
@@ -448,27 +548,16 @@ class ActionExecutor:
         # Weak Suspension: must make movement roll to enter hill hex (except along road)
         if to_hex_obj and to_hex_obj.terrain == 'hill':
             has_weak_suspension = any(a.lower() == 'weak suspension' for a in unit_abilities)
-            has_road = getattr(to_hex_obj, 'has_road', False)
 
-            if has_weak_suspension and not has_road:
-                # Get movement roll bonus from Robust/Mountaineering
-                movement_mods = self.ability_system.get_movement_modifiers(unit)
-                roll_bonus = movement_mods.get('movement_roll_bonus', 0)
-
-                roll, success = self.dice.roll_movement(roll_bonus)
-
-                # Lead the Way: Once per turn, reroll a movement roll
-                if not success:
-                    has_lead_the_way = any(a.lower() == 'lead the way' for a in unit_abilities)
-                    if has_lead_the_way and not unit_state.lead_the_way_used:
-                        roll, success = self.dice.roll_movement(roll_bonus)
-                        unit_state.lead_the_way_used = True
+            if has_weak_suspension and not to_hex_obj.has_road:
+                roll, success = movement_roll('hill')
 
                 if not success:
                     unit_state.has_moved = True
                     return ActionResult(
                         True,
-                        f"{unit.name} failed movement roll to enter hill (rolled {roll}, needed {4 - roll_bonus}+) — stuck at ({action.from_q},{action.from_r})"
+                        f"{unit.name} failed movement roll to enter hill (rolled {roll}, needed {4 - roll_bonus}+) — stuck at ({action.from_q},{action.from_r})",
+                        events=move_events
                     )
                 else:
                     movement_roll_note = f" [hill entry roll: {roll}, needed {4 - roll_bonus}+ ✓]"
@@ -493,14 +582,13 @@ class ActionExecutor:
                 obstacle_name = "stream (destroyed bridge)"
 
             if requires_roll:
-                movement_mods = self.ability_system.get_movement_modifiers(unit)
-                roll_bonus = movement_mods.get('movement_roll_bonus', 0)
-                roll, success = self.dice.roll_movement(roll_bonus)
+                roll, success = movement_roll(obstacle_name, allow_lead_the_way=False)
 
                 if not success:
                     return ActionResult(
                         False,
-                        f"{unit.name} failed movement roll to cross {obstacle_name} (rolled {roll}, needed {4 - roll_bonus}+)"
+                        f"{unit.name} failed movement roll to cross {obstacle_name} (rolled {roll}, needed {4 - roll_bonus}+)",
+                        events=move_events
                     )
 
         # AVRE: This unit ignores Obstacles and destroys each Obstacle it crosses/enters
@@ -520,14 +608,13 @@ class ActionExecutor:
                     # AVRE destroys obstacles on entry
                     avre_destroyed_obstacles.append(dest_unit_state)
                 elif has_tank_obstacle and not has_avre:
-                    movement_mods = self.ability_system.get_movement_modifiers(unit)
-                    roll_bonus = movement_mods.get('movement_roll_bonus', 0)
-                    roll, success = self.dice.roll_movement(roll_bonus)
+                    roll, success = movement_roll('tank obstacle', allow_lead_the_way=False)
 
                     if not success:
                         return ActionResult(
                             False,
-                            f"{unit.name} failed movement roll to cross Tank Obstacle (rolled {roll}, needed {4 - roll_bonus}+)"
+                            f"{unit.name} failed movement roll to cross Tank Obstacle (rolled {roll}, needed {4 - roll_bonus}+)",
+                            events=move_events
                         )
                     break  # Only one roll needed per Tank Obstacle
 
@@ -677,13 +764,19 @@ class ActionExecutor:
                 elif df_result.dice_rolled > 0:
                     message += f"\n    ⚔ {df_result.message}"
 
+            move_events.append({'type': 'move', 'unit': unit.id, 'name': unit.name,
+                                'from': list(from_hex), 'to': list(final_hex),
+                                'path': [list(h) for h in (action.path or [from_hex, final_hex])],
+                                'facing': unit_state.facing,
+                                'stopped': final_hex != (action.to_q, action.to_r)})
             return ActionResult(
                 True,
                 message,
-                defensive_fire_results=df_results
+                defensive_fire_results=df_results,
+                events=move_events
             )
         else:
-            return ActionResult(False, "Move failed")
+            return ActionResult(False, "Move failed", events=move_events)
     
     def _execute_attack(self, game_state: GameState, action: AttackAction) -> ActionResult:
         """Execute an attack action using authentic dice mechanics"""
