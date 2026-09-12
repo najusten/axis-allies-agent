@@ -211,7 +211,7 @@ class ActionExecutor:
         Returns True if the attacker is a Soldier and has adjacent Bravery Enforcement.
         """
         # Only applies to Soldiers
-        if attacker_state.unit.unit_type != 'Soldier':
+        if 'Soldier' not in (attacker_state.unit.unit_type or ''):
             return False
 
         # Check for adjacent friendly unit with Bravery Enforcement
@@ -380,7 +380,7 @@ class ActionExecutor:
                 to_pos = (action.to_q, action.to_r)
 
                 for enemy_state in enemy_units:
-                    if enemy_state.is_alive and enemy_state.unit.unit_type == 'Soldier':
+                    if enemy_state.is_alive and 'Soldier' in (enemy_state.unit.unit_type or ''):
                         enemy_pos = enemy_state.position
                         dist_from = game_state.board.hex_distance(
                             from_pos[0], from_pos[1], enemy_pos[0], enemy_pos[1])
@@ -400,10 +400,43 @@ class ActionExecutor:
         if not validation:
             return ActionResult(False, f"Invalid move: {validation.reason}")
 
-        # Weak Suspension: must make movement roll to enter hill hex (except along road)
+        # Movement rolls for vehicles entering difficult terrain
         to_hex_obj = game_state.board.get_hex(action.to_q, action.to_r)
+        unit_abilities = getattr(unit, 'abilities', []) or []
+
+        # Vehicle bog check: Vehicles must roll 4+ to enter forest hexes
+        # Exception: Brushcutters ability ignores forest terrain rolls
+        # Exception: Roads through forest don't require a roll
+        movement_roll_note = ""  # Track successful movement rolls for the message
+        if (to_hex_obj and to_hex_obj.terrain == 'forest'
+                and 'Vehicle' in (unit.unit_type or '')):
+            movement_mods = self.ability_system.get_movement_modifiers(unit)
+            has_road = getattr(to_hex_obj, 'has_road', False)
+            ignore_forest = movement_mods.get('ignore_forest_terrain', False)
+
+            if not has_road and not ignore_forest:
+                roll_bonus = movement_mods.get('movement_roll_bonus', 0)
+                roll, success = self.dice.roll_movement(roll_bonus)
+
+                # Lead the Way: Once per turn, reroll a movement roll
+                if not success:
+                    has_lead_the_way = any(a.lower() == 'lead the way' for a in unit_abilities)
+                    if has_lead_the_way and not unit_state.lead_the_way_used:
+                        roll, success = self.dice.roll_movement(roll_bonus)
+                        unit_state.lead_the_way_used = True
+
+                if not success:
+                    # Failed bog check consumes the unit's movement
+                    unit_state.has_moved = True
+                    return ActionResult(
+                        True,
+                        f"{unit.name} bogged down entering {to_hex_obj.terrain} (rolled {roll}, needed {4 - roll_bonus}+) — stuck at ({action.from_q},{action.from_r})"
+                    )
+                else:
+                    movement_roll_note = f" [forest entry roll: {roll}, needed {4 - roll_bonus}+ ✓]"
+
+        # Weak Suspension: must make movement roll to enter hill hex (except along road)
         if to_hex_obj and to_hex_obj.terrain == 'hill':
-            unit_abilities = getattr(unit, 'abilities', []) or []
             has_weak_suspension = any(a.lower() == 'weak suspension' for a in unit_abilities)
             has_road = getattr(to_hex_obj, 'has_road', False)
 
@@ -418,16 +451,17 @@ class ActionExecutor:
                 if not success:
                     has_lead_the_way = any(a.lower() == 'lead the way' for a in unit_abilities)
                     if has_lead_the_way and not unit_state.lead_the_way_used:
-                        old_roll = roll
                         roll, success = self.dice.roll_movement(roll_bonus)
                         unit_state.lead_the_way_used = True
-                        # Success will be checked below
 
                 if not success:
+                    unit_state.has_moved = True
                     return ActionResult(
-                        False,
-                        f"{unit.name} failed movement roll to enter hill (rolled {roll}, needed {4 - roll_bonus}+)"
+                        True,
+                        f"{unit.name} failed movement roll to enter hill (rolled {roll}, needed {4 - roll_bonus}+) — stuck at ({action.from_q},{action.from_r})"
                     )
+                else:
+                    movement_roll_note = f" [hill entry roll: {roll}, needed {4 - roll_bonus}+ ✓]"
 
         # Check for edge obstacles that require movement rolls
         edge_obstacle = game_state.board.get_edge_obstacle(
@@ -439,7 +473,7 @@ class ActionExecutor:
             obstacle_name = edge_obstacle
 
             # Barbed Wire: Soldiers must make movement roll
-            if obstacle_lower == 'barbed wire' and unit.unit_type == 'Soldier':
+            if obstacle_lower == 'barbed wire' and 'Soldier' in (unit.unit_type or ''):
                 requires_roll = True
                 obstacle_name = "Barbed Wire"
 
@@ -465,7 +499,7 @@ class ActionExecutor:
 
         # Tank Obstacle: Vehicles must make movement roll to enter hex with Tank Obstacle unit
         # (AVRE units ignore this requirement and destroy the obstacle instead)
-        if unit.unit_type == 'Vehicle':
+        if 'Vehicle' in (unit.unit_type or ''):
             units_at_dest = game_state.get_units_at_position(action.to_q, action.to_r)
             for dest_unit_state in units_at_dest:
                 dest_abilities = getattr(dest_unit_state.unit, 'abilities', []) or []
@@ -500,11 +534,6 @@ class ActionExecutor:
 
         from_hex = (action.from_q, action.from_r)
         to_hex = (action.to_q, action.to_r)
-        
-        # Check for defensive fire opportunities
-        df_opportunities = self.defensive_fire.check_defensive_fire_triggered(
-            game_state, action.unit_id, from_hex, to_hex
-        )
 
         # Check if moving unit has Determined Charge (doesn't stop when disrupted)
         has_determined_charge = any(
@@ -515,27 +544,32 @@ class ActionExecutor:
         movement_stopped = False
         final_hex = to_hex
 
-        # Resolve each defensive fire attack
-        for opportunity in df_opportunities:
-            # AI chooses to attack in destination hex by default (usually better)
-            # In a human game, defender would choose
-            result = self.defensive_fire.resolve_defensive_fire(
-                game_state, opportunity, attack_in_hex=to_hex
+        # Check defensive fire along each step of the path (not just start→end)
+        path = action.path if action.path and len(action.path) >= 2 else [from_hex, to_hex]
+        for i in range(len(path) - 1):
+            step_from = path[i]
+            step_to = path[i + 1]
+            df_opportunities = self.defensive_fire.check_defensive_fire_triggered(
+                game_state, action.unit_id, step_from, step_to
             )
-            df_results.append(result)
 
-            # Apply the result
-            stopped_at = self.defensive_fire.apply_defensive_fire_result(game_state, result)
+            for opportunity in df_opportunities:
+                result = self.defensive_fire.resolve_defensive_fire(
+                    game_state, opportunity, attack_in_hex=step_to
+                )
+                df_results.append(result)
 
-            # Determined Charge: unit doesn't stop when disrupted (but still takes disruption)
-            if result.movement_stopped and not has_determined_charge:
-                movement_stopped = True
-                final_hex = stopped_at if stopped_at else to_hex
-                # Once stopped, no more defensive fire matters
+                stopped_at = self.defensive_fire.apply_defensive_fire_result(game_state, result)
+
+                if result.movement_stopped and not has_determined_charge:
+                    movement_stopped = True
+                    final_hex = stopped_at if stopped_at else step_to
+                    break
+                elif result.movement_stopped and has_determined_charge:
+                    result.message += " [Determined Charge: continues moving]"
+
+            if movement_stopped:
                 break
-            elif result.movement_stopped and has_determined_charge:
-                # Disrupted but keeps moving
-                result.message += " [Determined Charge: continues moving]"
         
         # Execute the move (to final hex - may be destination or where stopped)
         if movement_stopped:
@@ -544,20 +578,36 @@ class ActionExecutor:
             message = f"{unit.name} moved to ({final_hex[0]}, {final_hex[1]}) - STOPPED by defensive fire!"
         else:
             success = game_state.move_unit(action.unit_id, action.to_q, action.to_r)
-            message = f"{unit.name} moved to ({action.to_q}, {action.to_r})"
+            message = f"{unit.name} moved to ({action.to_q}, {action.to_r}){movement_roll_note}"
         
         if success:
             game_state.apply_action(action)
 
+            # Track movement cost for partial moves
+            move_cost = action.movement_cost
+            if move_cost <= 0:
+                # Calculate from path if not set
+                move_cost = max(1, len(path) - 1) if path else 1
+            unit_state.movement_used += move_cost
+
+            # Check if unit has remaining movement
+            movement_mods = self.ability_system.get_movement_modifiers(unit)
+            max_speed = self.movement_system.get_effective_speed(unit, movement_mods,
+                                                                 is_disrupted=unit_state.is_disrupted)
+            if unit_state.movement_used >= max_speed:
+                unit_state.has_moved = True  # Fully spent
+
             # Consume Strike and Fade if this was a fade move
             if is_strike_and_fade:
                 unit_state.strike_and_fade_available = False
+                unit_state.has_moved = True  # Fade uses all remaining movement
                 message = f"{unit.name} fades to ({action.to_q}, {action.to_r})"
             elif is_relocate:
+                unit_state.has_moved = True  # Relocate uses all remaining movement
                 message = f"{unit.name} relocates to ({action.to_q}, {action.to_r})"
 
             # Update facing for vehicles
-            if unit.unit_type == 'Vehicle':
+            if 'Vehicle' in (unit.unit_type or ''):
                 new_facing = calculate_facing_after_move(from_hex, final_hex)
                 unit_state.facing = new_facing.value
                 facing_str = get_direction_name(new_facing)
@@ -592,7 +642,7 @@ class ActionExecutor:
                         break
                     units_in_hex = game_state.get_units_at_position(path_hex[0], path_hex[1])
                     for other_state in units_in_hex:
-                        if other_state.owner == enemy_owner and other_state.unit.unit_type == 'Soldier':
+                        if other_state.owner == enemy_owner and 'Soldier' in (other_state.unit.unit_type or ''):
                             if not other_state.is_disrupted:
                                 other_state.is_disrupted = True
                                 unit_state.overrun_used_this_phase = True
@@ -689,7 +739,7 @@ class ActionExecutor:
         
         # Determine front/rear based on target facing
         is_rear_attack = False
-        if target.unit_type == 'Vehicle' and target_state.facing is not None:
+        if 'Vehicle' in (target.unit_type or '') and target_state.facing is not None:
             target_facing = HexDirection(target_state.facing)
             is_front = is_front_arc_attack(attacker_pos, target_pos, target_facing)
             is_rear_attack = not is_front
@@ -704,13 +754,13 @@ class ActionExecutor:
         # Determine if target is in front or behind the attacker
         target_in_front = True  # Default if attacker has no facing
         target_in_rear = False
-        if attacker.unit_type == 'Vehicle' and attacker_state.facing is not None:
+        if 'Vehicle' in (attacker.unit_type or '') and attacker_state.facing is not None:
             attacker_facing = HexDirection(attacker_state.facing)
             target_in_front = is_front_arc_attack(target_pos, attacker_pos, attacker_facing)
             target_in_rear = not target_in_front
 
         # Fixed Gun / No Turret: Can attack Vehicles only if in front
-        if (has_fixed_gun or has_no_turret) and target.unit_type == 'Vehicle':
+        if (has_fixed_gun or has_no_turret) and 'Vehicle' in (target.unit_type or ''):
             if not target_in_front:
                 return ActionResult(False, f"{attacker.name} can only attack Vehicles in front (Fixed Gun/No Turret)")
 
@@ -719,13 +769,13 @@ class ActionExecutor:
             return ActionResult(False, f"{attacker.name} can only attack units in front (Fixed Howitzer)")
 
         # Fixed Rear Gun: Can attack Vehicles only if behind
-        if has_fixed_rear_gun and target.unit_type == 'Vehicle':
+        if has_fixed_rear_gun and 'Vehicle' in (target.unit_type or ''):
             if not target_in_rear:
                 return ActionResult(False, f"{attacker.name} can only attack Vehicles behind (Fixed Rear Gun)")
 
         # Check for Spotter bonus (Aircraft get +1 die if friendly Spotter sees target)
         spotter_bonus = 0
-        if attacker.unit_type == 'Aircraft':
+        if 'Aircraft' in (attacker.unit_type or ''):
             if self._check_spotter_bonus(
                 game_state, attacker_state.owner, (action.target_q, action.target_r)
             ):
@@ -750,7 +800,7 @@ class ActionExecutor:
             # Mark bombs as used
             attacker_state.bombs_used = True
             # Determine dice: 12 vs Soldier, 8 vs Vehicle
-            if target.unit_type == 'Soldier':
+            if 'Soldier' in (target.unit_type or ''):
                 bombs_dice = 12
             else:
                 bombs_dice = 8
@@ -761,7 +811,7 @@ class ActionExecutor:
         if is_speed_boost:
             if attacker_state.speed_boost_used:
                 return ActionResult(False, "Speed Boost already used this game")
-            if target.unit_type != 'Aircraft':
+            if 'Aircraft' not in (target.unit_type or ''):
                 return ActionResult(False, "Speed Boost can only be used against Aircraft")
             # Mark Speed Boost as used
             attacker_state.speed_boost_used = True
@@ -773,7 +823,7 @@ class ActionExecutor:
         if is_he_round:
             if attacker_state.he_round_used:
                 return ActionResult(False, "HE Round already used this game")
-            if target.unit_type != 'Soldier':
+            if 'Soldier' not in (target.unit_type or ''):
                 return ActionResult(False, "HE Round can only be used against Soldiers")
             attacker_state.he_round_used = True
             he_round_dice = 15
@@ -783,7 +833,7 @@ class ActionExecutor:
         if is_headshot:
             if attacker_state.headshot_used:
                 return ActionResult(False, "Headshot already used this game")
-            if target.unit_type != 'Vehicle':
+            if 'Vehicle' not in (target.unit_type or ''):
                 return ActionResult(False, "Headshot can only be used against Vehicles")
             attacker_state.headshot_used = True
 
@@ -826,7 +876,7 @@ class ActionExecutor:
 
             if range_roll_1 > range_to_target and range_roll_2 > range_to_target:
                 # Success! Roll attack dice
-                attack_dice = 12 if target.unit_type == 'Vehicle' else 8
+                attack_dice = 12 if 'Vehicle' in (target.unit_type or '') else 8
                 attack_mods = self.ability_system.get_attack_modifiers(
                     attacker, target, action.distance, target_terrain,
                     is_rear_attack, target_state
@@ -853,7 +903,7 @@ class ActionExecutor:
                     target_state.is_alive = False
                     result_msg += " - TARGET DESTROYED!"
                 elif hits == 1:
-                    if target.unit_type == 'Vehicle' and not target_state.is_damaged:
+                    if 'Vehicle' in (target.unit_type or '') and not target_state.is_damaged:
                         target_state.is_damaged = True
                         result_msg += " - Vehicle DAMAGED"
                     else:
@@ -912,7 +962,7 @@ class ActionExecutor:
             for affected_state in affected_units:
                 affected_unit = affected_state.unit
                 # 10 dice vs Soldier, 5 dice vs Vehicle
-                salvo_dice = 10 if affected_unit.unit_type == 'Soldier' else 5
+                salvo_dice = 10 if 'Soldier' in (affected_unit.unit_type or '') else 5
 
                 # Get attack threshold
                 affected_hex = game_state.board.get_hex(*affected_state.position)
@@ -944,7 +994,7 @@ class ActionExecutor:
                     affected_state.is_alive = False
                     unit_msg += " - DESTROYED!"
                 elif hits == 1:
-                    if affected_unit.unit_type == 'Vehicle' and not affected_state.is_damaged:
+                    if 'Vehicle' in (affected_unit.unit_type or '') and not affected_state.is_damaged:
                         affected_state.is_damaged = True
                         unit_msg += " - DAMAGED"
                     else:
@@ -1006,7 +1056,7 @@ class ActionExecutor:
                 target_state.is_alive = False
                 result_msg += " - TARGET DESTROYED!"
             elif hits == 1:
-                if target.unit_type == 'Vehicle' and not target_state.is_damaged:
+                if 'Vehicle' in (target.unit_type or '') and not target_state.is_damaged:
                     target_state.is_damaged = True
                     result_msg += " - Vehicle DAMAGED"
                 else:
@@ -1052,7 +1102,7 @@ class ActionExecutor:
             for affected_state in affected_units:
                 affected_unit = affected_state.unit
                 # 8 dice vs Soldier, 4 dice vs Vehicle
-                rocket_dice = 8 if affected_unit.unit_type == 'Soldier' else 4
+                rocket_dice = 8 if 'Soldier' in (affected_unit.unit_type or '') else 4
 
                 # Get attack threshold (Top-Mounted Rockets ignores cover - already in ability_system)
                 affected_hex = game_state.board.get_hex(*affected_state.position)
@@ -1084,7 +1134,7 @@ class ActionExecutor:
                     affected_state.is_alive = False
                     unit_msg += " - DESTROYED!"
                 elif hits == 1:
-                    if affected_unit.unit_type == 'Vehicle' and not affected_state.is_damaged:
+                    if 'Vehicle' in (affected_unit.unit_type or '') and not affected_state.is_damaged:
                         affected_state.is_damaged = True
                         unit_msg += " - DAMAGED"
                     else:
@@ -1114,7 +1164,7 @@ class ActionExecutor:
         if is_additional_hull_cannon:
             if attacker_state.additional_hull_cannon_used:
                 return ActionResult(False, "Additional Hull-Mounted Cannon already used this turn")
-            if target.unit_type != 'Vehicle':
+            if 'Vehicle' not in (target.unit_type or ''):
                 return ActionResult(False, "Additional Hull-Mounted Cannon can only target Vehicles")
             attacker_state.additional_hull_cannon_used = True
 
@@ -1201,7 +1251,7 @@ class ActionExecutor:
                 target_state.is_alive = False
                 result_msg += " - TARGET DESTROYED!"
             elif hits == 1:
-                if target.unit_type == 'Vehicle' and not target_state.is_damaged:
+                if 'Vehicle' in (target.unit_type or '') and not target_state.is_damaged:
                     target_state.is_damaged = True
                     result_msg += " - Vehicle DAMAGED"
                 else:
@@ -1256,7 +1306,7 @@ class ActionExecutor:
                     continue  # Skip the primary target
                 if not other_state.is_alive:
                     continue
-                if other_state.unit.unit_type == 'Aircraft':
+                if 'Aircraft' in (other_state.unit.unit_type or ''):
                     continue  # Blast doesn't affect Aircraft
 
                 # Resolve attack against this unit too
@@ -1348,7 +1398,7 @@ class ActionExecutor:
                 attacker_state.multiturreted_front_used = True
 
         # Command Quick Reactions: Vehicles within 2 hexes can change facing after attack
-        if attacker.unit_type == 'Vehicle' and game_state:
+        if 'Vehicle' in (attacker.unit_type or '') and game_state:
             attacker_pos = attacker_state.position
             friendly_units = game_state.get_units_by_owner(attacker_state.owner)
             for friendly_state in friendly_units:
@@ -1397,6 +1447,18 @@ class ActionExecutor:
         if force_immediate_resolve:
             result['notes'].append("Speed Boost: Attack resolves immediately")
 
+        # Build detailed message with dice rolls
+        rolls_str = ','.join(str(r) for r in result.get('attack_rolls', []))
+        dice_detail = f" [{rolls_str}] {result.get('successes', 0)}/{result.get('attack_dice', 0)} hits vs def {result.get('defense', '?')}"
+        cover_detail = ""
+        if result.get('cover_rolled'):
+            cover_roll = result.get('cover_roll', '?')
+            cover_result_str = 'saved' if result.get('cover_success') else 'failed'
+            cover_detail = f" | cover:{cover_roll} ({cover_result_str})"
+        notes_str = ""
+        if result.get('notes'):
+            notes_str = " | " + "; ".join(result['notes'][:3])
+
         if use_simultaneous and result['hits'] > 0:
             # Record hits as face-down counters (don't apply yet)
             counter_types = self.casualty_system.record_hits(
@@ -1404,31 +1466,31 @@ class ActionExecutor:
                 target.unit_type,
                 result['hits']
             )
-            
+
             # Check if unit will be destroyed (for message purposes)
             will_destroy = self.casualty_system.unit_has_pending_destroyed(action.target_id)
-            
+
             if will_destroy:
-                message = f"{attacker.name} attacks {target.name} - {result['outcome'].upper()}! (pending)"
+                message = f"{attacker.name} vs {target.name}:{dice_detail}{cover_detail} - {result['outcome'].upper()}! (pending){notes_str}"
                 result['pending_destroyed'] = True
             else:
-                message = f"{attacker.name} attacks {target.name} - {result['outcome'].upper()} (pending)"
+                message = f"{attacker.name} vs {target.name}:{dice_detail}{cover_detail} - {result['outcome'].upper()} (pending){notes_str}"
                 result['pending_counters'] = [ct.value for ct in counter_types]
-            
+
             return ActionResult(True, message, result['hits'], None, result)
-        
+
         elif result['target_destroyed']:
             # Immediate mode: apply damage now
             game_state.remove_unit(action.target_id)
-            message = f"{attacker.name} attacks {target.name} - {result['outcome'].upper()}!"
+            message = f"{attacker.name} vs {target.name}:{dice_detail}{cover_detail} - {result['outcome'].upper()}!{notes_str}"
             return ActionResult(True, message, result['hits'], action.target_id, result)
         else:
             # Immediate mode: Update status flags on target
             new_status = result.get('target_new_status')
             if new_status:
                 self._apply_status_to_unit_state(target_state, new_status)
-            
-            message = f"{attacker.name} attacks {target.name} - {result['outcome'].upper()}"
+
+            message = f"{attacker.name} vs {target.name}:{dice_detail}{cover_detail} - {result['outcome'].upper()}{notes_str}"
             return ActionResult(True, message, result['hits'], None, result)
     
     def _resolve_attack_full(self, attacker, target,
@@ -1523,7 +1585,7 @@ class ActionExecutor:
                     result['notes'].append("Fury 2: +2 attack dice (enemy destroyed last turn)")
 
             # Check for aura abilities from adjacent friendly units
-            if game_state and attacker.unit_type == 'Soldier':
+            if game_state and 'Soldier' in (attacker.unit_type or ''):
                 friendly_units = game_state.get_units_by_owner(attacker_state.owner)
                 attacker_pos = attacker_state.position
 
@@ -1578,7 +1640,7 @@ class ActionExecutor:
                             break  # Only apply once
 
             # Check for Command aura abilities affecting Vehicles
-            if game_state and attacker.unit_type == 'Vehicle':
+            if game_state and 'Vehicle' in (attacker.unit_type or ''):
                 friendly_units = game_state.get_units_by_owner(attacker_state.owner)
                 attacker_pos = attacker_state.position
                 command_leadership_applied = False
@@ -1690,14 +1752,14 @@ class ActionExecutor:
 
                 # Terrain Expert: Adjacent Soldiers +1/+1 defense vs long range
                 if any(a.lower() == 'terrain expert' for a in friendly_abilities):
-                    if target.unit_type == 'Soldier' and distance >= 5:
+                    if 'Soldier' in (target.unit_type or '') and distance >= 5:
                         base_defense += 1
                         result['notes'].append("Terrain Expert: +1/+1 defense vs long range")
                         break  # Only apply once
 
                 # Defensive Preparation: Adjacent Artillery +1/+1 defense
                 if any(a.lower() == 'defensive preparation' for a in friendly_abilities):
-                    if target.unit_type == 'Soldier':
+                    if 'Soldier' in (target.unit_type or ''):
                         target_abilities_check = getattr(target, 'abilities', []) or []
                         is_artillery = any('artillery' in a.lower() for a in target_abilities_check)
                         if is_artillery:
@@ -1707,7 +1769,7 @@ class ActionExecutor:
 
                 # Dispersal: Adjacent Soldiers +1/+1 defense vs Blast
                 if any(a.lower() == 'dispersal' for a in friendly_abilities):
-                    if target.unit_type == 'Soldier':
+                    if 'Soldier' in (target.unit_type or ''):
                         attacker_abilities_check = getattr(attacker, 'abilities', []) or []
                         attacker_has_blast = any(a.lower() == 'blast' for a in attacker_abilities_check)
                         if attacker_has_blast:
@@ -1801,7 +1863,7 @@ class ActionExecutor:
             for enemy_state in enemy_units:
                 if not enemy_state.is_alive:
                     continue
-                if enemy_state.unit.unit_type != 'Soldier':
+                if 'Soldier' not in (enemy_state.unit.unit_type or ''):
                     continue
                 enemy_pos = enemy_state.position
                 dist = game_state.board.hex_distance(
@@ -1960,7 +2022,7 @@ class ActionExecutor:
         # Sirens: +1 success vs Soldiers (only counts for disruption, not destruction)
         has_sirens = any(a.lower() == 'sirens' for a in attacker_abilities)
         sirens_bonus = 0
-        if has_sirens and target.unit_type == 'Soldier':
+        if has_sirens and 'Soldier' in (target.unit_type or ''):
             sirens_bonus = 1
             result['sirens_bonus'] = sirens_bonus
             result['notes'].append("Sirens: +1 success vs Soldier (disruption only)")
@@ -1995,7 +2057,7 @@ class ActionExecutor:
         # Armor-Piercing Rounds: If declared and 2 hits scored vs Vehicle, score additional hit
         # This is checked via the is_armor_piercing_attack flag passed from action
         is_ap_attack = result.get('is_armor_piercing_attack', False)
-        if is_ap_attack and target.unit_type == 'Vehicle':
+        if is_ap_attack and 'Vehicle' in (target.unit_type or ''):
             if hits >= 2:
                 hits += 1
                 result['notes'].append("Armor-Piercing Rounds: +1 hit (scored 2 hits vs Vehicle)")
@@ -2180,7 +2242,7 @@ class ActionExecutor:
 
         # Check for Improved Accuracy aura (adjacent Soldiers have medium range 2-6)
         has_improved_accuracy = False
-        if game_state and attacker_state and attacker.unit_type == 'Soldier':
+        if game_state and attacker_state and 'Soldier' in (attacker.unit_type or ''):
             attacker_pos = attacker_state.position
             friendly_units = game_state.get_units_by_owner(attacker_state.owner)
             for friendly_state in friendly_units:
@@ -2214,7 +2276,7 @@ class ActionExecutor:
                 range_category = 'long'
         else:
             range_category = MovementSystem.get_range_category(distance)
-        is_vehicle = target_type == 'Vehicle'
+        is_vehicle = 'Vehicle' in target_type
 
         # Dismounted Attack: short range vs Vehicles is 0-2 hexes when no adjacent enemy Soldiers
         if ability_mods.get('dismounted_attack', False) and is_vehicle and distance <= 2:
@@ -2225,7 +2287,7 @@ class ActionExecutor:
                 enemy_units = game_state.get_units_by_owner(enemy_owner)
                 attacker_pos = attacker_state.position
                 for enemy_state in enemy_units:
-                    if not enemy_state.is_alive or enemy_state.unit.unit_type != 'Soldier':
+                    if not enemy_state.is_alive or 'Soldier' not in (enemy_state.unit.unit_type or ''):
                         continue
                     dist_to_enemy = game_state.board.hex_distance(
                         attacker_pos[0], attacker_pos[1],
@@ -2381,7 +2443,7 @@ class ActionExecutor:
                 return ActionResult(False, "Target obstacle not found")
             if target_state.unit.unit_type != 'Obstacle':
                 return ActionResult(False, "Command Demolition can only target Obstacles")
-            if unit.unit_type != 'Soldier':
+            if 'Soldier' not in (unit.unit_type or ''):
                 return ActionResult(False, "Only Soldiers can use Command Demolition")
 
             # Roll a die - on 4+, destroy the obstacle
@@ -2469,7 +2531,7 @@ class ActionExecutor:
 
         # Handle Change Facing ability (Command Quick Reactions)
         if action.ability_name.lower() == 'change_facing':
-            if unit.unit_type != 'Vehicle':
+            if 'Vehicle' not in (unit.unit_type or ''):
                 return ActionResult(False, "Only Vehicles can change facing")
             if not unit_state.quick_reactions_available:
                 return ActionResult(False, "Change facing not available (requires Command Quick Reactions)")
@@ -2642,7 +2704,7 @@ class ActionExecutor:
         if not unit_state:
             return ActionResult(False, f"Aircraft {action.unit_id} not found")
 
-        if unit_state.unit.unit_type != 'Aircraft':
+        if 'Aircraft' not in (unit_state.unit.unit_type or ''):
             return ActionResult(False, "Only Aircraft can be placed during Flight phase")
 
         if unit_state.is_aircraft_on_map:

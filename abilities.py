@@ -358,7 +358,7 @@ class AbilitySystem:
 
         # Aircraft targeting rules:
         # "Units attacking Aircraft use their anti-Soldier attacks and get –1 on each attack die."
-        if target.unit_type == 'Aircraft':
+        if 'Aircraft' in (target.unit_type or ''):
             modifiers['use_anti_soldier_values'] = True
             modifiers['notes'].append("Aircraft: Use anti-Soldier attack values")
 
@@ -398,7 +398,7 @@ class AbilitySystem:
             if hth_match and distance == 0:
                 hth_dice = int(hth_match.group(1))
                 # Only applies to soldiers
-                if target.unit_type == 'Soldier':
+                if 'Soldier' in (target.unit_type or ''):
                     modifiers['hand_to_hand_dice'] = hth_dice
                     modifiers['ignore_cover'] = True  # Hand to Hand ignores cover
                     modifiers['notes'].append(f"{ability}: {hth_dice} dice vs soldiers, ignores cover")
@@ -406,7 +406,7 @@ class AbilitySystem:
         # Check for Shrapnel (double successes vs Soldiers)
         for ability in unit.abilities:
             if 'shrapnel' in ability.lower():
-                if target.unit_type == 'Soldier':
+                if 'Soldier' in (target.unit_type or ''):
                     modifiers['shrapnel'] = True
                     modifiers['notes'].append(f"{ability}: Each success counts as 2 vs soldiers")
 
@@ -426,6 +426,14 @@ class AbilitySystem:
                     modifiers['use_anti_soldier_values'] = True
                     modifiers['notes'].append(f"Open Back: Use anti-Soldier attack values vs rear")
 
+        # Check for Open-exposed Crew on target
+        # Open-exposed Crew: Enemy units can use their anti-Soldier attack values
+        # when attacking this unit (from any direction, unlike Open Back which is rear only).
+        for ability in target_abilities:
+            if 'open-exposed crew' in ability.lower():
+                modifiers['use_anti_soldier_values'] = True
+                modifiers['notes'].append(f"Open-exposed Crew: Use anti-Soldier attack values")
+
         # Check for Bombardment on attacker
         # Bombardment: This unit's attacks ignore cover. Can't attack Aircraft.
         attacker_abilities = getattr(unit, 'abilities', []) or []
@@ -433,7 +441,7 @@ class AbilitySystem:
             if 'bombardment' in ability.lower():
                 modifiers['ignore_cover'] = True
                 modifiers['notes'].append(f"Bombardment: Attacks ignore cover")
-                if target.unit_type == 'Aircraft':
+                if 'Aircraft' in (target.unit_type or ''):
                     modifiers['can_attack'] = False
                     modifiers['notes'].append(f"Bombardment: Can't attack Aircraft")
                 break
@@ -443,7 +451,7 @@ class AbilitySystem:
             if 'top-mounted rockets' in ability.lower():
                 modifiers['ignore_cover'] = True
                 modifiers['notes'].append(f"Top-Mounted Rockets: Attacks ignore cover")
-                if target.unit_type == 'Aircraft':
+                if 'Aircraft' in (target.unit_type or ''):
                     modifiers['can_attack'] = False
                     modifiers['notes'].append(f"Top-Mounted Rockets: Can't attack Aircraft")
                 break
@@ -451,11 +459,11 @@ class AbilitySystem:
         # Jet: Can't attack Soldiers in forest, town, or marsh hexes
         for ability in attacker_abilities:
             if ability.lower() == 'jet':
-                if target.unit_type == 'Soldier' and target_terrain in ['forest', 'town', 'marsh']:
+                if 'Soldier' in (target.unit_type or '') and target_terrain in ['forest', 'town', 'marsh']:
                     modifiers['can_attack'] = False
                     modifiers['notes'].append(f"Jet: Can't attack Soldiers in {target_terrain}")
                 # 6s count as double successes vs Aircraft (handled in dice resolution)
-                if target.unit_type == 'Aircraft':
+                if 'Aircraft' in (target.unit_type or ''):
                     modifiers['jet_vs_aircraft'] = True
                     modifiers['notes'].append(f"Jet: 6s count as double successes vs Aircraft")
                 break
@@ -554,7 +562,7 @@ class AbilitySystem:
         # Steady Firing: "rolls two extra attack dice when attacking a Soldier"
         for ability in (unit.abilities or []):
             if ability.lower() == 'steady firing':
-                if target.unit_type == 'Soldier':
+                if 'Soldier' in (target.unit_type or ''):
                     modifiers['bonus_dice'] = modifiers.get('bonus_dice', 0) + 2
                     modifiers['notes'].append(f"Steady Firing: +2 attack dice vs Soldiers")
                 break
@@ -614,7 +622,7 @@ class AbilitySystem:
         # With Agility vs Aircraft: short 0-2, medium 3-5, long 6+
         for ability in (unit.abilities or []):
             if ability.lower() == 'agility':
-                if target.unit_type == 'Aircraft':
+                if 'Aircraft' in (target.unit_type or ''):
                     modifiers['agility_range'] = True
                     modifiers['notes'].append(f"Agility: Extended range vs Aircraft (short 0-2, medium 3-5)")
                 break
@@ -629,7 +637,7 @@ class AbilitySystem:
         # Covering Fire: "Soldiers attacked by this unit can't make defensive fire attacks this turn"
         for ability in (unit.abilities or []):
             if ability.lower() == 'covering fire':
-                if target.unit_type == 'Soldier':
+                if 'Soldier' in (target.unit_type or ''):
                     modifiers['prevents_defensive_fire'] = True
                     modifiers['notes'].append(f"Covering Fire: Target Soldier can't make defensive fire")
                 break
@@ -637,7 +645,7 @@ class AbilitySystem:
         # Limited Covering Fire: Same as Covering Fire but only at short range (2 hexes or less)
         for ability in (unit.abilities or []):
             if ability.lower() == 'limited covering fire':
-                if target.unit_type == 'Soldier' and distance <= 2:
+                if 'Soldier' in (target.unit_type or '') and distance <= 2:
                     modifiers['prevents_defensive_fire'] = True
                     modifiers['notes'].append(f"Limited Covering Fire: Target Soldier can't make defensive fire")
                 break
@@ -690,7 +698,7 @@ class AbilitySystem:
             if ability.lower() == 'bombs':
                 if distance == 0:  # Same hex
                     modifiers['bombs_available'] = True
-                    if target.unit_type == 'Soldier':
+                    if 'Soldier' in (target.unit_type or ''):
                         modifiers['bombs_dice'] = 12
                     else:
                         modifiers['bombs_dice'] = 8
@@ -778,7 +786,7 @@ class AbilitySystem:
 
         # Intimidation: "Enemy Soldiers adjacent to this unit get –1 on each attack die."
         # This checks if attacker is a Soldier and target has Intimidation and is adjacent
-        if distance <= 1 and unit.unit_type == 'Soldier':
+        if distance <= 1 and 'Soldier' in (unit.unit_type or ''):
             for ability in target_abilities:
                 if ability.lower() == 'intimidation':
                     modifiers['hit_modifier'] = modifiers.get('hit_modifier', 0) + 1
@@ -815,7 +823,7 @@ class AbilitySystem:
         }
 
         # Pillbox: Soldiers in same hex as friendly Pillbox get cover and +1 on cover rolls
-        if game_state and unit_state and unit.unit_type == 'Soldier':
+        if game_state and unit_state and 'Soldier' in (unit.unit_type or ''):
             position = unit_state.position
             units_in_hex = game_state.get_units_at_position(position[0], position[1])
             for hex_unit_state in units_in_hex:
@@ -964,7 +972,7 @@ class AbilitySystem:
 
             # Slow: "Enemy Aircraft get +1 on each attack die when attacking this unit"
             if ability_lower == 'slow':
-                if attacker and attacker.unit_type == 'Aircraft':
+                if attacker and 'Aircraft' in (attacker.unit_type or ''):
                     modifiers['slow_vs_aircraft'] = True
                     modifiers['notes'].append(f"Slow: Enemy Aircraft get +1 on attack dice")
 
@@ -1010,28 +1018,35 @@ class AbilitySystem:
         
         return initiative_bonus
     
-    def check_los_blocked(self, unit, target_hex_terrain: str, 
-                         blocking_hexes: List) -> bool:
+    def check_los_blocked(self, unit, target_hex_terrain: str,
+                         blocking_hexes: List,
+                         attacker_terrain: str = 'open') -> bool:
         """
         Check if LOS is blocked considering unit abilities.
         Returns True if blocked, False if unit can see through.
         """
         los_abilities = self.unit_has_any_ability_in_category(unit, 'los')
-        
+
         # Check if unit has abilities to see through obstacles
         for ability in los_abilities:
             description = self.get_ability_description(ability)
             if not description:
                 continue
             description_lower = description.lower()
-            
+
             if 'indirect' in description_lower:
                 return False  # Indirect fire ignores LOS
-            
+
             if 'spotter' in description_lower:
                 # Some spotter abilities let you see through one obstacle
                 return len(blocking_hexes) > 1
-        
+
+        # Superior Optics: While in a hill hex, ignore terrain in any ONE blocking hex
+        for ability in (unit.abilities or []):
+            if ability.lower() == 'superior optics':
+                if attacker_terrain == 'hill' and len(blocking_hexes) <= 1:
+                    return False  # Can ignore 1 blocking hex
+
         # Default: blocked if any blocking hexes
         return len(blocking_hexes) > 0
     

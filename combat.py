@@ -447,8 +447,8 @@ if __name__ == "__main__":
             units.append(unit)
     
     # Get test units
-    soldiers = [u for u in units if u.unit_type == 'Soldier' and u.per_short > 0]
-    vehicles = [u for u in units if u.unit_type == 'Vehicle' and u.veh_short > 0]
+    soldiers = [u for u in units if 'Soldier' in (u.unit_type or '') and u.per_short > 0]
+    vehicles = [u for u in units if 'Vehicle' in (u.unit_type or '') and u.veh_short > 0]
     
     if soldiers and vehicles:
         infantry = soldiers[0]

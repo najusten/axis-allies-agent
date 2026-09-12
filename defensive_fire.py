@@ -262,7 +262,7 @@ class DefensiveFireSystem:
             return opportunities
         
         moving_unit = moving_unit_state.unit
-        moving_is_soldier = moving_unit.unit_type == 'Soldier'
+        moving_is_soldier = 'Soldier' in (moving_unit.unit_type or '')
         
         # Determine owner of moving unit to find enemies
         moving_owner = moving_unit_state.owner
@@ -305,7 +305,7 @@ class DefensiveFireSystem:
             has_battlefield_awareness = any(a.lower() == 'battlefield awareness' for a in enemy_abilities)
 
             # Command Awareness: Vehicles within 2 hexes of Command Awareness unit gain Awareness
-            if enemy_unit.unit_type == 'Vehicle' and not has_awareness:
+            if 'Vehicle' in (enemy_unit.unit_type or '') and not has_awareness:
                 friendly_units = game_state.get_units_by_owner(enemy_state.owner)
                 for friendly_state in friendly_units:
                     if not friendly_state.is_alive or friendly_state.unit.id == enemy_unit.id:
@@ -324,7 +324,7 @@ class DefensiveFireSystem:
 
             # Rule: Soldiers don't provoke defensive fire from Vehicles
             # Exception: Overlapping Fire allows Vehicles to fire on Soldiers
-            if moving_is_soldier and enemy_unit.unit_type == 'Vehicle':
+            if moving_is_soldier and 'Vehicle' in (enemy_unit.unit_type or ''):
                 if not has_overlapping_fire:
                     continue
 
@@ -383,7 +383,7 @@ class DefensiveFireSystem:
             Tuple of (number of dice, hit modifier for Gung Ho)
         """
         # Determine which attack value to use based on target type
-        target_is_vehicle = target.unit_type == 'Vehicle'
+        target_is_vehicle = 'Vehicle' in (target.unit_type or '')
 
         if target_is_vehicle:
             if distance <= 1:
@@ -427,7 +427,7 @@ class DefensiveFireSystem:
         Check if attacker has a friendly unit with Stalwart adjacent.
         Stalwart: Friendly Soldiers adjacent get +1 on each attack die for defensive fire.
         """
-        if attacker_state.unit.unit_type != 'Soldier':
+        if 'Soldier' not in (attacker_state.unit.unit_type or ''):
             return False
 
         aq, ar = attacker_state.position
@@ -474,7 +474,7 @@ class DefensiveFireSystem:
         notes = []
 
         # Base defense
-        if target.unit_type == 'Vehicle' and is_rear_attack:
+        if 'Vehicle' in (target.unit_type or '') and is_rear_attack:
             defense = target.defense_rear if target.defense_rear else target.defense_front
         else:
             defense = target.defense_front if target.defense_front else target.defense
@@ -492,7 +492,7 @@ class DefensiveFireSystem:
                     break
 
         # Elan/Fearless: Friendly Soldiers adjacent get +1/+1 defense vs defensive fire
-        if game_state and target.unit_type == 'Soldier':
+        if game_state and 'Soldier' in (target.unit_type or ''):
             if self._has_adjacent_elan_fearless(game_state, target_state):
                 defense += 1
                 notes.append("Elan/Fearless: +1/+1 defense vs defensive fire")
@@ -620,7 +620,7 @@ class DefensiveFireSystem:
         # For vehicles, determine if this is front or rear based on movement direction
         # Rule: Vehicle faces toward hex it's entering during defensive fire
         is_rear = False
-        if target.unit_type == 'Vehicle':
+        if 'Vehicle' in (target.unit_type or ''):
             # During defensive fire, vehicle faces toward destination hex
             # So attacks come from the front (defender shoots at front armor)
             # But the rule is: use facing toward hex it's entering
@@ -641,7 +641,7 @@ class DefensiveFireSystem:
         has_cover = terrain in ['forest', 'town', 'hill', 'marsh', 'building']
 
         # Determine cover roll threshold based on unit type
-        if target.unit_type == 'Vehicle':
+        if 'Vehicle' in (target.unit_type or ''):
             unit_category = UnitCategory.VEHICLE
         else:
             unit_category = UnitCategory.SOLDIER
@@ -694,7 +694,7 @@ class DefensiveFireSystem:
             movement_stopped = True
             if target_state.is_disrupted:
                 # Already disrupted - next hit is worse
-                if target.unit_type == 'Vehicle':
+                if 'Vehicle' in (target.unit_type or ''):
                     target_damaged = True
                 else:
                     target_destroyed = True
@@ -702,7 +702,7 @@ class DefensiveFireSystem:
                 target_disrupted = True
                 # Check for second hit (Double Shot)
                 if hits_applied >= 2:
-                    if target.unit_type == 'Vehicle':
+                    if 'Vehicle' in (target.unit_type or ''):
                         target_damaged = True
                     else:
                         target_destroyed = True

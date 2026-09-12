@@ -582,9 +582,12 @@ class ActionGenerator:
             unit = unit_state.unit
             q, r = unit_state.position
 
-            # Skip if already moved
+            # Skip if fully moved (has_moved = True means all movement spent)
             if unit_state.has_moved:
                 continue
+
+            # Track remaining movement for partial moves
+            movement_spent = getattr(unit_state, 'movement_used', 0)
 
             unit_abilities = getattr(unit, 'abilities', []) or []
 
@@ -643,8 +646,8 @@ class ActionGenerator:
             # Calculate bonus speed from Tally-Ho! (non-Artillery Soldiers adjacent to Tally-Ho! get +1 speed)
             bonus_speed = 0
             is_non_artillery_soldier = (
-                unit.unit_type == 'Soldier' and
-                not any('artillery' in a.lower() for a in unit_abilities)
+                'Soldier' in (unit.unit_type or '') and
+                'Artillery' not in (unit.unit_type or '')
             )
             if is_non_artillery_soldier:
                 friendly_units = game_state.get_units_by_owner(unit_state.owner)
@@ -661,7 +664,7 @@ class ActionGenerator:
                             break
 
             # Extra Fuel: Friendly Vehicles with base speed 3+ get +1 speed (not cumulative)
-            if unit.unit_type == 'Vehicle':
+            if 'Vehicle' in (unit.unit_type or ''):
                 base_speed = getattr(unit, 'speed', 2)
                 if base_speed >= 3 and bonus_speed == 0:  # Not already getting Tally-Ho bonus
                     friendly_units = game_state.get_units_by_owner(unit_state.owner)
@@ -683,7 +686,7 @@ class ActionGenerator:
                     if not friendly_state.is_alive or friendly_state.unit.id == unit.id:
                         continue
                     friendly_unit = friendly_state.unit
-                    if friendly_unit.unit_type != 'Soldier':
+                    if 'Soldier' not in (friendly_unit.unit_type or ''):
                         continue
                     friendly_base_speed = getattr(friendly_unit, 'speed', 0)
                     if friendly_base_speed == 1:
@@ -693,37 +696,55 @@ class ActionGenerator:
                             heavy_rifle_speed = 1
                             break
 
+            # Build set of friendly unit positions for stacking
+            friendly_positions = set()
+            for fus in game_state.get_units_by_owner(unit_state.owner):
+                if fus.is_alive and fus.unit.id != unit.id:
+                    friendly_positions.add(fus.position)
+
             # Get all reachable hexes (with Tally-Ho!/Extra Fuel/Heavy Rifle bonus if applicable)
             base_speed = getattr(unit, 'speed', 2)
             # Heavy Rifle: If base speed is 0 and adjacent to speed-1 Soldier, use speed 1
             if heavy_rifle_speed > 0 and base_speed == 0:
                 base_speed = heavy_rifle_speed
-            if bonus_speed > 0:
-                reachable = self.movement_system.get_reachable_hexes(
-                    game_state.board, q, r, unit, max_speed=base_speed + bonus_speed
-                )
-            else:
-                reachable = self.movement_system.get_reachable_hexes(
-                    game_state.board, q, r, unit
-                )
+            effective_speed = base_speed + bonus_speed
+            # Subtract movement already spent (partial move)
+            if movement_spent > 0:
+                effective_speed = max(0, effective_speed - movement_spent)
+            if effective_speed <= 0:
+                continue  # No movement remaining
+            reachable = self.movement_system.get_reachable_hexes(
+                game_state.board, q, r, unit, max_speed=effective_speed,
+                friendly_positions=friendly_positions
+            )
 
             # High Gear: If unit has High Gear, also calculate road-only moves with bonus
             movement_mods = self.ability_system.get_movement_modifiers(unit)
             high_gear_bonus = movement_mods.get('high_gear_bonus', 0)
             if high_gear_bonus > 0:
-                high_gear_reachable = self.movement_system.get_reachable_hexes(
-                    game_state.board, q, r, unit,
-                    max_speed=base_speed + bonus_speed + high_gear_bonus,
-                    road_only=True
-                )
-                reachable = reachable.union(high_gear_reachable)
+                hg_speed = base_speed + bonus_speed + high_gear_bonus - movement_spent
+                if hg_speed > 0:
+                    high_gear_reachable = self.movement_system.get_reachable_hexes(
+                        game_state.board, q, r, unit,
+                        max_speed=hg_speed,
+                        road_only=True, friendly_positions=friendly_positions
+                    )
+                    reachable = reachable.union(high_gear_reachable)
             
             # Create a move action for each reachable hex
+            unit_type = getattr(unit, 'unit_type', 'Soldier')
             for (dest_q, dest_r) in reachable:
                 # Skip current position
                 if (dest_q, dest_r) == (q, r):
                     continue
+
+                # Enforce stacking limits at destination
+                if not game_state.can_stack_at(dest_q, dest_r, unit_state.owner, unit_type):
+                    continue
                 
+                # Calculate movement cost (hex distance as minimum)
+                move_dist = game_state.board.hex_distance(q, r, dest_q, dest_r)
+
                 # Create move action
                 move_action = MoveAction(
                     unit_id=unit.id,
@@ -731,14 +752,14 @@ class ActionGenerator:
                     from_r=r,
                     to_q=dest_q,
                     to_r=dest_r,
-                    path=[(q, r), (dest_q, dest_r)],  # Simplified path
-                    movement_cost=0  # Would calculate actual cost
+                    path=[(q, r), (dest_q, dest_r)],
+                    movement_cost=max(1, move_dist)
                 )
                 
                 actions.append(move_action)
 
             # Transport actions: Board or Dismount instead of moving
-            if unit.unit_type == 'Soldier' and not unit_state.has_moved:
+            if 'Soldier' in (unit.unit_type or '') and not unit_state.has_moved:
                 # Check if being carried - can dismount
                 if unit_state.carried_by_id:
                     transport_state = game_state.get_unit_state(unit_state.carried_by_id)
@@ -774,7 +795,7 @@ class ActionGenerator:
             if not unit_state.is_alive:
                 continue
             unit = unit_state.unit
-            if unit.unit_type != 'Soldier':
+            if 'Soldier' not in (unit.unit_type or ''):
                 continue
             if not unit_state.carried_by_id:
                 continue
@@ -821,7 +842,7 @@ class ActionGenerator:
             if not unit_state.is_alive:
                 continue
             # Only Aircraft can be placed during flight phase
-            if unit_state.unit.unit_type != 'Aircraft':
+            if 'Aircraft' not in (unit_state.unit.unit_type or ''):
                 continue
             # Skip if already on map
             if unit_state.is_aircraft_on_map:
@@ -856,7 +877,7 @@ class ActionGenerator:
             if not unit_state.is_alive:
                 continue
             # Only Aircraft that are on the map can attack
-            if unit_state.unit.unit_type != 'Aircraft':
+            if 'Aircraft' not in (unit_state.unit.unit_type or ''):
                 continue
             if not unit_state.is_aircraft_on_map:
                 continue
@@ -892,14 +913,20 @@ class ActionGenerator:
                 continue
 
             # Skip Aircraft (they attack in Airstrike phase, not Assault phase)
-            if unit_state.unit.unit_type == 'Aircraft':
+            if 'Aircraft' in (unit_state.unit.unit_type or ''):
                 continue
 
             unit = unit_state.unit
             q, r = unit_state.position
 
             # Generate attack actions (uses can_unit_attack for Double Shot support)
-            if game_state.can_unit_attack(unit.id):
+            # In assault phase: can't attack if already moved (move OR attack)
+            # Exception: units with Aggression/move-and-attack abilities
+            can_attack = game_state.can_unit_attack(unit.id)
+            if can_attack and unit_state.has_moved:
+                # Only allow attack after move if unit has move-and-attack ability
+                can_attack = self.movement_system.can_unit_move_and_attack(unit)
+            if can_attack:
                 actions.extend(self._get_attack_actions(
                     game_state, unit, unit_state, (q, r), enemy_units
                 ))
@@ -921,12 +948,20 @@ class ActionGenerator:
                     game_state, unit, unit_state
                 ))
 
-            # Generate Relocate movement (can move during assault phase)
-            relocate_speed = self._get_relocate_speed(unit)
-            if relocate_speed > 0 and not unit_state.has_moved:
-                actions.extend(self._get_relocate_moves(
-                    game_state, unit, unit_state, relocate_speed
-                ))
+            # Assault phase movement: any unit that hasn't attacked can move
+            # at full speed instead of attacking (move OR attack, not both).
+            # Units with Relocate ability use their Relocate speed instead.
+            if not unit_state.has_attacked and not unit_state.has_moved:
+                relocate_speed = self._get_relocate_speed(unit)
+                if relocate_speed > 0:
+                    actions.extend(self._get_relocate_moves(
+                        game_state, unit, unit_state, relocate_speed
+                    ))
+                else:
+                    # Full speed assault movement (move instead of attack)
+                    actions.extend(self._get_assault_moves(
+                        game_state, unit, unit_state
+                    ))
 
             # Generate All Guns Blazing attack (extra attack vs Soldier after attacking)
             if unit_state.all_guns_blazing_available:
@@ -1027,11 +1062,11 @@ class ActionGenerator:
                 ))
 
             # Generate facing change actions (Command Quick Reactions)
-            if unit.unit_type == 'Vehicle' and unit_state.quick_reactions_available:
+            if 'Vehicle' in (unit.unit_type or '') and unit_state.quick_reactions_available:
                 actions.extend(self._get_facing_change_actions(unit, unit_state))
 
             # Generate Command Demolition actions (Soldiers adjacent to Command Demolition unit)
-            if unit.unit_type == 'Soldier':
+            if 'Soldier' in (unit.unit_type or ''):
                 actions.extend(self._get_command_demolition_actions(
                     game_state, unit, unit_state
                 ))
@@ -1059,7 +1094,7 @@ class ActionGenerator:
 
     def _has_command_demolition_aura(self, game_state: GameState, unit_state: UnitState) -> bool:
         """Check if unit has adjacent friendly unit with Command Demolition ability."""
-        if unit_state.unit.unit_type != 'Soldier':
+        if 'Soldier' not in (unit_state.unit.unit_type or ''):
             return False  # Only Soldiers benefit from Command Demolition
         friendly_units = game_state.get_units_by_owner(unit_state.owner)
         unit_pos = unit_state.position
@@ -1238,7 +1273,7 @@ class ActionGenerator:
                 continue
             if not unit_state.is_deployed:
                 continue
-            if unit_state.unit.unit_type != 'Soldier':
+            if 'Soldier' not in (unit_state.unit.unit_type or ''):
                 continue
             nationality = getattr(unit_state.unit, 'nationality', None)
             if nationality:
@@ -1292,7 +1327,7 @@ class ActionGenerator:
                 continue
 
             # Strafe only targets Soldiers
-            if enemy_state.unit.unit_type != 'Soldier':
+            if 'Soldier' not in (enemy_state.unit.unit_type or ''):
                 continue
 
             # Must be adjacent to original target hex
@@ -1309,8 +1344,9 @@ class ActionGenerator:
             if distance > max_range:
                 continue
 
-            has_los = self.movement_system.has_line_of_sight(
-                game_state.board, (q, r), enemy_pos
+            has_los, _ = self.movement_system.has_line_of_sight(
+                game_state.board, unit, q, r, enemy_pos[0], enemy_pos[1],
+                smoke_screens=game_state.smoke_screens
             )
             if not has_los:
                 continue
@@ -1357,8 +1393,9 @@ class ActionGenerator:
                 continue
 
             # Check LOS
-            has_los = self.movement_system.has_line_of_sight(
-                game_state.board, (q, r), (enemy_q, enemy_r)
+            has_los, _ = self.movement_system.has_line_of_sight(
+                game_state.board, unit, q, r, enemy_q, enemy_r,
+                smoke_screens=game_state.smoke_screens
             )
             if not has_los:
                 continue
@@ -1398,7 +1435,7 @@ class ActionGenerator:
                 continue
 
             # Extra Machine Guns only targets Soldiers
-            if enemy_state.unit.unit_type != 'Soldier':
+            if 'Soldier' not in (enemy_state.unit.unit_type or ''):
                 continue
 
             enemy_q, enemy_r = enemy_state.position
@@ -1410,8 +1447,9 @@ class ActionGenerator:
                 continue
 
             # Check LOS
-            has_los = self.movement_system.has_line_of_sight(
-                game_state.board, (q, r), (enemy_q, enemy_r)
+            has_los, _ = self.movement_system.has_line_of_sight(
+                game_state.board, unit, q, r, enemy_q, enemy_r,
+                smoke_screens=game_state.smoke_screens
             )
             if not has_los:
                 continue
@@ -1451,7 +1489,7 @@ class ActionGenerator:
                 continue
 
             # Speed Boost only applies to Aircraft targets
-            if enemy_state.unit.unit_type != 'Aircraft':
+            if 'Aircraft' not in (enemy_state.unit.unit_type or ''):
                 continue
 
             enemy_q, enemy_r = enemy_state.position
@@ -1463,8 +1501,9 @@ class ActionGenerator:
                 continue
 
             # Check LOS
-            has_los = self.movement_system.has_line_of_sight(
-                game_state.board, (q, r), (enemy_q, enemy_r)
+            has_los, _ = self.movement_system.has_line_of_sight(
+                game_state.board, unit, q, r, enemy_q, enemy_r,
+                smoke_screens=game_state.smoke_screens
             )
             if not has_los:
                 continue
@@ -1508,7 +1547,7 @@ class ActionGenerator:
                 continue
 
             # HE Round only applies to Soldier targets
-            if enemy_state.unit.unit_type != 'Soldier':
+            if 'Soldier' not in (enemy_state.unit.unit_type or ''):
                 continue
 
             enemy_q, enemy_r = enemy_state.position
@@ -1520,8 +1559,9 @@ class ActionGenerator:
                 continue
 
             # Check LOS
-            has_los = self.movement_system.has_line_of_sight(
-                game_state.board, (q, r), (enemy_q, enemy_r)
+            has_los, _ = self.movement_system.has_line_of_sight(
+                game_state.board, unit, q, r, enemy_q, enemy_r,
+                smoke_screens=game_state.smoke_screens
             )
             if not has_los:
                 continue
@@ -1561,7 +1601,7 @@ class ActionGenerator:
                 continue
 
             # Headshot only applies to Vehicle targets
-            if enemy_state.unit.unit_type != 'Vehicle':
+            if 'Vehicle' not in (enemy_state.unit.unit_type or ''):
                 continue
 
             enemy_q, enemy_r = enemy_state.position
@@ -1573,8 +1613,9 @@ class ActionGenerator:
                 continue
 
             # Check LOS
-            has_los = self.movement_system.has_line_of_sight(
-                game_state.board, (q, r), (enemy_q, enemy_r)
+            has_los, _ = self.movement_system.has_line_of_sight(
+                game_state.board, unit, q, r, enemy_q, enemy_r,
+                smoke_screens=game_state.smoke_screens
             )
             if not has_los:
                 continue
@@ -1614,7 +1655,7 @@ class ActionGenerator:
                 continue
 
             # AP Rounds only applies to Vehicle targets
-            if enemy_state.unit.unit_type != 'Vehicle':
+            if 'Vehicle' not in (enemy_state.unit.unit_type or ''):
                 continue
 
             enemy_q, enemy_r = enemy_state.position
@@ -1626,8 +1667,9 @@ class ActionGenerator:
                 continue
 
             # Check LOS
-            has_los = self.movement_system.has_line_of_sight(
-                game_state.board, (q, r), (enemy_q, enemy_r)
+            has_los, _ = self.movement_system.has_line_of_sight(
+                game_state.board, unit, q, r, enemy_q, enemy_r,
+                smoke_screens=game_state.smoke_screens
             )
             if not has_los:
                 continue
@@ -1720,8 +1762,9 @@ class ActionGenerator:
                 continue
 
             # Check LOS
-            has_los = self.movement_system.has_line_of_sight(
-                game_state.board, (q, r), (enemy_q, enemy_r)
+            has_los, _ = self.movement_system.has_line_of_sight(
+                game_state.board, unit, q, r, enemy_q, enemy_r,
+                smoke_screens=game_state.smoke_screens
             )
             if not has_los:
                 continue
@@ -1774,8 +1817,9 @@ class ActionGenerator:
                 continue
 
             # Check LOS
-            has_los = self.movement_system.has_line_of_sight(
-                game_state.board, (q, r), (enemy_q, enemy_r)
+            has_los, _ = self.movement_system.has_line_of_sight(
+                game_state.board, unit, q, r, enemy_q, enemy_r,
+                smoke_screens=game_state.smoke_screens
             )
             if not has_los:
                 continue
@@ -1826,8 +1870,9 @@ class ActionGenerator:
                 continue
 
             # Check LOS
-            has_los = self.movement_system.has_line_of_sight(
-                game_state.board, (q, r), (enemy_q, enemy_r)
+            has_los, _ = self.movement_system.has_line_of_sight(
+                game_state.board, unit, q, r, enemy_q, enemy_r,
+                smoke_screens=game_state.smoke_screens
             )
             if not has_los:
                 continue
@@ -1880,8 +1925,9 @@ class ActionGenerator:
                 continue
 
             # Check LOS
-            has_los = self.movement_system.has_line_of_sight(
-                game_state.board, (q, r), (enemy_q, enemy_r)
+            has_los, _ = self.movement_system.has_line_of_sight(
+                game_state.board, unit, q, r, enemy_q, enemy_r,
+                smoke_screens=game_state.smoke_screens
             )
             if not has_los:
                 continue
@@ -1919,7 +1965,7 @@ class ActionGenerator:
         q, r = position
 
         # Must be a Vehicle with facing to determine "in front"
-        if unit.unit_type != 'Vehicle' or unit_state.facing is None:
+        if 'Vehicle' not in (unit.unit_type or '') or unit_state.facing is None:
             return actions
 
         for enemy_state in enemy_units:
@@ -1929,10 +1975,11 @@ class ActionGenerator:
             # Additional Hull-Mounted Cannon: only Vehicles
             # Extra Hull-Mounted Cannon: Vehicles or Soldiers
             if is_additional:
-                if enemy_state.unit.unit_type != 'Vehicle':
+                if 'Vehicle' not in (enemy_state.unit.unit_type or ''):
                     continue
             else:
-                if enemy_state.unit.unit_type not in ('Soldier', 'Vehicle'):
+                enemy_ut = enemy_state.unit.unit_type or ''
+                if 'Soldier' not in enemy_ut and 'Vehicle' not in enemy_ut:
                     continue
 
             enemy_q, enemy_r = enemy_state.position
@@ -1952,8 +1999,9 @@ class ActionGenerator:
                 continue  # Target not in front
 
             # Check LOS
-            has_los = self.movement_system.has_line_of_sight(
-                game_state.board, (q, r), (enemy_q, enemy_r)
+            has_los, _ = self.movement_system.has_line_of_sight(
+                game_state.board, unit, q, r, enemy_q, enemy_r,
+                smoke_screens=game_state.smoke_screens
             )
             if not has_los:
                 continue
@@ -1987,7 +2035,7 @@ class ActionGenerator:
         """
         actions = []
 
-        if unit.unit_type != 'Vehicle':
+        if 'Vehicle' not in (unit.unit_type or ''):
             return actions
 
         current_facing = unit_state.facing
@@ -2034,7 +2082,7 @@ class ActionGenerator:
         for unit_state in player_units:
             if not unit_state.is_alive:
                 continue
-            if unit_state.unit.unit_type != 'Soldier':
+            if 'Soldier' not in (unit_state.unit.unit_type or ''):
                 continue
             # Check disruption (but Heroes ignore disruption)
             if unit_state.is_disrupted and not self._has_hero_ability(unit_state.unit):
@@ -2043,9 +2091,7 @@ class ActionGenerator:
             if not game_state.can_unit_attack(unit_state.unit.id):
                 continue
 
-            abilities = getattr(unit_state.unit, 'abilities', []) or []
-            is_artillery = any('artillery' in a.lower() for a in abilities)
-            if is_artillery:
+            if 'Artillery' in (unit_state.unit.unit_type or ''):
                 continue
 
             q, r = unit_state.position
@@ -2069,7 +2115,8 @@ class ActionGenerator:
                 for enemy_state in enemy_units:
                     if not enemy_state.is_alive:
                         continue
-                    if enemy_state.unit.unit_type not in ('Soldier', 'Vehicle'):
+                    enemy_ut = enemy_state.unit.unit_type or ''
+                    if 'Soldier' not in enemy_ut and 'Vehicle' not in enemy_ut:
                         continue
                     if enemy_state.position != (nq, nr):
                         continue
@@ -2134,15 +2181,13 @@ class ActionGenerator:
         for unit_state in player_units:
             if not unit_state.is_alive:
                 continue
-            if unit_state.unit.unit_type != 'Soldier':
+            if 'Soldier' not in (unit_state.unit.unit_type or ''):
                 continue
             # Check if already attacked
             if not game_state.can_unit_attack(unit_state.unit.id):
                 continue
 
-            abilities = getattr(unit_state.unit, 'abilities', []) or []
-            is_artillery = any('artillery' in a.lower() for a in abilities)
-            if is_artillery:
+            if 'Artillery' in (unit_state.unit.unit_type or ''):
                 continue
 
             q, r = unit_state.position
@@ -2258,7 +2303,7 @@ class ActionGenerator:
                 continue
 
             # All Guns Blazing only targets Soldiers
-            if enemy_state.unit.unit_type != 'Soldier':
+            if 'Soldier' not in (enemy_state.unit.unit_type or ''):
                 continue
 
             enemy_pos = enemy_state.position
@@ -2271,8 +2316,9 @@ class ActionGenerator:
             if distance > max_range:
                 continue
 
-            has_los = self.movement_system.has_line_of_sight(
-                game_state.board, (q, r), enemy_pos
+            has_los, _ = self.movement_system.has_line_of_sight(
+                game_state.board, unit, q, r, enemy_pos[0], enemy_pos[1],
+                smoke_screens=game_state.smoke_screens
             )
             if not has_los:
                 continue
@@ -2329,6 +2375,46 @@ class ActionGenerator:
             # Mark this as a Relocate move
             move_action.is_relocate = True
 
+            actions.append(move_action)
+
+        return actions
+
+    def _get_assault_moves(self, game_state: GameState, unit,
+                           unit_state: UnitState) -> List[MoveAction]:
+        """
+        Generate full-speed assault phase movement actions.
+        In the assault phase, a unit can move OR attack (not both).
+        This generates move options at the unit's full speed.
+        """
+        actions = []
+        q, r = unit_state.position
+        owner = unit_state.owner
+
+        friendly_positions = {
+            us.position for us in game_state.get_units_by_owner(owner)
+            if us.is_alive and us.unit.id != unit.id
+        }
+
+        reachable = self.movement_system.get_reachable_hexes(
+            game_state.board, q, r, unit,
+            friendly_positions=friendly_positions
+        )
+
+        unit_type = getattr(unit, 'unit_type', 'Soldier')
+        for (dest_q, dest_r) in reachable:
+            if (dest_q, dest_r) == (q, r):
+                continue
+            if not game_state.can_stack_at(dest_q, dest_r, owner, unit_type):
+                continue
+
+            move_action = MoveAction(
+                unit_id=unit.id,
+                from_q=q, from_r=r,
+                to_q=dest_q, to_r=dest_r,
+                path=[(q, r), (dest_q, dest_r)],
+                movement_cost=0,
+                is_relocate=True  # treated same as relocate for execution purposes
+            )
             actions.append(move_action)
 
         return actions
@@ -2420,7 +2506,7 @@ class ActionGenerator:
 
             # Antiair check - can only attack Aircraft if has Antiair ability
             # Bombardment check - units with Bombardment can't attack Aircraft
-            if enemy.unit_type == 'Aircraft':
+            if 'Aircraft' in (enemy.unit_type or ''):
                 if not has_antiair or has_bombardment:
                     continue
 
@@ -2436,14 +2522,14 @@ class ActionGenerator:
             has_dismounted_attack = any(
                 a.lower() == 'dismounted attack' for a in unit_abilities_list
             )
-            if (has_dismounted_attack and enemy.unit_type == 'Vehicle'
+            if (has_dismounted_attack and 'Vehicle' in (enemy.unit_type or '')
                     and max_range < 2 and max_range > 0):
                 # Check for adjacent enemy Soldiers
                 has_adj_enemy_soldier = False
                 enemy_owner_check = "player2" if unit_state.owner == "player1" else "player1"
                 for check_state in game_state.get_units_by_owner(enemy_owner_check):
                     if (check_state.is_alive
-                            and check_state.unit.unit_type == 'Soldier'
+                            and 'Soldier' in (check_state.unit.unit_type or '')
                             and game_state.board.hex_distance(
                                 q, r, check_state.position[0], check_state.position[1]
                             ) <= 1):
@@ -2495,7 +2581,7 @@ class ActionGenerator:
             # Improved Indirect Fire: Also allows U.S. Commanders within 4 hexes to act as spotters.
             if not has_los:
                 # Can only ignore LOS with Indirect Fire + Spotter + Soldier target
-                if (has_indirect_fire or has_improved_indirect_fire) and enemy.unit_type == 'Soldier':
+                if (has_indirect_fire or has_improved_indirect_fire) and 'Soldier' in (enemy.unit_type or ''):
                     owner = game_state.get_unit_owner(unit.id)
                     check_improved = has_improved_indirect_fire
                     if self._has_friendly_spotter_for_target(game_state, owner, enemy_q, enemy_r, check_improved):
@@ -2505,6 +2591,18 @@ class ActionGenerator:
 
             # Get range category
             range_cat = self.movement_system.get_range_category(distance)
+
+            # Check that unit actually has non-zero attack dice at this range
+            # against this target type (prevents 0/0 attacks)
+            enemy_type = enemy.unit_type or ''
+            if 'Vehicle' in enemy_type:
+                atk_val = {'short': unit.veh_short, 'medium': unit.veh_medium,
+                           'long': unit.veh_long}.get(range_cat, 0)
+            else:
+                atk_val = {'short': unit.per_short, 'medium': unit.per_medium,
+                           'long': unit.per_long}.get(range_cat, 0)
+            if atk_val <= 0:
+                continue
 
             # Create attack action
             attack_action = AttackAction(
@@ -2558,7 +2656,7 @@ class ActionGenerator:
                 continue
             # Check if this is a transport with Exposed Transport ability
             enemy = enemy_state.unit
-            if enemy.unit_type != 'Vehicle':
+            if 'Vehicle' not in (enemy.unit_type or ''):
                 continue
             enemy_abilities = getattr(enemy, 'abilities', []) or []
             has_exposed_transport = any('exposed transport' in a.lower() for a in enemy_abilities)
@@ -2752,15 +2850,8 @@ class ActionGenerator:
                     actions.append(ability_action)
                 continue
 
-            # Create ability action
-            # Note: This is simplified - real implementation would need
-            # to determine valid targets and parameters for each ability
-            ability_action = UseAbilityAction(
-                unit_id=unit.id,
-                ability_name=ability_name
-            )
-
-            actions.append(ability_action)
+            # All other abilities are passive (automatically applied by the
+            # attack/defense/movement modifier systems) — no manual action needed.
 
         return actions
     

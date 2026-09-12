@@ -240,10 +240,16 @@ class UnitRenderer:
         """Get light color variant for a player."""
         return self.PLAYER_COLORS_LIGHT.get(owner, '#cccccc')
 
-    def render_unit_svg(self, unit_state: UnitState, show_status: bool = True) -> str:
-        """Generate SVG elements for a unit."""
+    def render_unit_svg(self, unit_state: UnitState, show_status: bool = True,
+                        stack_offset: tuple = (0, 0)) -> str:
+        """Generate SVG elements for a unit.
+
+        stack_offset: (dx, dy) pixel offset when multiple units share a hex.
+        """
         q, r = unit_state.position
         cx, cy = self.hex_renderer.axial_to_pixel(q, r)
+        cx += stack_offset[0]
+        cy += stack_offset[1]
         unit = unit_state.unit
         owner = unit_state.owner
 
@@ -269,12 +275,25 @@ class UnitRenderer:
                        f'data-q="{q}" data-r="{r}" '
                        f'style="opacity: {opacity}">')
 
-        # Render based on unit type
-        if unit.unit_type == 'Soldier':
-            elements.append(self._render_soldier(cx, cy, color, light_color))
-        elif unit.unit_type == 'Vehicle':
-            elements.append(self._render_vehicle(cx, cy, color, light_color, unit_state.facing))
-        elif unit.unit_type == 'Aircraft':
+        # Render based on unit type and subtype
+        # Use startswith to handle compound types like "Soldier Artillery", "Vehicle Tank Destroyer"
+        unit_type = unit.unit_type or ''
+        if unit_type.startswith('Soldier') or unit_type == 'Obstacle':
+            # Check if machine gun team (by name or Double Shot ability)
+            abilities_lower = [a.lower() for a in (getattr(unit, 'abilities', []) or [])]
+            is_mg = ('mg' in unit.name.lower() or 'machine gun' in unit.name.lower()
+                     or any('double shot' in a for a in abilities_lower))
+            elements.append(self._render_soldier(cx, cy, color, light_color, is_mg=is_mg))
+        elif unit_type.startswith('Vehicle'):
+            # Classify vehicle subtype from abilities
+            abilities = [a.lower() for a in (getattr(unit, 'abilities', []) or [])]
+            is_transport = any('transport' in a or 'towing' in a for a in abilities)
+            has_gun = (getattr(unit, 'veh_short', 0) or 0) > 0 or (getattr(unit, 'veh_medium', 0) or 0) > 0
+            is_halftrack = 'half-track' in unit.name.lower() or 'half track' in unit.name.lower() or 'motorcycle' in unit.name.lower()
+            is_artillery = 'artillery' in unit_type.lower()
+            veh_subtype = 'halftrack' if is_halftrack else ('transport' if (is_transport or is_artillery) and not has_gun else 'tank')
+            elements.append(self._render_vehicle(cx, cy, color, light_color, unit_state.facing, subtype=veh_subtype))
+        elif unit_type.startswith('Aircraft'):
             elements.append(self._render_aircraft(cx, cy, color, light_color))
         else:
             # Default: simple circle
@@ -288,45 +307,98 @@ class UnitRenderer:
 
         return '\n'.join(elements)
 
-    def _render_soldier(self, cx: float, cy: float, color: str, light_color: str) -> str:
-        """Render a soldier unit (circle with infantry icon)."""
-        # Main circle
+    def _render_soldier(self, cx: float, cy: float, color: str, light_color: str,
+                        is_mg: bool = False) -> str:
+        """Render a soldier unit. MG teams get a different icon."""
         svg = f'<circle cx="{cx}" cy="{cy}" r="14" fill="{color}" stroke="#000" stroke-width="2"/>'
 
-        # Infantry icon (simple person silhouette)
-        # Head
-        svg += f'<circle cx="{cx}" cy="{cy - 5}" r="3" fill="#fff"/>'
-        # Body (simple line)
-        svg += f'<line x1="{cx}" y1="{cy - 2}" x2="{cx}" y2="{cy + 4}" stroke="#fff" stroke-width="2"/>'
-        # Arms
-        svg += f'<line x1="{cx - 4}" y1="{cy}" x2="{cx + 4}" y2="{cy}" stroke="#fff" stroke-width="1.5"/>'
-        # Legs
-        svg += f'<line x1="{cx}" y1="{cy + 4}" x2="{cx - 3}" y2="{cy + 8}" stroke="#fff" stroke-width="1.5"/>'
-        svg += f'<line x1="{cx}" y1="{cy + 4}" x2="{cx + 3}" y2="{cy + 8}" stroke="#fff" stroke-width="1.5"/>'
+        if is_mg:
+            # Machine gun icon: tripod + barrel
+            svg += f'<line x1="{cx - 5}" y1="{cy + 6}" x2="{cx}" y2="{cy - 2}" stroke="#fff" stroke-width="1.5"/>'
+            svg += f'<line x1="{cx + 5}" y1="{cy + 6}" x2="{cx}" y2="{cy - 2}" stroke="#fff" stroke-width="1.5"/>'
+            svg += f'<line x1="{cx}" y1="{cy - 2}" x2="{cx + 7}" y2="{cy - 5}" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>'
+            svg += f'<rect x="{cx - 3}" y="{cy - 4}" width="6" height="4" rx="1" fill="{light_color}" stroke="#000" stroke-width="0.5"/>'
+        else:
+            # Infantry icon (person silhouette)
+            svg += f'<circle cx="{cx}" cy="{cy - 5}" r="3" fill="#fff"/>'
+            svg += f'<line x1="{cx}" y1="{cy - 2}" x2="{cx}" y2="{cy + 4}" stroke="#fff" stroke-width="2"/>'
+            svg += f'<line x1="{cx - 4}" y1="{cy}" x2="{cx + 4}" y2="{cy}" stroke="#fff" stroke-width="1.5"/>'
+            svg += f'<line x1="{cx}" y1="{cy + 4}" x2="{cx - 3}" y2="{cy + 8}" stroke="#fff" stroke-width="1.5"/>'
+            svg += f'<line x1="{cx}" y1="{cy + 4}" x2="{cx + 3}" y2="{cy + 8}" stroke="#fff" stroke-width="1.5"/>'
 
         return svg
 
+    # Facing angles in degrees for flat-top hex layout (matching _render_facing_arrow)
+    _FACING_ANGLES_DEG = {
+        0: 30,    # East
+        1: -30,   # Southeast
+        2: -90,   # Southwest
+        3: -150,  # West
+        4: 150,   # Northwest
+        5: 90,    # Northeast
+    }
+
     def _render_vehicle(self, cx: float, cy: float, color: str, light_color: str,
-                        facing: Optional[int] = None) -> str:
-        """Render a vehicle unit (rounded rectangle with tank silhouette + facing arrow)."""
-        # Rounded rectangle for tank body
-        width, height = 24, 18
-        rx = cx - width / 2
-        ry = cy - height / 2
+                        facing: Optional[int] = None, subtype: str = 'tank') -> str:
+        """Render a vehicle unit. Subtype: 'tank', 'transport', or 'halftrack'.
 
-        svg = f'<rect x="{rx}" y="{ry}" width="{width}" height="{height}" rx="4" '
-        svg += f'fill="{color}" stroke="#000" stroke-width="2"/>'
+        The vehicle body is drawn at origin and rotated to match facing direction.
+        """
+        parts = []
 
-        # Tank turret (smaller rectangle on top)
-        turret_w, turret_h = 10, 8
-        svg += f'<rect x="{cx - turret_w/2}" y="{cy - turret_h/2 - 1}" width="{turret_w}" height="{turret_h}" rx="2" '
-        svg += f'fill="{light_color}" stroke="#000" stroke-width="1"/>'
+        if subtype == 'transport':
+            # Transport: rounded box with wheel circles, no turret
+            width, height = 22, 16
+            parts.append(
+                f'<rect x="{-width/2}" y="{-height/2}" width="{width}" height="{height}" rx="5" '
+                f'fill="{color}" stroke="#000" stroke-width="2"/>')
+            # Wheels
+            parts.append(f'<circle cx="{-width/2 + 3}" cy="{height/2 - 1}" r="3" fill="#333"/>')
+            parts.append(f'<circle cx="{width/2 - 3}" cy="{height/2 - 1}" r="3" fill="#333"/>')
+            # Cargo bed lines
+            parts.append(
+                f'<line x1="{-width/2 + 4}" y1="{-height/2 + 3}" x2="{width/2 - 4}" y2="{-height/2 + 3}" '
+                f'stroke="#fff" stroke-width="1"/>')
+            parts.append(
+                f'<line x1="{-width/2 + 4}" y1="0" x2="{width/2 - 4}" y2="0" '
+                f'stroke="#fff" stroke-width="1"/>')
 
-        # Gun barrel
-        svg += f'<line x1="{cx + turret_w/2}" y1="{cy - 1}" x2="{cx + width/2 + 4}" y2="{cy - 1}" '
-        svg += f'stroke="#000" stroke-width="3" stroke-linecap="round"/>'
+        elif subtype == 'halftrack':
+            # Half-track: rectangle with tracks on back, wheel on front
+            width, height = 22, 14
+            parts.append(
+                f'<rect x="{-width/2}" y="{-height/2}" width="{width}" height="{height}" rx="3" '
+                f'fill="{color}" stroke="#000" stroke-width="2"/>')
+            # Front wheel
+            parts.append(f'<circle cx="{width/2 - 2}" cy="{height/2 - 1}" r="2.5" fill="#333"/>')
+            # Rear tracks
+            parts.append(
+                f'<rect x="{-width/2}" y="{height/2 - 4}" width="10" height="4" rx="1" '
+                f'fill="#333" stroke="#000" stroke-width="0.5"/>')
 
-        # Add facing arrow if specified
+        else:
+            # Tank: rectangle + turret + gun barrel
+            width, height = 24, 18
+            parts.append(
+                f'<rect x="{-width/2}" y="{-height/2}" width="{width}" height="{height}" rx="4" '
+                f'fill="{color}" stroke="#000" stroke-width="2"/>')
+            # Turret
+            turret_w, turret_h = 10, 8
+            parts.append(
+                f'<rect x="{-turret_w/2}" y="{-turret_h/2 - 1}" width="{turret_w}" height="{turret_h}" rx="2" '
+                f'fill="{light_color}" stroke="#000" stroke-width="1"/>')
+            # Gun barrel (pointing right = 0°)
+            parts.append(
+                f'<line x1="{turret_w/2}" y1="-1" x2="{width/2 + 4}" y2="-1" '
+                f'stroke="#000" stroke-width="3" stroke-linecap="round"/>')
+
+        # Compute rotation angle from facing
+        rot = self._FACING_ANGLES_DEG.get(facing, 0) if facing is not None else 0
+
+        body_svg = ''.join(parts)
+        svg = f'<g transform="translate({cx:.1f},{cy:.1f}) rotate({rot})">{body_svg}</g>'
+
+        # Add facing arrow (drawn in world coords, not rotated with body)
         if facing is not None:
             svg += self._render_facing_arrow(cx, cy, facing)
 
@@ -642,12 +714,13 @@ class GameInfoRenderer:
         html += '<div class="legend-group">'
         html += '<h4>Terrain</h4>'
         terrains = [
-            ('open', '#e8e4c9', 'Open'),
+            ('open', '#e8e4c9', 'Open (tan)'),
             ('forest', '#228b22', 'Forest (Cover)'),
-            ('building', '#808080', 'Building (Cover)'),
-            ('hill', '#8fbc8f', 'Hill (Cover)'),
+            ('building', '#808080', 'Building (Cover, gray)'),
+            ('hill', '#8fbc8f', 'Hill (Cover, sage)'),
+            ('town', '#cd853f', 'Town (Cover, brown)'),
+            ('road', '#a0522d', 'Road (dark brown)'),
             ('water', '#4169e1', 'Water'),
-            ('road', '#a0522d', 'Road'),
         ]
         for terrain_id, color, label in terrains:
             border = '#d4af37' if 'Cover' in label else '#555'
@@ -673,11 +746,26 @@ class GameInfoRenderer:
         html += '<div class="legend-item"><span class="status-badge transport-badge">T</span> Transport</div>'
         html += '</div>'
 
+        # Hex borders legend
+        html += '<div class="legend-group">'
+        html += '<h4>Hex Borders</h4>'
+        html += '<div class="legend-item"><span class="legend-swatch" style="background:transparent;border:2px solid #d4af37"></span><span class="legend-label">Gold = provides cover</span></div>'
+        html += '<div class="legend-item"><span class="legend-swatch" style="background:transparent;border:2px solid #555"></span><span class="legend-label">Gray = no cover</span></div>'
+        html += '</div>'
+
         # Markers legend
         html += '<div class="legend-group">'
         html += '<h4>Markers</h4>'
         html += '<div class="legend-item"><span class="legend-icon" style="color:#fbbf24">&#9733;</span> Objective</div>'
         html += '<div class="legend-item"><span class="legend-icon" style="color:#aaa">&#9729;</span> Smoke</div>'
+        html += '</div>'
+
+        # Range legend
+        html += '<div class="legend-group">'
+        html += '<h4>Range Bands</h4>'
+        html += '<div class="legend-item"><span class="legend-label">Short: 0-1 hexes</span></div>'
+        html += '<div class="legend-item"><span class="legend-label">Medium: 2-4 hexes</span></div>'
+        html += '<div class="legend-item"><span class="legend-label">Long: 5-8 hexes</span></div>'
         html += '</div>'
 
         # Instructions
@@ -705,8 +793,16 @@ class GameInfoRenderer:
         if not unit_state.is_alive:
             classes.append('destroyed')
 
-        # Unit type icon
-        type_icon = {'Soldier': '&#9679;', 'Vehicle': '&#9632;', 'Aircraft': '&#9670;'}.get(unit.unit_type, '?')
+        # Unit type icon (handle compound types like "Soldier Artillery")
+        ut = unit.unit_type or ''
+        if ut.startswith('Soldier'):
+            type_icon = '&#9679;'
+        elif ut.startswith('Vehicle'):
+            type_icon = '&#9632;'
+        elif ut.startswith('Aircraft'):
+            type_icon = '&#9670;'
+        else:
+            type_icon = '?'
 
         # Status indicators
         status = []
@@ -720,7 +816,25 @@ class GameInfoRenderer:
             status.append('D')
         status_str = ''.join(status) if status else ''
 
-        html = f'<li class="{" ".join(classes)}" data-unit-id="{unit_id}">'
+        # Build ability list for stat card
+        abilities_str = ', '.join(unit.abilities) if unit.abilities else 'None'
+        # Escape quotes for HTML attributes
+        abilities_esc = abilities_str.replace('"', '&quot;').replace("'", "&#39;")
+        name_esc = unit.name.replace('"', '&quot;').replace("'", "&#39;")
+
+        html = f'<li class="{" ".join(classes)}" data-unit-id="{unit_id}"'
+        html += f' data-unit-name="{name_esc}"'
+        html += f' data-nation="{unit.nation}"'
+        html += f' data-type="{unit.unit_type}"'
+        html += f' data-year="{unit.year or "?"}"'
+        html += f' data-cost="{int(unit.cost)}"'
+        html += f' data-speed="{unit.speed}"'
+        html += f' data-def-front="{unit.defense_front or 0}"'
+        html += f' data-def-rear="{unit.defense_rear or 0}"'
+        html += f' data-veh-s="{unit.veh_short}" data-veh-m="{unit.veh_medium}" data-veh-l="{unit.veh_long}"'
+        html += f' data-per-s="{unit.per_short}" data-per-m="{unit.per_medium}" data-per-l="{unit.per_long}"'
+        html += f' data-abilities="{abilities_esc}"'
+        html += '>'
         html += f'<span class="unit-type-icon">{type_icon}</span>'
         html += f'<span class="unit-name">{unit.name}</span>'
         html += f'<span class="unit-status">{status_str}</span>'
@@ -996,11 +1110,25 @@ class HTMLGenerator:
 
         elements.append('</g>')
 
-        # Render units
+        # Render units (with stacking offsets for shared hexes)
         elements.append('<g class="unit-layer">')
+        from collections import defaultdict
+        units_by_hex = defaultdict(list)
         for unit_state in game_state.units.values():
             if unit_state.is_alive:
-                elements.append(self.unit_renderer.render_unit_svg(unit_state))
+                units_by_hex[unit_state.position].append(unit_state)
+        # Offsets for 1, 2, or 3 units sharing a hex
+        _STACK_OFFSETS = {
+            1: [(0, 0)],
+            2: [(-10, 0), (10, 0)],
+            3: [(-12, -6), (12, -6), (0, 10)],
+        }
+        for pos, units in units_by_hex.items():
+            offsets = _STACK_OFFSETS.get(len(units), _STACK_OFFSETS[3])
+            for i, unit_state in enumerate(units):
+                offset = offsets[i] if i < len(offsets) else (0, 0)
+                elements.append(self.unit_renderer.render_unit_svg(
+                    unit_state, stack_offset=offset))
         elements.append('</g>')
 
         elements.append('</svg>')

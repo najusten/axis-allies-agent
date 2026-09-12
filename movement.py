@@ -27,7 +27,7 @@ class MovementSystem:
         base_cost = self.BASE_TERRAIN_COSTS.get(terrain, 1)
         
         # Infantry/Soldiers: forests and hills cost 1 (not 2)
-        if unit.unit_type == 'Soldier':
+        if 'Soldier' in (unit.unit_type or ''):
             if terrain in ['forest', 'hill']:
                 return 1
         
@@ -66,7 +66,7 @@ class MovementSystem:
         movement_mods = movement_mods or {}
 
         # Infantry always pays 1 for forest/hill
-        if unit.unit_type == 'Soldier':
+        if 'Soldier' in (unit.unit_type or ''):
             if current_terrain in ['forest', 'hill']:
                 return 1
             return self.BASE_TERRAIN_COSTS.get(current_terrain, 1)
@@ -139,7 +139,8 @@ class MovementSystem:
     
     def get_reachable_hexes(self, board: Board, start_q: int, start_r: int,
                            unit, max_speed: int = None, road_only: bool = False,
-                           include_road_bonus: bool = True) -> Set[Tuple[int, int]]:
+                           include_road_bonus: bool = True,
+                           friendly_positions: Set[Tuple[int, int]] = None) -> Set[Tuple[int, int]]:
         """
         Get all hexes reachable from start position with given speed.
         Returns set of (q, r) coordinates.
@@ -200,16 +201,19 @@ class MovementSystem:
 
                 # Skip if hex is occupied by another unit
                 # Exception: Obstacles don't count for stacking - any unit can enter
+                # Exception: Friendly units can share hexes (stacking)
                 # Exception: Vehicles with Overrun can pass through enemy Soldier hexes
                 if neighbor.unit is not None:
                     is_obstacle = getattr(neighbor.unit, 'unit_type', None) == 'Obstacle'
-                    if not is_obstacle:
+                    is_friendly = (friendly_positions is not None
+                                   and (nq, nr) in friendly_positions)
+                    if not is_obstacle and not is_friendly:
                         # Allow Overrun vehicles to pass through (added to reachable
                         # for pathfinding, but blocked as final destination below)
                         unit_abilities = getattr(unit, 'abilities', []) or []
                         has_overrun = any(a.lower() == 'overrun' for a in unit_abilities)
-                        neighbor_is_soldier = getattr(neighbor.unit, 'unit_type', None) == 'Soldier'
-                        if has_overrun and neighbor_is_soldier and unit.unit_type == 'Vehicle':
+                        neighbor_is_soldier = 'Soldier' in (getattr(neighbor.unit, 'unit_type', None) or '')
+                        if has_overrun and neighbor_is_soldier and 'Vehicle' in (unit.unit_type or ''):
                             pass  # Allow passage through this hex
                         else:
                             continue
@@ -249,8 +253,8 @@ class MovementSystem:
                         # not to reachable (vehicle can't stop in enemy hex)
                         is_overrun_passthrough = (
                             neighbor.unit is not None
-                            and getattr(neighbor.unit, 'unit_type', None) == 'Soldier'
-                            and unit.unit_type == 'Vehicle'
+                            and 'Soldier' in (getattr(neighbor.unit, 'unit_type', None) or '')
+                            and 'Vehicle' in (unit.unit_type or '')
                             and any(a.lower() == 'overrun'
                                     for a in (getattr(unit, 'abilities', []) or []))
                         )
@@ -261,20 +265,48 @@ class MovementSystem:
         # Road bonus: Vehicles get +1 speed if entire path stays on roads
         # This is computed separately - only add hexes reachable via road-only paths
         if (include_road_bonus and
-            unit.unit_type == 'Vehicle' and
+            'Vehicle' in (unit.unit_type or '') and
             not road_only and  # Don't stack road bonus with road_only mode (High Gear)
             start_hex and start_hex.has_road):
 
             # Compute additional hexes reachable with +1 speed via roads only
             road_bonus_hexes = self._get_road_bonus_hexes(
-                board, start_q, start_r, unit, max_speed + 1, movement_mods
+                board, start_q, start_r, unit, max_speed + 1, movement_mods,
+                friendly_positions=friendly_positions
             )
             reachable.update(road_bonus_hexes)
 
         return reachable
 
+    def get_reachable_hexes_with_costs(self, board, start_q, start_r, unit,
+                                        max_speed=None, friendly_positions=None):
+        """Like get_reachable_hexes but also returns movement cost to each hex.
+        Returns (reachable_set, cost_dict) where cost_dict maps (q,r) -> movement_cost."""
+        # Get movement modifiers
+        if self.ability_system:
+            movement_mods = self.ability_system.get_movement_modifiers(unit)
+        else:
+            movement_mods = {}
+        if max_speed is None:
+            max_speed = self.get_effective_speed(unit, movement_mods)
+
+        reachable = self.get_reachable_hexes(
+            board, start_q, start_r, unit, max_speed=max_speed,
+            friendly_positions=friendly_positions
+        )
+
+        # Approximate costs using hex distance (exact terrain costs would require
+        # re-running BFS with cost tracking, but distance is close enough for
+        # partial movement purposes since BFS already validates reachability)
+        costs = {}
+        for (dq, dr) in reachable:
+            if (dq, dr) != (start_q, start_r):
+                costs[(dq, dr)] = board.hex_distance(start_q, start_r, dq, dr)
+        return reachable, costs
+
     def _get_road_bonus_hexes(self, board: Board, start_q: int, start_r: int,
-                               unit, bonus_speed: int, movement_mods: dict = None) -> Set[Tuple[int, int]]:
+                               unit, bonus_speed: int, movement_mods: dict = None,
+                               friendly_positions: Set[Tuple[int, int]] = None) -> Set[Tuple[int, int]]:
         # Note: unit and movement_mods params kept for potential future use (ability interactions)
         _ = unit, movement_mods  # Suppress unused warnings
         """
@@ -303,10 +335,12 @@ class MovementSystem:
                 if not neighbor.has_road:
                     continue
 
-                # Skip occupied hexes (except obstacles)
+                # Skip occupied hexes (except obstacles and friendly units)
                 if neighbor.unit is not None:
                     is_obstacle = getattr(neighbor.unit, 'unit_type', None) == 'Obstacle'
-                    if not is_obstacle:
+                    is_friendly = (friendly_positions is not None
+                                   and (nq, nr) in friendly_positions)
+                    if not is_obstacle and not is_friendly:
                         continue
 
                 # Roads cost 1 movement
@@ -577,7 +611,7 @@ class MovementSystem:
             for neighbor in board.get_neighbors(hex_tile.q, hex_tile.r):
                 candidate_hexes.add(neighbor)
         
-        blocking_terrain = ['forest', 'building']
+        blocking_terrain = ['forest', 'building', 'hill']
         fully_blocking_hexes = []  # Line passes through interior
         edge_grazing_hexes = []    # Line passes along edge only
         
@@ -619,10 +653,13 @@ class MovementSystem:
         
         # Check if unit has abilities to see through obstacles
         if self.ability_system and (fully_blocking_hexes or distinct_edge_count >= 2):
+            attacker_hex = board.get_hex(q1, r1)
+            attacker_terrain = attacker_hex.terrain if attacker_hex else 'open'
             can_see_through = not self.ability_system.check_los_blocked(
-                unit, 
+                unit,
                 line_hexes[-1].terrain if line_hexes else 'open',
-                all_blocking
+                all_blocking,
+                attacker_terrain=attacker_terrain
             )
             if can_see_through:
                 return True, []
@@ -742,8 +779,8 @@ if __name__ == "__main__":
     combat_units = [u for u in units if not ability_system.is_obstacle_unit(u)]
     
     # Find units with interesting movement abilities
-    infantry = [u for u in combat_units if u.unit_type == 'Soldier' and u.speed == 1][0]
-    tank = [u for u in combat_units if u.unit_type == 'Vehicle' and isinstance(u.speed, int) and u.speed >= 4][0]
+    infantry = [u for u in combat_units if 'Soldier' in (u.unit_type or '') and u.speed == 1][0]
+    tank = [u for u in combat_units if 'Vehicle' in (u.unit_type or '') and isinstance(u.speed, int) and u.speed >= 4][0]
     
     # Find unit with special movement ability if available
     special_movement = [u for u in combat_units if 

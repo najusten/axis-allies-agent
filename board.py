@@ -34,7 +34,7 @@ class Board:
     """Represents the game board as a hex grid"""
     
     # Valid terrain types
-    TERRAIN_TYPES = ['open', 'forest', 'building', 'water', 'road', 'hill']
+    TERRAIN_TYPES = ['open', 'forest', 'building', 'water', 'road', 'hill', 'town', 'marsh', 'ruins']
     
     def __init__(self, width=15, height=15):
         """Create a board with given dimensions"""

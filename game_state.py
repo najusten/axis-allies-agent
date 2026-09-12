@@ -30,6 +30,7 @@ class UnitState:
     owner: str  # 'player1' or 'player2'
     current_health: int
     has_moved: bool = False
+    movement_used: int = 0  # Movement points spent this turn (for partial moves)
     has_attacked: bool = False  # Kept for backwards compatibility
     attacks_this_turn: int = 0  # For Double Shot tracking
     targets_attacked_this_turn: Set[str] = field(default_factory=set)  # For Coordinated Fire C.A.
@@ -82,7 +83,7 @@ class UnitState:
             self.current_health = getattr(self.unit, 'defense_front', 3)
         
         # Initialize facing for vehicles
-        if self.unit.unit_type == 'Vehicle' and self.facing is None:
+        if 'Vehicle' in (self.unit.unit_type or '') and self.facing is None:
             self.facing = 0  # Default facing: East
     
     @property
@@ -93,6 +94,7 @@ class UnitState:
     def reset_for_turn(self):
         """Reset per-turn flags"""
         self.has_moved = False
+        self.movement_used = 0
         self.has_attacked = False
         self.attacks_this_turn = 0
         self.strike_and_fade_available = False
@@ -288,6 +290,31 @@ class GameState:
         """Get all units at a specific hex position"""
         return [us for us in self.units.values() if us.position == (q, r) and us.is_alive]
 
+    def can_stack_at(self, q: int, r: int, owner: str, unit_type: str) -> bool:
+        """Check if a unit of the given type can legally stack at (q, r).
+
+        Stacking rules (per player, per hex):
+        - Max 3 units total (excluding Aircraft, Obstacles, and transported units)
+        - Max 1 Vehicle
+        - Aircraft and Obstacles don't count toward stacking
+        - Transported/loaded units don't count
+        """
+        units_here = [us for us in self.get_units_at_position(q, r)
+                      if us.owner == owner
+                      and getattr(us.unit, 'unit_type', '') not in ('Aircraft', 'Obstacle')
+                      and not getattr(us, 'is_loaded', False)]
+        count = len(units_here)
+        vehicle_count = sum(1 for us in units_here
+                            if getattr(us.unit, 'unit_type', '') == 'Vehicle')
+
+        if unit_type == 'Aircraft' or unit_type == 'Obstacle':
+            return True
+        if count >= 3:
+            return False
+        if unit_type == 'Vehicle' and vehicle_count >= 1:
+            return False
+        return True
+
     def has_smoke(self, q: int, r: int) -> bool:
         """Check if a hex has smoke screen"""
         return (q, r) in self.smoke_screens
@@ -318,15 +345,21 @@ class GameState:
         """Move a unit to a new position"""
         if unit_id not in self.units:
             return False
-        
+
         unit_state = self.units[unit_id]
         old_q, old_r = unit_state.position
-        
-        # Remove from old position
+
+        # Remove from old position on board
         old_hex = self.board.get_hex(old_q, old_r)
         if old_hex:
-            old_hex.unit = None
-        
+            # Only clear hex.unit if this unit is the one referenced there
+            if old_hex.unit is unit_state.unit:
+                # Check if another friendly unit remains in this hex
+                remaining = [us for us in self.units.values()
+                             if us.is_alive and us.position == (old_q, old_r)
+                             and us.unit.id != unit_id]
+                old_hex.unit = remaining[0].unit if remaining else None
+
         # Add to new position
         new_hex = self.board.get_hex(to_q, to_r)
         if new_hex:
@@ -334,7 +367,7 @@ class GameState:
             unit_state.position = (to_q, to_r)
             unit_state.has_moved = True
             return True
-        
+
         return False
     
     def damage_unit(self, unit_id: str, damage: int):
@@ -653,8 +686,8 @@ def create_test_game_state(board_size: int = 15) -> GameState:
     all_units = load_units()
     
     # Get some test units
-    infantry_units = [u for u in all_units if u.unit_type == 'Soldier']
-    vehicle_units = [u for u in all_units if u.unit_type == 'Vehicle']
+    infantry_units = [u for u in all_units if 'Soldier' in (u.unit_type or '')]
+    vehicle_units = [u for u in all_units if 'Vehicle' in (u.unit_type or '')]
     
     # Create player 1 units
     p1_units = []

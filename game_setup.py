@@ -581,36 +581,115 @@ class GameSetup:
         """
         board = Board(self.config.board_width, self.config.board_height)
 
-        # Add random terrain clusters
-        terrain_types = ['forest', 'forest', 'building', 'hill']  # Weighted toward forest
+        # Natural terrain clusters (no towns — those are placed deliberately)
+        terrain_types = ['forest', 'forest', 'hill', 'building']
         num_terrain_hexes = int(
             self.config.board_width * self.config.board_height * terrain_density
         )
 
-        # Create terrain clusters
-        clusters = num_terrain_hexes // 4  # Average 4 hexes per cluster
+        # Create terrain clusters first (so road can overlay them)
+        clusters = num_terrain_hexes // 4
         for _ in range(clusters):
-            # Random cluster center (avoid edges and center objective area)
-            center_q = random.randint(2, self.config.board_width - 3)
+            center_q = random.randint(3, self.config.board_width - 4)
             center_r = random.randint(2, self.config.board_height - 3)
-
-            # Skip if too close to objective
-            obj_q = self.config.board_width // 2
-            obj_r = self.config.board_height // 2
-            if abs(center_q - obj_q) <= 1 and abs(center_r - obj_r) <= 1:
-                continue
-
             terrain = random.choice(terrain_types)
-
-            # Add cluster (center + some neighbors)
             board.set_terrain(center_q, center_r, terrain)
             for dq, dr in [(1, 0), (0, 1), (-1, 1), (-1, 0), (0, -1), (1, -1)]:
-                if random.random() < 0.5:  # 50% chance for each neighbor
+                if random.random() < 0.5:
                     nq, nr = center_q + dq, center_r + dr
                     if 0 <= nq < self.config.board_width and 0 <= nr < self.config.board_height:
                         board.set_terrain(nq, nr, terrain)
 
+        # Place 1-2 small towns (2-3 hexes each)
+        num_towns = random.choice([1, 2])
+        town_hexes = set()
+        for t in range(num_towns):
+            for attempt in range(10):
+                tq = random.randint(4, self.config.board_width - 5)
+                tr = random.randint(3, self.config.board_height - 4)
+                # Don't place towns adjacent to each other
+                if any(abs(tq - oq) <= 3 and abs(tr - otr) <= 3 for oq, otr in town_hexes):
+                    continue
+                board.set_terrain(tq, tr, 'town')
+                town_hexes.add((tq, tr))
+                # Add 1-2 adjacent town hexes
+                for dq, dr in random.sample([(1, 0), (0, 1), (-1, 1), (-1, 0), (0, -1), (1, -1)], 2):
+                    nq, nr = tq + dq, tr + dr
+                    if 0 <= nq < self.config.board_width and 0 <= nr < self.config.board_height:
+                        board.set_terrain(nq, nr, 'town')
+                        town_hexes.add((nq, nr))
+                break
+
+        # Add a road connecting across the map (runs through towns if possible)
+        road_r = self.config.board_height // 2 + random.randint(-2, 2)
+        # If there's a town, bend road toward it
+        if town_hexes:
+            nearest_town = min(town_hexes, key=lambda p: abs(p[0] - self.config.board_width // 2))
+            road_target_r = nearest_town[1]
+        else:
+            road_target_r = road_r
+        for q in range(self.config.board_width):
+            board.set_terrain(q, road_r, 'road')
+            # Gradually bend toward town
+            if road_r < road_target_r and q < self.config.board_width * 2 // 3:
+                if random.random() < 0.4:
+                    road_r += 1
+            elif road_r > road_target_r and q < self.config.board_width * 2 // 3:
+                if random.random() < 0.4:
+                    road_r -= 1
+            road_r = max(1, min(self.config.board_height - 2, road_r))
+
+        # Balance cover terrain across both sides of the board
+        self._balance_cover(board)
+
         return board
+
+    def _balance_cover(self, board: Board):
+        """Ensure roughly equal cover hexes on both sides of the board."""
+        cover_types = {'forest', 'building', 'hill', 'town', 'ruins'}
+        mid_q = self.config.board_width // 2
+
+        # Count cover on each side
+        left_cover = []
+        right_cover = []
+        for q in range(self.config.board_width):
+            for r in range(self.config.board_height):
+                hex_obj = board.get_hex(q, r)
+                if hex_obj and hex_obj.terrain in cover_types:
+                    if q < mid_q:
+                        left_cover.append((q, r))
+                    elif q > mid_q:
+                        right_cover.append((q, r))
+
+        # If imbalance > 2, add cover to the weaker side
+        diff = len(left_cover) - len(right_cover)
+        if abs(diff) <= 2:
+            return
+
+        # Determine which side needs more cover
+        if diff > 0:
+            # Right side needs more
+            add_side_range = range(mid_q + 1, self.config.board_width)
+        else:
+            # Left side needs more
+            add_side_range = range(0, mid_q)
+
+        needed = abs(diff) // 2  # Close half the gap
+        added = 0
+        candidates = []
+        for q in add_side_range:
+            for r in range(self.config.board_height):
+                hex_obj = board.get_hex(q, r)
+                if hex_obj and hex_obj.terrain == 'open':
+                    candidates.append((q, r))
+
+        random.shuffle(candidates)
+        cover_options = ['forest', 'forest', 'hill', 'building']
+        for q, r in candidates:
+            if added >= needed:
+                break
+            board.set_terrain(q, r, random.choice(cover_options))
+            added += 1
 
     def _has_ability(self, unit: Unit, ability_name: str) -> bool:
         """Check if a unit has a specific ability (case-insensitive)."""
@@ -672,26 +751,28 @@ class GameSetup:
         p2_unit_states = []
         occupied_hexes = set()
 
-        # Player 1 starting zone (left side, columns 1-3)
-        p1_start_q = 2
+        # Player 1 starting zone (left side, within 2 hexes of edge: columns 0-1)
         p1_positions = []
-        for r in range(2, self.config.board_height - 2):
-            p1_positions.append((p1_start_q, r))
-            p1_positions.append((p1_start_q + 1, r))
+        for q in range(0, 2):
+            for r in range(self.config.board_height):
+                hex_obj = board.get_hex(q, r)
+                if hex_obj and hex_obj.terrain != 'impassable':
+                    p1_positions.append((q, r))
         random.shuffle(p1_positions)
 
-        # Player 2 starting zone (right side)
-        p2_start_q = self.config.board_width - 3
+        # Player 2 starting zone (right side, within 2 hexes of edge)
         p2_positions = []
-        for r in range(2, self.config.board_height - 2):
-            p2_positions.append((p2_start_q, r))
-            p2_positions.append((p2_start_q - 1, r))
+        for q in range(self.config.board_width - 2, self.config.board_width):
+            for r in range(self.config.board_height):
+                hex_obj = board.get_hex(q, r)
+                if hex_obj and hex_obj.terrain != 'impassable':
+                    p2_positions.append((q, r))
         random.shuffle(p2_positions)
 
         # Get special deployment hexes
         edge_hexes = self._get_edge_hexes(board)
-        p1_gliderborne_hexes = self._get_gliderborne_hexes(board, p2_start_q, is_player1=True)
-        p2_gliderborne_hexes = self._get_gliderborne_hexes(board, p1_start_q, is_player1=False)
+        p1_gliderborne_hexes = self._get_gliderborne_hexes(board, self.config.board_width - 2, is_player1=True)
+        p2_gliderborne_hexes = self._get_gliderborne_hexes(board, 1, is_player1=False)
 
         # Separate units by deployment type
         def categorize_units(army):

@@ -257,21 +257,32 @@ class ActionValidator:
             if game_state.has_unit_moved(unit.id):
                 return ActionValidation(False, "Unit has already moved this turn")
 
+        # Build friendly positions for pathfinding (friendly hexes are passable)
+        unit_type = getattr(unit, 'unit_type', 'Soldier')
+        owner = None
+        friendly_positions = None
+        if game_state:
+            us = game_state.get_unit_state(getattr(unit, 'id', ''))
+            if us:
+                owner = us.owner
+                friendly_positions = {
+                    fus.position for fus in game_state.get_units_by_owner(owner)
+                    if fus.is_alive and fus.unit.id != unit.id
+                }
+
         # Check if destination is reachable
         reachable = self.movement_system.get_reachable_hexes(
-            self.board, action.from_q, action.from_r, unit
+            self.board, action.from_q, action.from_r, unit,
+            friendly_positions=friendly_positions
         )
 
         if (action.to_q, action.to_r) not in reachable:
             return ActionValidation(False, f"Hex ({action.to_q},{action.to_r}) is not reachable")
 
-        # Check if destination is occupied
-        # Obstacles don't count for stacking - any unit can enter obstacle hexes
-        dest_hex = self.board.get_hex(action.to_q, action.to_r)
-        if dest_hex and dest_hex.unit is not None:
-            dest_is_obstacle = getattr(dest_hex.unit, 'unit_type', None) == 'Obstacle'
-            if not dest_is_obstacle:
-                return ActionValidation(False, "Destination hex is occupied")
+        # Check stacking limits at destination
+        if owner and game_state and not game_state.can_stack_at(
+                action.to_q, action.to_r, owner, unit_type):
+            return ActionValidation(False, "Destination hex exceeds stacking limit")
 
         return ActionValidation(True)
     
@@ -280,17 +291,39 @@ class ActionValidator:
         # Check if unit can still attack (supports Double Shot - allows 2 attacks)
         if not game_state.can_unit_attack(unit.id):
             return ActionValidation(False, "Unit has already used all attacks this turn")
-        
+
         # Check range - calculate max range from attack values
-        # Long range is 5-8 hexes, so max theoretical range is 8
+        # Base: long=5-8, medium=2-4, short=0-1
+        # Enhanced Range X extends long range to 5-X for ALL targets
+        # Extended Range X extends long range to 5-X for Vehicles only
         max_range = 0
         if getattr(unit, 'veh_long', 0) > 0 or getattr(unit, 'per_long', 0) > 0:
             max_range = 8
+            # Check for Enhanced Range (all targets)
+            import re
+            for ability in (getattr(unit, 'abilities', []) or []):
+                enh = re.match(r'Enhanced Range\s+(\d+)', ability, re.IGNORECASE)
+                if enh:
+                    max_range = int(enh.group(1))
+                    break
+                # Extended Range (vehicles only)
+                ext = re.match(r'Extended Range\s+(\d+)', ability, re.IGNORECASE)
+                if ext and target and 'Vehicle' in (getattr(target, 'unit_type', '') or ''):
+                    max_range = int(ext.group(1))
+                    break
         elif getattr(unit, 'veh_medium', 0) > 0 or getattr(unit, 'per_medium', 0) > 0:
             max_range = 4
         elif getattr(unit, 'veh_short', 0) > 0 or getattr(unit, 'per_short', 0) > 0:
             max_range = 1
-        
+
+        # Check for Limited Range restriction
+        for ability in (getattr(unit, 'abilities', []) or []):
+            import re
+            lr = re.match(r'Limited Range\s+(\d+)', ability, re.IGNORECASE)
+            if lr:
+                max_range = min(max_range, int(lr.group(1)))
+                break
+
         if action.distance > max_range:
             return ActionValidation(False, f"Target out of range (distance: {action.distance}, max: {max_range})")
         
