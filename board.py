@@ -19,7 +19,11 @@ class Hex:
         return f"Hex({self.q},{self.r}) {self.terrain}{unit_str}"
     
     def __eq__(self, other):
-        return self.q == other.q and self.r == other.r
+        if isinstance(other, Hex):
+            return self.q == other.q and self.r == other.r
+        if isinstance(other, tuple) and len(other) == 2:
+            return (self.q, self.r) == other
+        return NotImplemented
     
     def __hash__(self):
         return hash((self.q, self.r))

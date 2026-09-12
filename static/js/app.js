@@ -34,6 +34,7 @@ class App {
     $('chk-coords').onchange = (e) => this.renderer.setCoords(e.target.checked);
     $('chk-fast').onchange = (e) => { this.renderer.setFast(e.target.checked); localStorage.setItem('aa_fast', e.target.checked ? '1' : ''); };
     if (localStorage.getItem('aa_fast')) { $('chk-fast').checked = true; this.renderer.setFast(true); }
+    document.addEventListener('click', () => this.renderer.skipAnimation(), true);
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') this.select(null);
       if (e.key === 'e' && !e.metaKey && !e.ctrlKey && document.activeElement.tagName !== 'INPUT') this.endPhase();

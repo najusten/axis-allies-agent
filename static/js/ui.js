@@ -31,7 +31,7 @@ export class UI {
       pl.textContent = `${this.playerName(s.current_player)} (AI) is playing…`;
       pl.classList.add('ai');
     }
-    $('tb-hint').textContent = s.pending_facing ? 'Choose a facing direction for your vehicle (yellow buttons).' : (s.is_human_turn ? s.phase_hint : '');
+    $('tb-hint').textContent = s.pending_facing ? 'Choose a facing direction for your vehicle (yellow buttons).' : (s.is_human_turn ? s.phase_hint : 'Click anywhere to skip the animation.');
     $('btn-undo').disabled = !s.can_undo;
     $('btn-redo').disabled = !s.can_redo;
     $('btn-end').disabled = !s.is_human_turn || !!s.pending_facing || s.game_over;

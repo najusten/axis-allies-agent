@@ -202,8 +202,13 @@ def build_action(game_state: GameState, data: dict,
             return None
         tq, tr = ts.position
         dist = game_state.board.hex_distance(from_q, from_r, tq, tr)
-        return AttackAction(unit_id, from_q, from_r, target_id, tq, tr,
-                            MovementSystem.get_range_category(dist), dist)
+        action = AttackAction(unit_id, from_q, from_r, target_id, tq, tr,
+                              MovementSystem.get_range_category(dist), dist)
+        # Special attack variants set a flag the executor checks, e.g.
+        # special: rocket_salvo -> action.is_rocket_salvo = True
+        if data.get('special'):
+            setattr(action, f"is_{data['special']}", True)
+        return action
 
     if kind in ('board', 'board_transport'):
         tid = uid('transport') or uid('transport_id')

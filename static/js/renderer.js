@@ -21,7 +21,8 @@ const PLAYER = {
 };
 const STACK_OFFSETS = [[[0, 0]], [[-10, 0], [10, 0]], [[-12, -7], [12, -7], [0, 10]]];
 
-const sleep = (ms) => new Promise(res => setTimeout(res, ms));
+let _skip = false;   // set by a click during playEvents: fast-forward the rest
+const sleep = (ms) => new Promise(res => setTimeout(res, _skip ? Math.min(ms, 30) : ms));
 const el = (tag, attrs = {}, cls = null) => {
   const e = document.createElementNS(NS, tag);
   for (const [k, v] of Object.entries(attrs)) if (v !== undefined && v !== null) e.setAttribute(k, v);
@@ -353,6 +354,8 @@ export class BoardRenderer {
   // ---------------------------------------------------------- animation
   async playEvents(events) {
     const speed = this.fast ? 0.3 : 1;
+    _skip = false;
+    this.animating = true;
     for (const ev of events) {
       if (ev.type === 'action') {
         const subs = ev.events && ev.events.length ? ev.events : null;
@@ -373,7 +376,11 @@ export class BoardRenderer {
         await this._banner('Game over', `${ev.winner} wins (${ev.reason})`, 1500 * speed);
       }
     }
+    this.animating = false;
+    _skip = false;
   }
+
+  skipAnimation() { if (this.animating) _skip = true; }
 
   async _playSub(s, parent, speed) {
     if (s.type === 'move') {

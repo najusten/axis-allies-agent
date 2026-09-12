@@ -34,12 +34,14 @@ class ActionResult:
                  hits: int = 0, unit_destroyed: str = None,
                  combat_details: Dict = None,
                  defensive_fire_results: List[DefensiveFireResult] = None,
-                 events: List[Dict] = None):
+                 events: List[Dict] = None, attack_result: Dict = None):
         self.success = success
         self.message = message
         self.hits = hits  # Number of hits scored (0, 1, 2, or 3)
         self.unit_destroyed = unit_destroyed
         self.combat_details = combat_details or {}
+        if attack_result:   # special attacks (rockets, hull cannons...) report here
+            self.combat_details.update(attack_result)
         self.defensive_fire_results = defensive_fire_results or []
         # Structured record of what happened (dice rolls, status changes...)
         # so a frontend can animate it. Attack results also carry
@@ -1002,19 +1004,7 @@ class ActionExecutor:
                 result_msg = f"{attacker.name} Remote Control vs {target.name}: range rolls [{range_roll_1}, {range_roll_2}] > {range_to_target}, "
                 result_msg += f"{successes} successes from {attack_dice} dice"
 
-                if hits >= 2:
-                    target_state.is_destroyed = True
-                    target_state.is_alive = False
-                    result_msg += " - TARGET DESTROYED!"
-                elif hits == 1:
-                    if 'Vehicle' in (target.unit_type or '') and not target_state.is_damaged:
-                        target_state.is_damaged = True
-                        result_msg += " - Vehicle DAMAGED"
-                    else:
-                        target_state.is_disrupted = True
-                        result_msg += " - Target DISRUPTED"
-                else:
-                    result_msg += " - No effect"
+                result_msg += self._apply_special_hits(game_state, target_state, hits)
 
                 return ActionResult(
                     True,
@@ -1050,7 +1040,7 @@ class ActionExecutor:
             # Get all units in target hex and adjacent hexes
             target_pos = (action.target_q, action.target_r)
             affected_hexes = [target_pos]
-            affected_hexes.extend(game_state.board.get_neighbors(*target_pos))
+            affected_hexes.extend((h.q, h.r) for h in game_state.board.get_neighbors(*target_pos))
 
             # Get all units in affected hexes (including friendlies!)
             all_units = game_state.get_all_alive_units()
@@ -1093,19 +1083,7 @@ class ActionExecutor:
                 owner_str = "friendly" if affected_state.owner == attacker_state.owner else "enemy"
                 unit_msg = f"  {affected_unit.name} ({owner_str} {affected_unit.unit_type}): {salvo_dice} dice, {successes} successes"
 
-                if hits >= 2:
-                    affected_state.is_destroyed = True
-                    affected_state.is_alive = False
-                    unit_msg += " - DESTROYED!"
-                elif hits == 1:
-                    if 'Vehicle' in (affected_unit.unit_type or '') and not affected_state.is_damaged:
-                        affected_state.is_damaged = True
-                        unit_msg += " - DAMAGED"
-                    else:
-                        affected_state.is_disrupted = True
-                        unit_msg += " - DISRUPTED"
-                else:
-                    unit_msg += " - No effect"
+                unit_msg += self._apply_special_hits(game_state, affected_state, hits)
 
                 results_messages.append(unit_msg)
                 salvo_results.append({
@@ -1155,19 +1133,7 @@ class ActionExecutor:
             # Apply damage
             result_msg = f"{attacker.name} Rockets 8 vs {target.name}: {successes} successes from 8 dice"
 
-            if hits >= 2:
-                target_state.is_destroyed = True
-                target_state.is_alive = False
-                result_msg += " - TARGET DESTROYED!"
-            elif hits == 1:
-                if 'Vehicle' in (target.unit_type or '') and not target_state.is_damaged:
-                    target_state.is_damaged = True
-                    result_msg += " - Vehicle DAMAGED"
-                else:
-                    target_state.is_disrupted = True
-                    result_msg += " - Target DISRUPTED"
-            else:
-                result_msg += " - No effect"
+            result_msg += self._apply_special_hits(game_state, target_state, hits)
 
             return ActionResult(
                 True,
@@ -1190,7 +1156,7 @@ class ActionExecutor:
             # Get all units in target hex and adjacent hexes
             target_pos = (action.target_q, action.target_r)
             affected_hexes = [target_pos]
-            affected_hexes.extend(game_state.board.get_neighbors(*target_pos))
+            affected_hexes.extend((h.q, h.r) for h in game_state.board.get_neighbors(*target_pos))
 
             # Get all units in affected hexes (including friendlies!)
             all_units = game_state.get_all_alive_units()
@@ -1233,19 +1199,7 @@ class ActionExecutor:
                 owner_str = "friendly" if affected_state.owner == attacker_state.owner else "enemy"
                 unit_msg = f"  {affected_unit.name} ({owner_str} {affected_unit.unit_type}): {rocket_dice} dice, {successes} successes"
 
-                if hits >= 2:
-                    affected_state.is_destroyed = True
-                    affected_state.is_alive = False
-                    unit_msg += " - DESTROYED!"
-                elif hits == 1:
-                    if 'Vehicle' in (affected_unit.unit_type or '') and not affected_state.is_damaged:
-                        affected_state.is_damaged = True
-                        unit_msg += " - DAMAGED"
-                    else:
-                        affected_state.is_disrupted = True
-                        unit_msg += " - DISRUPTED"
-                else:
-                    unit_msg += " - No effect"
+                unit_msg += self._apply_special_hits(game_state, affected_state, hits)
 
                 results_messages.append(unit_msg)
                 rocket_results.append({
@@ -1297,19 +1251,7 @@ class ActionExecutor:
             hits = self.dice.calculate_hits(successes, base_defense, superior_armor)
 
             result_msg = f"{attacker.name} Additional Hull-Mounted Cannon vs {target.name}: {successes} successes from {hull_dice} dice"
-            if hits >= 2:
-                target_state.is_destroyed = True
-                target_state.is_alive = False
-                result_msg += " - TARGET DESTROYED!"
-            elif hits == 1:
-                if not target_state.is_damaged:
-                    target_state.is_damaged = True
-                    result_msg += " - Vehicle DAMAGED"
-                else:
-                    target_state.is_disrupted = True
-                    result_msg += " - Vehicle DISRUPTED"
-            else:
-                result_msg += " - No effect"
+            result_msg += self._apply_special_hits(game_state, target_state, hits)
 
             return ActionResult(True, result_msg, attack_result={
                 'attack_rolls': attack_rolls, 'successes': successes,
@@ -1350,19 +1292,7 @@ class ActionExecutor:
             hits = self.dice.calculate_hits(successes, base_defense, superior_armor)
 
             result_msg = f"{attacker.name} Extra Hull-Mounted Cannon vs {target.name}: {successes} successes from {hull_dice} dice"
-            if hits >= 2:
-                target_state.is_destroyed = True
-                target_state.is_alive = False
-                result_msg += " - TARGET DESTROYED!"
-            elif hits == 1:
-                if 'Vehicle' in (target.unit_type or '') and not target_state.is_damaged:
-                    target_state.is_damaged = True
-                    result_msg += " - Vehicle DAMAGED"
-                else:
-                    target_state.is_disrupted = True
-                    result_msg += " - Target DISRUPTED"
-            else:
-                result_msg += " - No effect"
+            result_msg += self._apply_special_hits(game_state, target_state, hits)
 
             return ActionResult(True, result_msg, attack_result={
                 'attack_rolls': attack_rolls, 'successes': successes,
@@ -2453,6 +2383,29 @@ class ActionExecutor:
         
         return max(0, dice)
     
+    def _apply_special_hits(self, game_state: GameState, target_state: UnitState, hits: int) -> str:
+        """
+        Apply hits from a special attack (rockets, hull cannons, remote control...)
+        the same way a normal attack does: as face-down counters in simultaneous
+        mode, or immediately otherwise. Returns a message fragment.
+        """
+        if hits <= 0:
+            return " - No effect"
+        unit = target_state.unit
+        if self.use_simultaneous_combat:
+            counters = self.casualty_system.record_hits(game_state, unit.id, unit.unit_type, min(3, hits))
+            if self.casualty_system.unit_has_pending_destroyed(game_state, unit.id):
+                return " - DESTROYED (pending)"
+            return " - " + "/".join(c.value.upper() for c in counters) + " (pending)"
+        category = get_unit_category(unit)
+        from dice import get_unit_status
+        dmg = self.dice.resolve_damage(hits, category, get_unit_status(target_state), False)
+        self._apply_status_to_unit_state(target_state, dmg.new_status)
+        if dmg.new_status == UnitStatus.DESTROYED:
+            game_state.remove_unit(unit.id)
+            return " - DESTROYED!"
+        return f" - {dmg.new_status.value.upper()}"
+
     def _apply_status_to_unit_state(self, unit_state: UnitState, new_status: UnitStatus):
         """Apply a UnitStatus to a UnitState object"""
         if new_status == UnitStatus.DISRUPTED:
