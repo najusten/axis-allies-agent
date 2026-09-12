@@ -598,20 +598,51 @@ def test_organization():
 
 
 def test_vanguard_phase():
-    """Test Vanguard pre-game movement."""
+    """Vanguard units get a pre-game move (speed 4) that doesn't use turn-1 movement."""
     print("\n" + "="*60)
     print("TEST: Vanguard Phase")
     print("="*60)
 
-    # Check if Vanguard phase exists in game_runner
-    from game_runner import GameRunner
+    from turn_controller import TurnController, VANGUARD_PHASE
+    from initiative import InitiativeSystem
 
-    # Check method exists
-    has_vanguard = hasattr(GameRunner, '_run_vanguard_phase')
-    print(f"  GameRunner has _run_vanguard_phase method: {has_vanguard}")
+    game_state, board = create_test_game_state(12)
+    vanguard = create_test_unit("Recon Troop", abilities=["Vanguard"], speed=2)
+    plain = create_test_unit("Rifles", speed=2)
+    enemy = create_test_unit("Enemy", speed=2)
+    game_state.add_unit(UnitState(vanguard, (1, 5), "player1", vanguard.defense_front))
+    game_state.add_unit(UnitState(plain, (1, 6), "player1", plain.defense_front))
+    game_state.add_unit(UnitState(enemy, (10, 5), "player2", enemy.defense_front))
 
-    assert has_vanguard, "Vanguard phase should be implemented"
-    print("  [PASS] Vanguard phase method exists")
+    ability_system = AbilitySystem('Axis and Allies Unit Data for Analysis - Special_Abilities.csv')
+    movement_system = MovementSystem(ability_system)
+    executor = ActionExecutor(movement_system, None, ability_system)
+    generator = ActionGenerator(movement_system, None, ability_system)
+    initiative = InitiativeSystem(ability_system, movement_system, dice=executor.dice)
+
+    tc = TurnController(game_state, executor, generator, initiative,
+                        {"player1": None, "player2": None}, movement_system=movement_system)
+    tc.start()
+    assert tc.current() == (VANGUARD_PHASE, "player1"), tc.current()
+    actions = tc.legal_actions()
+    units_offered = {a.unit_id for a in actions}
+    assert units_offered == {vanguard.id}, f"only the Vanguard unit may move pre-game: {units_offered}"
+    far = max(actions, key=lambda a: board.hex_distance(1, 5, a.to_q, a.to_r))
+    dist = board.hex_distance(1, 5, far.to_q, far.to_r)
+    assert 3 <= dist <= 4, f"vanguard moves at speed 4, got max distance {dist}"
+    print(f"  Vanguard offered {len(actions)} moves, max distance {dist}")
+
+    result = tc.apply(far)
+    assert result.success, result.message
+    vs = game_state.get_unit_state(vanguard.id)
+    assert vs.position == (far.to_q, far.to_r)
+    assert not vs.has_moved, "vanguard move must not consume turn-1 movement"
+    assert not tc.legal_actions(), "one vanguard move per unit"
+    tc.end_phase()            # player1 vanguard done
+    assert tc.current() == (VANGUARD_PHASE, "player2")
+    tc.end_phase()            # player2 has no vanguard units
+    assert tc.current_phase() == GamePhase.MOVEMENT and game_state.turn_number == 1
+    print("  [PASS] Vanguard phase runs before turn 1 via TurnController")
     return True
 
 

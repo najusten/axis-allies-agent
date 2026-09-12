@@ -32,7 +32,8 @@ class MoveAction(Action):
 
     def __init__(self, unit_id: str, from_q: int, from_r: int, to_q: int, to_r: int,
                  path: list[Tuple[int, int]] = None, movement_cost: int = 0,
-                 is_strike_and_fade: bool = False, is_relocate: bool = False):
+                 is_strike_and_fade: bool = False, is_relocate: bool = False,
+                 max_speed: Optional[int] = None):
         super().__init__(unit_id, "move")
         self.from_q = from_q
         self.from_r = from_r
@@ -42,6 +43,7 @@ class MoveAction(Action):
         self.movement_cost = movement_cost
         self.is_strike_and_fade = is_strike_and_fade
         self.is_relocate = is_relocate
+        self.max_speed = max_speed  # override unit speed (e.g. Vanguard pre-game move at 4)
 
     def __str__(self):
         suffix = ""
@@ -271,9 +273,11 @@ class ActionValidator:
                 }
 
         # Check if destination is reachable
+        reach_kwargs = {'friendly_positions': friendly_positions}
+        if getattr(action, 'max_speed', None):
+            reach_kwargs['max_speed'] = action.max_speed
         reachable = self.movement_system.get_reachable_hexes(
-            self.board, action.from_q, action.from_r, unit,
-            friendly_positions=friendly_positions
+            self.board, action.from_q, action.from_r, unit, **reach_kwargs
         )
 
         if (action.to_q, action.to_r) not in reachable:

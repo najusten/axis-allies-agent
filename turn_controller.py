@@ -358,7 +358,8 @@ class TurnController:
             reachable = self.movement_system.get_reachable_hexes(gs.board, q, r, us.unit, max_speed=4)
             for (dq, dr) in reachable:
                 if (dq, dr) != (q, r):
-                    actions.append(MoveAction(unit_id=us.unit.id, from_q=q, from_r=r, to_q=dq, to_r=dr))
+                    actions.append(MoveAction(unit_id=us.unit.id, from_q=q, from_r=r,
+                                              to_q=dq, to_r=dr, max_speed=4))
         return actions
 
     def _apply_exert_will(self, player: str):
