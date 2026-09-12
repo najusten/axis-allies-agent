@@ -50,6 +50,41 @@ class Unit:
     def __str__(self):
         return f"{self.name} ({self.nation}) - Type: {self.unit_type}, Cost: {self.cost}, Speed: {self.speed}"
     
+    def to_dict(self) -> dict:
+        """Static stat card."""
+        return {
+            'name': self.name, 'nation': self.nation, 'unit_type': self.unit_type,
+            'year': self.year, 'cost': self.cost, 'speed': self.speed,
+            'defense_front': self.defense_front, 'defense_rear': self.defense_rear,
+            'veh': [self.veh_short, self.veh_medium, self.veh_long],
+            'per': [self.per_short, self.per_medium, self.per_long],
+            'abilities': list(self.abilities),
+            'icon': self.icon_kind(),
+        }
+
+    def icon_kind(self) -> str:
+        """Coarse icon class for rendering: soldier, mg, tank, transport, halftrack, aircraft, obstacle."""
+        ut = (self.unit_type or '')
+        name = self.name.lower()
+        abilities = [a.lower() for a in self.abilities]
+        if ut == 'Obstacle':
+            return 'obstacle'
+        if ut.startswith('Soldier'):
+            if 'mg' in name or 'machine gun' in name or any('double shot' in a for a in abilities):
+                return 'mg'
+            return 'soldier'
+        if ut.startswith('Vehicle'):
+            if 'half-track' in name or 'half track' in name or 'motorcycle' in name:
+                return 'halftrack'
+            is_transport = any('transport' in a or 'towing' in a for a in abilities)
+            has_gun = self.veh_short > 0 or self.veh_medium > 0
+            if (is_transport or 'artillery' in ut.lower()) and not has_gun:
+                return 'transport'
+            return 'tank'
+        if ut.startswith('Aircraft'):
+            return 'aircraft'
+        return 'unknown'
+
     def can_attack_vehicle(self):
         """Check if this unit can attack vehicles"""
         return self.veh_short > 0 or self.veh_medium > 0 or self.veh_long > 0

@@ -28,7 +28,7 @@ class CombatSystem:
     """
     
     # Cover-granting terrain types
-    COVER_TERRAIN = ['forest', 'building', 'hill', 'town']
+    COVER_TERRAIN = Board.COVER_TERRAIN
     
     def __init__(self, ability_system: AbilitySystem, random_seed: Optional[int] = None):
         """

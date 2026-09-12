@@ -25,6 +25,7 @@ from facing import (
     calculate_facing_after_move, get_direction_name
 )
 from casualty import CasualtySystem
+from board import Board
 
 
 class ActionResult:
@@ -59,8 +60,8 @@ class ActionExecutor:
     Integrates defensive fire during movement.
     """
 
-    # Cover-granting terrain types
-    COVER_TERRAIN = ['forest', 'building', 'hill', 'town']
+    # Cover-granting terrain types (single source of truth in Board)
+    COVER_TERRAIN = Board.COVER_TERRAIN
 
     def __init__(self, movement_system: MovementSystem,
                  combat_system,  # Can be old or new CombatSystem
@@ -1531,7 +1532,7 @@ class ActionExecutor:
                     game_state,
                     other_state.unit.id,
                     other_state.unit.unit_type,
-                    other_result['hits']
+                    min(3, other_result.get('effective_hits', other_result['hits']))
                 )
             elif other_result['target_destroyed']:
                 # Immediate mode: remove destroyed unit
@@ -1569,7 +1570,7 @@ class ActionExecutor:
                 game_state,
                 action.target_id,
                 target.unit_type,
-                result['hits']
+                min(3, result.get('effective_hits', result['hits']))
             )
 
             # Check if unit will be destroyed (for message purposes)
@@ -1897,38 +1898,42 @@ class ActionExecutor:
             has_cover = False
             result['notes'].append("Attacker ignores cover")
 
-        # Roll cover save if applicable
-        cover_success = False
-        if has_cover:
+        # Cover roll. Per the rules the defender rolls only once the attack
+        # has scored a hit, so this is deferred until hits are known (keeps
+        # dice order attack-then-cover for scripted dice).
+        def roll_cover() -> bool:
+            if not has_cover:
+                return False
             # Check if target auto-fails cover (Tall Silhouette)
             if defense_mods.get('fails_cover_rolls', False):
                 result['cover_rolled'] = True
                 result['cover_success'] = False
                 result['notes'].append("Tall Silhouette: Fails all cover rolls")
+                return False
             # Backblast: If this unit attacks, it fails all cover rolls for the rest of the turn
-            elif any(a.lower() == 'backblast' for a in (getattr(target, 'abilities', []) or [])) and target_state.has_attacked:
+            if any(a.lower() == 'backblast' for a in (getattr(target, 'abilities', []) or [])) and target_state.has_attacked:
                 result['cover_rolled'] = True
                 result['cover_success'] = False
                 result['notes'].append("Backblast: Fails cover rolls (unit has attacked this turn)")
+                return False
             # Forest Camouflage: Auto-succeed cover vs long range attacks in forest
-            elif defense_mods.get('auto_cover_success', False):
+            if defense_mods.get('auto_cover_success', False):
                 result['cover_rolled'] = True
                 result['cover_success'] = True
-                cover_success = True
                 result['notes'].append("Forest Camouflage: Auto-succeed cover roll")
-            else:
-                result['cover_rolled'] = True
-                # Calculate cover modifier: defender's cover_bonus - attacker's target_cover_penalty
-                cover_mod = defense_mods.get('cover_bonus', 0) - attack_mods.get('target_cover_penalty', 0)
-                cover_result = self.dice.roll_cover_save(
-                    target_category, attacker_same_hex, cover_mod
-                )
-                cover_success = cover_result.success
-                result['cover_success'] = cover_success
-                result['cover_roll'] = cover_result.roll
-                result['cover_threshold'] = cover_result.threshold
-                if cover_mod != 0:
-                    result['notes'].append(f"Cover modifier: {cover_mod:+d}")
+                return True
+            result['cover_rolled'] = True
+            # Calculate cover modifier: defender's cover_bonus - attacker's target_cover_penalty
+            cover_mod = defense_mods.get('cover_bonus', 0) - attack_mods.get('target_cover_penalty', 0)
+            cover_result = self.dice.roll_cover_save(
+                target_category, attacker_same_hex, cover_mod
+            )
+            result['cover_success'] = cover_result.success
+            result['cover_roll'] = cover_result.roll
+            result['cover_threshold'] = cover_result.threshold
+            if cover_mod != 0:
+                result['notes'].append(f"Cover modifier: {cover_mod:+d}")
+            return cover_result.success
 
         # Roll attack (check if attacker has Fanatic - ignores disrupted)
         attacker_has_fanatic = any(
@@ -2189,6 +2194,9 @@ class ActionExecutor:
             result['notes'].append(f"Scored {attack_result.successes} successes, needed {base_defense}")
             return result
 
+        # The attack hit: defender in cover now rolls to reduce the result
+        cover_success = roll_cover()
+
         # Resolve damage
         damage_result = self.dice.resolve_damage(
             hits, target_category, current_status, cover_success
@@ -2289,6 +2297,9 @@ class ActionExecutor:
         result['target_destroyed'] = final_new_status == UnitStatus.DESTROYED
         result['status_change'] = damage_result.status_change
         result['counters_placed'] = damage_result.counters_placed
+        # Hits after the cover roll / status-specific reduction: this is what
+        # becomes face-down counters in simultaneous mode.
+        result['effective_hits'] = damage_result.hits_scored
 
         # Set outcome
         if final_new_status == UnitStatus.DESTROYED:

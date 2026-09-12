@@ -1,0 +1,17 @@
+name: cover-save-failed-soldier-destroyed
+source: "Rulebook: a failed cover roll (1-3 for Soldiers) leaves the full result"
+board: {width: 10, height: 10, terrain: {forest: [[5,5]]}}
+units:
+  - {id: rifles, owner: player1, at: [5,5], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+  - {id: mg, owner: player2, at: [7,5], stats: {unit_type: Soldier, defense: "4", per: [10,8,6]}}
+phase: assault
+active_player: player2
+dice: [6, 6, 6, 6, 6, 6, 6, 6, 3]
+actions:
+  - {type: attack, unit: mg, target: rifles}
+  - {type: casualty}
+expect:
+  events:
+    - {type: cover_save, unit: rifles, roll: 3, success: false}
+  units:
+    rifles: {status: destroyed}

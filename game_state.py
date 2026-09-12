@@ -91,6 +91,26 @@ class UnitState:
         """Check if unit is still alive"""
         return self.current_health > 0
     
+    def to_dict(self) -> dict:
+        return {
+            'id': self.unit.id,
+            'owner': self.owner,
+            'position': list(self.position),
+            'facing': self.facing,
+            'health': self.current_health,
+            'is_alive': self.is_alive,
+            'has_moved': self.has_moved,
+            'has_attacked': self.has_attacked,
+            'is_disrupted': self.is_disrupted,
+            'is_damaged': self.is_damaged,
+            'is_deployed': self.is_deployed,
+            'is_aircraft_on_map': self.is_aircraft_on_map,
+            'carried_unit_id': self.carried_unit_id,
+            'carried_by_id': self.carried_by_id,
+            'strike_and_fade_available': self.strike_and_fade_available,
+            'card': self.unit.to_dict(),
+        }
+
     def reset_for_turn(self):
         """Reset per-turn flags"""
         self.has_moved = False
@@ -625,6 +645,28 @@ class GameState:
         new_state.destroyed_unit_wrecks = {k: [dict(d) for d in v] for k, v in self.destroyed_unit_wrecks.items()}
         new_state.objective_position = self.objective_position
         return new_state
+
+    def to_dict(self) -> dict:
+        """JSON-serializable view of the whole game for a frontend."""
+        pending = {}
+        for uid, ph in self.pending_hits.items():
+            counters = [c.counter_type.value for c in getattr(ph, 'counters', []) if not c.face_up]
+            if counters:
+                pending[uid] = counters
+        obj_q, obj_r = self.objective_position
+        return {
+            'turn': self.turn_number,
+            'phase': self.current_phase,
+            'active_player': self.active_player,
+            'game_over': self.game_over,
+            'winner': self.winner,
+            'objective': {'q': obj_q, 'r': obj_r, 'controller': self.check_objective_control()},
+            'smoke': [list(h) for h in sorted(self.smoke_screens)],
+            'wrecks': [{'q': q, 'r': r, 'units': v} for (q, r), v in self.destroyed_unit_wrecks.items()],
+            'pending_hits': pending,
+            'board': self.board.to_dict(),
+            'units': [us.to_dict() for us in self.units.values()],
+        }
 
     def get_state_summary(self) -> str:
         """Get a human-readable summary of the game state"""

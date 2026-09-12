@@ -1,0 +1,18 @@
+name: rear-armor-attack
+source: "Rulebook: attacks from a vehicle's rear arc use its rear defense value"
+board: {width: 10, height: 10}
+units:
+  - {id: tank, owner: player1, at: [4,4], facing: W,
+     stats: {unit_type: Vehicle, defense: "5/3", speed: 3, per: [8,6,4], veh: [10,8,6]}}
+  - {id: at_gun, owner: player2, at: [6,4],
+     stats: {unit_type: Soldier, defense: "4", speed: 2, per: [7,5,3], veh: [9,7,5]}}
+phase: assault
+active_player: player2
+dice: [6, 6, 6, 6, 6, 6, 6]     # medium range vs vehicle: 7 dice, all hit
+actions:
+  - {type: attack, unit: at_gun, target: tank}
+expect:
+  results:
+    0: {success: true, combat: {defense: 3}}
+  events:
+    - {type: attack, attacker: at_gun, target: tank, dice: 7, successes: 7, defense: 3}

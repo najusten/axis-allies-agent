@@ -636,7 +636,7 @@ class DefensiveFireSystem:
         # Check if target hex has cover
         hex_obj = game_state.board.hexes.get(attack_in_hex)
         terrain = hex_obj.terrain if hex_obj else 'open'
-        has_cover = terrain in ['forest', 'town', 'hill', 'marsh', 'building']
+        has_cover = terrain in Board.COVER_TERRAIN
 
         # Determine cover roll threshold based on unit type
         if 'Vehicle' in (target.unit_type or ''):

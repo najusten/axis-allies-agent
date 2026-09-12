@@ -34,7 +34,12 @@ class Board:
     """Represents the game board as a hex grid"""
     
     # Valid terrain types
-    TERRAIN_TYPES = ['open', 'forest', 'building', 'water', 'road', 'hill', 'town', 'marsh', 'ruins']
+    TERRAIN_TYPES = ['open', 'forest', 'building', 'water', 'road', 'hill', 'town',
+                     'marsh', 'ruins', 'stream', 'impassable']
+    # Terrain that grants cover saves (single source of truth for all systems).
+    # Marsh is difficult terrain but not cover; ruins are treated like buildings.
+    # TODO(rules): confirm ruins/marsh against the rulebook via a scenario test.
+    COVER_TERRAIN = frozenset({'forest', 'building', 'hill', 'town', 'ruins'})
     
     def __init__(self, width=15, height=15):
         """Create a board with given dimensions"""
@@ -53,6 +58,17 @@ class Board:
     def get_hex(self, q, r) -> Optional[Hex]:
         """Get hex at coordinates (q, r)"""
         return self.hexes.get((q, r))
+
+    def to_dict(self) -> dict:
+        return {
+            'width': self.width,
+            'height': self.height,
+            'hexes': [{'q': h.q, 'r': h.r, 'terrain': h.terrain} for h in self.hexes.values()],
+            'edge_obstacles': [
+                {'a': list(sorted(key)[0]), 'b': list(sorted(key)[1]), 'type': kind}
+                for key, kind in self.edge_obstacles.items()
+            ],
+        }
 
     def clone(self) -> 'Board':
         """Copy terrain and edge obstacles. Hex.unit references are not copied;

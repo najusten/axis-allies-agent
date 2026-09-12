@@ -1,0 +1,17 @@
+name: simultaneous-casualty-resolution
+source: "Rulebook: hits are face-down counters; both sides' attacks resolve in the casualty phase, so two units can destroy each other"
+board: {width: 10, height: 10}
+units:
+  - {id: a, owner: player1, at: [5,5], stats: {unit_type: Soldier, defense: "4", per: [10,8,6]}}
+  - {id: b, owner: player2, at: [7,5], stats: {unit_type: Soldier, defense: "4", per: [10,8,6]}}
+phase: assault
+active_player: player1
+dice: [6,6,6,6,6,6,6,6, 6,6,6,6,6,6,6,6]
+actions:
+  - {type: attack, unit: a, target: b}
+  - {type: attack, unit: b, target: a, active_player: player2}
+  - {type: casualty}
+expect:
+  units:
+    a: {status: destroyed}
+    b: {status: destroyed}

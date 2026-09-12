@@ -30,6 +30,7 @@ from action import (MoveAction, AttackAction, PassAction,
 from movement import MovementSystem
 from game_runner import AggressiveRandomAgent, GreedyAgent, RandomAgent
 from turn_controller import TurnController, format_event
+from scenario import build_action
 
 # Locate ability CSV (same logic as game_runner.py)
 _ABILITY_CSV = (
@@ -343,56 +344,8 @@ class GameSession:
             self.controller.run_until_human()
 
     def _build_action(self, data: dict):
-        unit_id = data.get('unit_id')
-        if not unit_id:
-            return None
-        unit_state = self.game_state.get_unit_state(unit_id)
-        if not unit_state:
-            return None
-        from_q, from_r = unit_state.position
-
-        if data['type'] == 'move':
-            to_q, to_r = int(data['to_q']), int(data['to_r'])
-            action = MoveAction(unit_id, from_q, from_r, to_q, to_r)
-            if self.game_state.current_phase == GamePhase.ASSAULT:
-                # Check if this is a Strike and Fade move (unit just attacked)
-                if unit_state.strike_and_fade_available:
-                    action.is_strike_and_fade = True
-                else:
-                    action.is_relocate = True
-            return action
-
-        elif data['type'] == 'attack':
-            tq, tr = int(data['target_q']), int(data['target_r'])
-            defending_id = self._unit_at(tq, tr, prefer_enemy_of=unit_state.owner)
-            if not defending_id:
-                return None
-            # Compute distance and range category
-            dist = self.game_state.board.hex_distance(from_q, from_r, tq, tr)
-            range_cat = MovementSystem.get_range_category(dist)
-            return AttackAction(unit_id, from_q, from_r, defending_id, tq, tr,
-                                range_cat, dist)
-
-        elif data['type'] == 'board_transport':
-            tid = data.get('transport_id')
-            pq, pr = int(data['pos_q']), int(data['pos_r'])
-            return BoardTransportAction(unit_id, tid, pq, pr)
-
-        elif data['type'] == 'dismount':
-            tid = data.get('transport_id')
-            to_q, to_r = int(data['to_q']), int(data['to_r'])
-            return DismountTransportAction(unit_id, tid, to_q, to_r)
-
-        elif data['type'] == 'use_ability':
-            ability_name = data.get('ability_name')
-            target_id = data.get('target_id')
-            target_q = int(data['target_q']) if data.get('target_q') is not None else None
-            target_r = int(data['target_r']) if data.get('target_r') is not None else None
-            return UseAbilityAction(unit_id, ability_name,
-                                   target_id=target_id,
-                                   target_q=target_q, target_r=target_r)
-
-        return None
+        """Wire format -> Action (shared with the scenario loader)."""
+        return build_action(self.game_state, data)
 
     def _unit_at(self, q: int, r: int, prefer_enemy_of: str = None):
         """Find a unit at (q, r). If prefer_enemy_of is set, prefer enemy units."""

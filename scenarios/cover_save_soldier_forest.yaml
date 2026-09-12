@@ -1,0 +1,20 @@
+name: cover-save-soldier-in-forest
+source: "Rulebook: a Soldier in cover rolls a d6; on 4+ the hit is reduced to Disrupted"
+board: {width: 10, height: 10, terrain: {forest: [[5,5]]}}
+units:
+  - {id: rifles, owner: player1, at: [5,5], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+  - {id: mg, owner: player2, at: [7,5], stats: {unit_type: Soldier, defense: "4", per: [10,8,6]}}
+phase: assault
+active_player: player2
+# medium range (distance 2) vs soldier: 8 dice. 8 hits (would destroy, 8 >= 2*def)
+# then the cover roll: 4 = save
+dice: [6, 6, 6, 6, 6, 6, 6, 6, 4]
+actions:
+  - {type: attack, unit: mg, target: rifles}
+  - {type: casualty}
+expect:
+  dice_consumed: 9
+  events:
+    - {type: cover_save, unit: rifles, roll: 4, success: true}
+  units:
+    rifles: {status: disrupted, alive: true}

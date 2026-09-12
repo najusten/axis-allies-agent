@@ -1,0 +1,18 @@
+name: no-cover-in-open
+source: "Rulebook: units in open terrain get no cover roll"
+board: {width: 10, height: 10}
+units:
+  - {id: rifles, owner: player1, at: [5,5], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+  - {id: mg, owner: player2, at: [7,5], stats: {unit_type: Soldier, defense: "4", per: [10,8,6]}}
+phase: assault
+active_player: player2
+dice: [6, 6, 6, 6, 6, 6, 6, 6]
+actions:
+  - {type: attack, unit: mg, target: rifles}
+  - {type: casualty}
+expect:
+  dice_consumed: 8
+  no_events:
+    - {type: cover_save}
+  units:
+    rifles: {status: destroyed}
