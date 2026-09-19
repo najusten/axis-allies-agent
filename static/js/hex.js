@@ -46,3 +46,16 @@ export function hexDistance(q1, r1, q2, r2) {
   const dq = q1 - q2, dr = r1 - r2;
   return Math.max(Math.abs(dq), Math.abs(dr), Math.abs(dq + dr));
 }
+
+// even-q offset (column, row) as shown to players; the engine/API use axial (q, r)
+export function axialToOffset(q, r) {
+  return [q, r + (q - (q & 1)) / 2];
+}
+export function fmtHex(q, r) {
+  const [c, row] = axialToOffset(q, r);
+  return `${c},${row}`;
+}
+// rewrite every "(q, r)" pair in an engine message into column,row
+export function offsetifyText(text) {
+  return String(text).replace(/\((-?\d+),\s?(-?\d+)\)/g, (m, q, r) => `(${fmtHex(+q, +r)})`);
+}

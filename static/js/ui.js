@@ -1,5 +1,7 @@
 // DOM panels around the board: top bar, sidebar lists, unit card, log,
 // ability panel, modals (new game, hot-seat handoff, game over), toasts.
+import { fmtHex, offsetifyText } from './hex.js';
+
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -63,7 +65,7 @@ export class UI {
         if (u.has_moved && u.has_attacked) tags.push('<span class="tag done">done</span>');
         else if (u.has_moved) tags.push('<span class="tag done">moved</span>');
         else if (u.has_attacked) tags.push('<span class="tag done">fired</span>');
-        const pos = (u.card.unit_type === 'Aircraft' && !u.is_aircraft_on_map) ? '✈' : !u.is_deployed ? '—' : `${u.position[0]},${u.position[1]}`;
+        const pos = (u.card.unit_type === 'Aircraft' && !u.is_aircraft_on_map) ? '✈' : !u.is_deployed ? '—' : fmtHex(u.position[0], u.position[1]);
         li.innerHTML = `<span class="nm">${esc(u.card.name)}</span>${tags.join('')}<span class="st">${pos}</span>`;
         li.onclick = () => this.h.onSelectUnit(u.id);
         li.onmouseenter = () => this.h.onHoverUnit(u.id);
@@ -170,13 +172,14 @@ export class UI {
       else if (/DISRUPTED|DAMAGED|⚡|🔧/.test(l)) cls = 'l-warn';
       else if (/MISS|skipping|no casualties/.test(l)) cls = 'l-dim';
       else if (/saved|✓/.test(l)) cls = 'l-good';
-      return `<div class="${cls}">${esc(l)}</div>`;
+      return `<div class="${cls}">${esc(offsetifyText(l))}</div>`;
     }).join('');
     log.scrollTop = log.scrollHeight;
   }
 
   // ------------------------------------------------------------- overlays
   toast(msg, isErr = false, ms = 2500) {
+    msg = offsetifyText(msg);
     const t = $('toast');
     t.textContent = msg;
     t.className = isErr ? 'err' : '';
@@ -232,19 +235,19 @@ export class UI {
 
   showDefensiveFireChoice(pend, state) {
     const unitName = (id) => state.game.units.find(u => u.id === id)?.card.name || id;
-    const hexLabel = (h) => `(${h.q},${h.r}) ${h.terrain}${h.cover ? ' · cover' : ''}${h.rear ? ' · REAR armor' : ''} · def ${h.defense} · ${h.dice} dice · ${Math.round(h.p_disrupt * 100)}% disrupt`;
+    const hexLabel = (h) => `(${fmtHex(h.q, h.r)}) ${h.terrain}${h.cover ? ' · cover' : ''}${h.rear ? ' · REAR armor' : ''} · def ${h.defense} · ${h.dice} dice · ${Math.round(h.p_disrupt * 100)}% disrupt`;
     const decisions = {};
     return new Promise(resolve => {
       const rows = pend.options.map((o, i) => `
         <div class="df-row" data-i="${i}" style="border:1px solid var(--line);border-radius:6px;padding:8px;margin:6px 0">
-          <div style="font-weight:700;margin-bottom:4px">${esc(o.defender_name)} <span style="color:var(--muted)">at (${o.defender_pos[0]},${o.defender_pos[1]})</span></div>
+          <div style="font-weight:700;margin-bottom:4px">${esc(o.defender_name)} <span style="color:var(--muted)">at (${fmtHex(o.defender_pos[0], o.defender_pos[1])})</span></div>
           ${o.hexes.map(h => `<label class="chk" style="display:block;margin:2px 0"><input type="radio" name="df-${i}" value="${h.which}" ${o.suggested === h.which ? 'checked' : ''}> Fire while it is in ${esc(hexLabel(h))}${o.suggested === h.which ? ' <b>(suggested)</b>' : ''}</label>`).join('')}
           <label class="chk" style="display:block;margin:2px 0"><input type="radio" name="df-${i}" value="hold"> Hold fire (keep this unit's defensive fire for later this phase)</label>
         </div>`).join('');
       const box = this._modal(`<h2 class="${pend.player === 'player1' ? 'p1' : 'p2'}">${this.playerName(pend.player)}: defensive fire?</h2>
         <p>${pend.kind === 'aircraft_placed'
-          ? `${esc(unitName(pend.mover_id))} was placed at (${pend.step_to[0]},${pend.step_to[1]}) within reach of your Antiair/Ace unit${pend.options.length > 1 ? 's' : ''}. A reaction shot can only disrupt it.`
-          : `${esc(unitName(pend.mover_id))} is moving from (${pend.step_from[0]},${pend.step_from[1]}) to (${pend.step_to[0]},${pend.step_to[1]}) past your unit${pend.options.length > 1 ? 's' : ''}. Defensive fire can only disrupt; a hit stops the move in that hex.`}</p>
+          ? `${esc(unitName(pend.mover_id))} was placed at (${fmtHex(pend.step_to[0], pend.step_to[1])}) within reach of your Antiair/Ace unit${pend.options.length > 1 ? 's' : ''}. A reaction shot can only disrupt it.`
+          : `${esc(unitName(pend.mover_id))} is moving from (${fmtHex(pend.step_from[0], pend.step_from[1])}) to (${fmtHex(pend.step_to[0], pend.step_to[1])}) past your unit${pend.options.length > 1 ? 's' : ''}. Defensive fire can only disrupt; a hit stops the move in that hex.`}</p>
         ${rows}
         <div class="actions"><button class="btn primary" id="df-ok">Resolve</button></div>`);
       box.className = 'modal-box';

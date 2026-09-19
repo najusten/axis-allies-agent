@@ -182,3 +182,8 @@ button { font: inherit; }
   border: 1px solid var(--line); border-left: 4px solid var(--accent); padding: 8px 14px; border-radius: 6px; z-index: 30;
   max-width: 70%; }
 #toast.err { border-left-color: var(--bad); }
+
+/* narrow windows: the phase hint would wrap the whole top bar */
+@media (max-width: 1000px) {
+  #tb-hint { display: none; }
+}

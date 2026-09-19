@@ -7,7 +7,7 @@
 //   showLos(a, b) / hideLos()
 //   playEvents(events) -> Promise (animates dice, moves, deaths)
 //   setCoords(bool), setFast(bool)
-import { SIZE, HEX_H, axialToPixel, polygonPoints, viewBox, DIRS, DIR_NAMES, dirAngleDeg } from './hex.js';
+import { SIZE, HEX_H, axialToPixel, polygonPoints, viewBox, DIRS, DIR_NAMES, dirAngleDeg, fmtHex } from './hex.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const TERRAIN_COLORS = {
@@ -95,7 +95,7 @@ export class BoardRenderer {
       this._styleHex(p, h.terrain);
       this.layers.terrain.appendChild(p);
       const { x, y } = axialToPixel(h.q, h.r);
-      this.layers.labels.appendChild(txt(x, y + 30, `${h.q},${h.r}`, 'hex-label', { 'text-anchor': 'middle' }));
+      this.layers.labels.appendChild(txt(x, y + 30, fmtHex(h.q, h.r), 'hex-label', { 'text-anchor': 'middle' }));
     }
     this.layers.labels.style.display = this.showCoords ? '' : 'none';
   }
