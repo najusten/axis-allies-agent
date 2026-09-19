@@ -277,7 +277,32 @@ class App {
     if (!s || this.busy) return;
     if (s.mode === 'ai_vs_ai') { this.send({ type: 'step' }); return; }
     if (!s.is_human_turn || s.pending_facing) return;
+    // Ending a phase with attacks or abilities still unused is usually a slip: ask first
+    const left = this.unusedThisPhase();
+    if (left.length) {
+      const names = left.slice(0, 6).map(x => `<b>${x.name}</b> (${x.what})`).join(', ') + (left.length > 6 ? ', …' : '');
+      this.ui.confirm('End phase?', `${left.length} unit${left.length > 1 ? 's' : ''} can still act: ${names}.`, 'End phase')
+        .then(ok => { if (ok) this.send({ type: 'pass' }); });
+      return;
+    }
     this.send({ type: 'pass' });
+  }
+
+  unusedThisPhase() {
+    const s = this.state.session;
+    const out = [];
+    for (const u of this.state.game.units) {
+      if (u.owner !== s.current_player || !u.is_alive) continue;
+      const ua = this.state.unit_actions[u.id];
+      if (!ua) continue;
+      const what = [];
+      if (ua.attacks.length) what.push('attack');
+      if (ua.abilities.length) what.push('ability');
+      if ((ua.place || []).length) what.push('place');
+      if ((ua.deploy || []).length && s.current_phase === 'deployment') what.push('deploy');
+      if (what.length) out.push({ name: u.card.name, what: what.join('/') });
+    }
+    return out;
   }
 
   // ------------------------------------------------------------ network

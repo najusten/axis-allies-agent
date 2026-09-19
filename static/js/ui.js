@@ -200,6 +200,16 @@ export class UI {
   }
   closeModal() { $('modal').hidden = true; }
 
+  confirm(title, body, okLabel = 'Yes') {
+    return new Promise(resolve => {
+      const box = this._modal(`<h2>${esc(title)}</h2><p>${body}</p>
+        <div class="actions"><button class="btn" id="m-no">Cancel</button><button class="btn primary" id="m-yes">${esc(okLabel)}</button></div>`);
+      box.className = 'modal-box';
+      box.querySelector('#m-yes').onclick = () => { this.closeModal(); resolve(true); };
+      box.querySelector('#m-no').onclick = () => { this.closeModal(); resolve(false); };
+    });
+  }
+
   showHandoff(player) {
     return new Promise(resolve => {
       const box = this._modal(`<h2 class="${player === 'player1' ? 'p1' : 'p2'}">${this.playerName(player)}</h2>
