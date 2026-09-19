@@ -33,6 +33,7 @@ class App {
       listUnits: () => api.units(),
     });
     this._setupZoomPan();
+    $('btn-suggest').onclick = () => this.suggest();
     $('chk-coords').onchange = (e) => this.renderer.setCoords(e.target.checked);
     $('chk-los').onchange = () => this.updateLos();
     $('chk-fast').onchange = (e) => { this.renderer.setFast(e.target.checked); localStorage.setItem('aa_fast', e.target.checked ? '1' : ''); };
@@ -155,13 +156,38 @@ class App {
     for (const d of ua.dismount) out.push({ q: d.q, r: d.r, kind: 'dismount', label: 'OUT', data: { type: 'dismount', unit_id: id, transport_id: d.transport_id, to_q: d.q, to_r: d.r } });
     for (const [q, r] of (ua.place || [])) out.push({ q, r, kind: 'place', data: { type: 'place', unit_id: id, to_q: q, to_r: r } });
     for (const [q, r] of (ua.deploy || [])) out.push({ q, r, kind: 'place', data: { type: 'deploy', unit_id: id, to_q: q, to_r: r } });
+    const sg = this.suggestion;
+    if (sg && sg.unit_id === id && sg.hex && sg.data) {
+      // the suggested action replaces the plain highlight on that hex so a click does exactly it
+      const idx = out.findIndex(h => h.q === sg.hex[0] && h.r === sg.hex[1]);
+      const hl = { q: sg.hex[0], r: sg.hex[1], kind: 'suggest', label: '💡', data: sg.data };
+      if (idx >= 0) out[idx] = hl; else out.push(hl);
+    }
     return out;
   }
 
   select(id) {
     this.selected = id;
+    this.suggestion = null;
     this.render();
     this.updateLos();
+  }
+
+  // AI assist: show what the heuristic would do; the player clicks it or ignores it
+  async suggest() {
+    if (this.busy) return;
+    try {
+      const res = await api.suggest();
+      if (!res.suggestion) { this.ui.toast(res.reason || 'No suggestion'); return; }
+      const sg = res.suggestion;
+      this.selected = sg.unit_id;
+      this.suggestion = sg;
+      this.render();
+      this.updateLos();
+      this.ui.toast('💡 ' + sg.text, false, 4000);
+    } catch (e) {
+      this.ui.toast(e.message, true);
+    }
   }
 
   async updateLos() {
@@ -259,6 +285,7 @@ class App {
     if (this.busy) return;
     this.busy = true;
     this.ui.busy(true, data.type === 'pass' || data.type === 'step' ? 'Playing…' : 'Resolving…');
+    this.suggestion = null;
     try {
       const res = await api.action(data);
       this.ui.busy(false);

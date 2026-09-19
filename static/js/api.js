@@ -17,6 +17,7 @@ export const api = {
   newGame: (opts) => req('/api/new_game', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(opts || {}) }),
   abilities: () => req('/api/abilities'),
+  suggest: () => req('/api/suggest'),
   los: (unitId) => req('/api/los?unit=' + encodeURIComponent(unitId)),
   scenarios: () => req('/api/scenarios'),
   units: () => req('/api/units'),

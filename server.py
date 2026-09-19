@@ -615,6 +615,69 @@ def api_new_game():
                         'events': _session.controller.events})
 
 
+@app.route('/api/suggest')
+def api_suggest():
+    """AI assist: the heuristic's best action for the human whose turn it is.
+    Returns a description plus the same action data the board highlights send."""
+    with _session_lock:
+        session = _get_session()
+        if not session.is_human_turn() or session.controller.pending_df or session.pending_facing:
+            return jsonify({'suggestion': None, 'reason': 'nothing to decide right now'})
+        gs = session.game_state
+        player = session.current_player()
+        try:
+            legal = session.controller.legal_actions()
+        except Exception:
+            legal = []
+        if not legal:
+            return jsonify({'suggestion': None, 'reason': 'no legal actions: end the phase'})
+        advisor = HeuristicAgent('advisor', movement_system=session.systems.movement, randomness=0.0)
+        scored = advisor.score_actions(gs, legal, player)
+        if not scored or scored[0][0] <= 0:
+            return jsonify({'suggestion': None, 'reason': 'nothing worth doing: end the phase'})
+        score, action = scored[0]
+        us = gs.get_unit_state(action.unit_id)
+        name = us.unit.name if us else action.unit_id
+        data = None
+        if isinstance(action, MoveAction):
+            text = f"Move {name} to ({action.to_q},{action.to_r})" + (" (Aggression: still attacks)" if getattr(action, 'is_aggression', False) else "")
+            data = {'type': 'move', 'unit_id': action.unit_id, 'to_q': action.to_q, 'to_r': action.to_r,
+                    'aggression': bool(getattr(action, 'is_aggression', False))}
+        elif isinstance(action, AttackAction):
+            ts = gs.get_unit_state(action.target_id)
+            text = f"{name}: attack {ts.unit.name if ts else action.target_id} at ({action.target_q},{action.target_r})"
+            data = {'type': 'attack', 'unit_id': action.unit_id, 'target_id': action.target_id,
+                    'target_q': action.target_q, 'target_r': action.target_r}
+        elif isinstance(action, DeployAction):
+            text = f"Deploy {name} at ({action.to_q},{action.to_r})"
+            data = {'type': 'deploy', 'unit_id': action.unit_id, 'to_q': action.to_q, 'to_r': action.to_r}
+        elif isinstance(action, PlaceAircraftAction):
+            text = f"Place {name} at ({action.to_q},{action.to_r})"
+            data = {'type': 'place', 'unit_id': action.unit_id, 'to_q': action.to_q, 'to_r': action.to_r}
+        elif isinstance(action, BoardTransportAction):
+            text = f"{name}: board transport"
+            data = {'type': 'board_transport', 'unit_id': action.unit_id, 'transport_id': action.transport_id,
+                    'pos_q': action.position_q, 'pos_r': action.position_r}
+        elif isinstance(action, DismountTransportAction):
+            text = f"{name}: dismount at ({action.to_q},{action.to_r})"
+            data = {'type': 'dismount', 'unit_id': action.unit_id, 'transport_id': action.transport_id,
+                    'to_q': action.to_q, 'to_r': action.to_r}
+        elif isinstance(action, UseAbilityAction):
+            text = f"{name}: use {action.ability_name}"
+            data = {'type': 'use_ability', 'unit_id': action.unit_id, 'ability': action.ability_name,
+                    'target_id': action.target_id, 'target_q': action.target_q, 'target_r': action.target_r,
+                    'parameters': action.parameters or None}
+        else:
+            text = f"{name}: {type(action).__name__}"
+        hex_ = None
+        for key in (('to_q', 'to_r'), ('target_q', 'target_r'), ('pos_q', 'pos_r')):
+            if data and data.get(key[0]) is not None:
+                hex_ = [data[key[0]], data[key[1]]]
+                break
+        return jsonify({'suggestion': {'unit_id': action.unit_id, 'text': text, 'score': round(score, 2),
+                                       'hex': hex_, 'data': data}})
+
+
 @app.route('/api/los')
 def api_los():
     """Hexes visible from a unit's position: {visible: [[q,r]], blocked: [[q,r]]} (debug aid)."""

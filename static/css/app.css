@@ -75,6 +75,9 @@ button { font: inherit; }
 .hl-board { fill: rgba(250,204,21,.35); stroke: #facc15; stroke-width: 2; }
 .hl-dismount { fill: rgba(249,115,22,.35); stroke: #f97316; stroke-width: 2; }
 .hl-ability { fill: rgba(167,139,250,.35); stroke: #a78bfa; stroke-width: 2; }
+.hl-suggest { fill: rgba(250,204,21,.45); stroke: #facc15; stroke-width: 3; animation: pulse 1s ease-in-out infinite alternate; }
+.hl-suggest:hover { fill: rgba(250,204,21,.7); }
+@keyframes pulse { from { stroke-opacity: .4; } to { stroke-opacity: 1; } }
 .hl-target { fill: rgba(250,250,250,.15); stroke: #fff; stroke-width: 2; stroke-dasharray: 4 3; }
 .hl-label { font-size: 11px; font-weight: 700; fill: #fff; text-anchor: middle; pointer-events: none;
   paint-order: stroke; stroke: rgba(0,0,0,.6); stroke-width: 3px; }

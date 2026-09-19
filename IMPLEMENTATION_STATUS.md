@@ -102,6 +102,7 @@ initiative_system = InitiativeSystem(ability_system, movement_system)
 - ✅ Manual activation via `UseAbilityAction` for many (Smoke Screen, Demolitions, change facing, …), exposed in the server UI
 - ✅ Special deployment through the UI: Partisan (any edge hex), Gliderborne (anywhere outside the enemy zone), Paratrooper (movement phase, not adjacent to an enemy, can't move that phase), Hero (movement phase, with a friendly Soldier of its nation). The AI uses them too.
 - ✅ Antiair / Ace reaction shots when an enemy Aircraft is placed (adjacent / within 4); a human defender is asked, as for defensive fire. Flamethrower instant kill (3+ sixes at short range). Covering Fire, Suppressive Fire, Multiturreted (one front-arc + one non-front-arc target) verified by scenarios.
+- ✅ AI assist: the 💡 Suggest button highlights the heuristic's best action for the human (pulsing yellow hex); clicking it performs that action, ignoring it costs nothing.
 - ✅ Aggression X in the UI: assault-phase hexes within X are shown with a red ring (⚔+) and keep the attack; plain green hexes are the full-speed move that gives it up.
 - ✅ AVRE (crosses/destroys obstacles without rolls) and Improved Indirect Fire (US commander within 4 as spotter) are passive and scenario-tested; the latter never worked before (wrong nationality attribute).
 - ✅ Vanguard pre-game phase (speed-4 move before turn 1) runs through the controller and UI.
