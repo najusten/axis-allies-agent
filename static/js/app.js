@@ -16,7 +16,7 @@ class App {
     this.renderer = new BoardRenderer($('board'), {
       onHexClick: (q, r) => this.onHexClick(q, r),
       onUnitClick: (id) => this.onUnitClick(id),
-      onHighlightClick: (hl) => this.onHighlightClick(hl),
+      onHighlightClick: (hl, mods) => this.onHighlightClick(hl, mods),
       onHover: (unitId, hl) => this.onBoardHover(unitId, hl),
     });
     this.ui = new UI({
@@ -169,6 +169,7 @@ class App {
   select(id) {
     this.selected = id;
     this.suggestion = null;
+    this.waypoints = [];
     this.render();
     this.updateLos();
   }
@@ -238,8 +239,27 @@ class App {
     }
   }
 
-  onHighlightClick(hl) {
+  async onHighlightClick(hl, mods = {}) {
     if (this.busy || !hl.data) return;
+    if (hl.data.type === 'move' && (hl.kind === 'move' || hl.kind === 'aggr')) {
+      if (mods.shift) {
+        // shift-click: add a waypoint so the move follows the player's route
+        this.waypoints = [...(this.waypoints || []), [hl.q, hl.r]];
+        this.ui.toast(`Waypoint ${this.waypoints.length} set — click the destination (shift-click adds more)`, false, 2500);
+        this._hoverKey = null;
+        this.onBoardHover(null, hl);
+        return;
+      }
+      if (this.waypoints && this.waypoints.length) {
+        // send the route through the waypoints (server validates it)
+        try {
+          const res = await api.path(this.selected, hl.q, hl.r, this.waypoints);
+          if (!res.legal) { this.ui.toast('That route is too long for this unit', true); return; }
+          this.send({ ...hl.data, path: res.path });
+        } catch (e) { this.ui.toast(e.message, true); }
+        return;
+      }
+    }
     if (hl.data.target_id && this.selected) {
       // a highlight polygon covers the whole hex: with several enemies there, ask which
       const targets = this.highlightsFor(this.selected).filter(h => h.q === hl.q && h.r === hl.r && h.data && h.data.target_id);
@@ -265,8 +285,8 @@ class App {
         const [uid, q, r] = [this.selected, hl.q, hl.r];
         this._hoverTimer = setTimeout(async () => {
           try {
-            const res = await api.path(uid, q, r);
-            if (this._hoverKey === key) this.renderer.showPath(res.path, res.rolls);
+            const res = await api.path(uid, q, r, this.waypoints || []);
+            if (this._hoverKey === key) this.renderer.showPath(res.path, res.rolls, this.waypoints || [], res.legal !== false);
           } catch (e) { /* ignore */ }
         }, 120);
       }

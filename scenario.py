@@ -285,6 +285,9 @@ def find_legal_action(legal: List[Action], data: dict,
                 if data.get('aggression') is not None and \
                         bool(getattr(a, 'is_aggression', False)) != bool(data['aggression']):
                     continue
+                if data.get('path'):
+                    # player-chosen route; the server validates it (Session._check_route)
+                    a.path = [tuple(int(x) for x in h) for h in data['path']]
                 return a
         elif kind == 'attack' and isinstance(a, AttackAction):
             target_id = ali(data.get('target') or data.get('target_id'))

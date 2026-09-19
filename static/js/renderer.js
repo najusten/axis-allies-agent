@@ -386,12 +386,17 @@ export class BoardRenderer {
     this.layers.overlay.appendChild(el('polygon', { points: polygonPoints(pos[0], pos[1]) }, 'sel-ring'));
   }
 
-  showPath(path, rolls) {
+  showPath(path, rolls, waypoints = [], legal = true) {
     this.hidePath();
     if (!path || path.length < 2) return;
     const g = el('g', {}, 'path-preview');
     const pts = path.map(([q, r]) => { const p = axialToPixel(q, r); return `${p.x.toFixed(1)},${p.y.toFixed(1)}`; }).join(' ');
-    g.appendChild(el('polyline', { points: pts, fill: 'none', stroke: '#fff', 'stroke-width': 3, 'stroke-dasharray': '6 5', 'stroke-linejoin': 'round', opacity: .9, 'pointer-events': 'none' }));
+    g.appendChild(el('polyline', { points: pts, fill: 'none', stroke: legal ? '#fff' : '#ef4444', 'stroke-width': 3, 'stroke-dasharray': '6 5', 'stroke-linejoin': 'round', opacity: .9, 'pointer-events': 'none' }));
+    waypoints.forEach(([q, r], i) => {
+      const p = axialToPixel(q, r);
+      g.appendChild(el('circle', { cx: p.x, cy: p.y + 22, r: 8, fill: '#fff', stroke: '#000', 'pointer-events': 'none' }));
+      g.appendChild(txt(p.x, p.y + 22, String(i + 1), 'badge'));
+    });
     for (const roll of rolls || []) {
       const p = axialToPixel(roll.q, roll.r);
       g.appendChild(el('circle', { cx: p.x, cy: p.y - 24, r: 9, fill: '#fbbf24', stroke: '#000', 'pointer-events': 'none' }));
@@ -431,7 +436,7 @@ export class BoardRenderer {
   // ------------------------------------------------------------- events
   _onClick(e) {
     const hl = e.target.closest('.hl');
-    if (hl && hl.__hl) { this.h.onHighlightClick(hl.__hl); return; }
+    if (hl && hl.__hl) { this.h.onHighlightClick(hl.__hl, { shift: e.shiftKey }); return; }
     const unit = e.target.closest('.unit');
     if (unit) { this.h.onUnitClick(unit.dataset.id); return; }
     const hex = e.target.closest('.hex');

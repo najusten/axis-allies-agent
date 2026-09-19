@@ -21,5 +21,5 @@ export const api = {
   los: (unitId) => req('/api/los?unit=' + encodeURIComponent(unitId)),
   scenarios: () => req('/api/scenarios'),
   units: () => req('/api/units'),
-  path: (unitId, q, r) => req(`/api/path?unit=${encodeURIComponent(unitId)}&q=${q}&r=${r}`),
+  path: (unitId, q, r, via = []) => req(`/api/path?unit=${encodeURIComponent(unitId)}&q=${q}&r=${r}&via=${via.map(v => v.join(',')).join(';')}`),
 };

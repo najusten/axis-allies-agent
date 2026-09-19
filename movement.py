@@ -227,19 +227,13 @@ class MovementSystem:
                 terrain = neighbor.terrain
                 along_road = here_road and neighbor.has_road
 
-                # Water / impassable / marsh for vehicles
-                if movement_mods.get('water_craft', False):
-                    if terrain != 'water':
-                        continue
-                elif terrain == 'water':
-                    if not movement_mods.get('amphibious', False):
-                        continue
-                elif self.BASE_TERRAIN_COSTS.get(terrain, 1) >= 99 and not along_road:
+                step = self._step_cost(unit, movement_mods, is_vehicle, here, neighbor, prev_terrain, bonus,
+                                       road_only=road_only,
+                                       minimum_move=(minimum_movement and (q, r) == (start_q, start_r)
+                                                     and max_speed == 1))
+                if step is None:
                     continue
-                if is_vehicle and terrain in self.VEHICLE_IMPASSABLE and not along_road \
-                        and not movement_mods.get('amphibious', False):
-                    continue
-
+                cost, new_bonus = step
                 # Occupancy never blocks movement (rulebook "Stacking While Moving":
                 # you may move through full hexes, even enemy ones — a hex holds up
                 # to two units of each army). The generator/validator enforce the
@@ -247,29 +241,6 @@ class MovementSystem:
                 # enemies. Enemy Vehicles can't share a hex with a Vehicle, but that
                 # is a destination rule too.
                 passthrough_only = False
-
-                if road_only and not along_road:
-                    continue
-                if terrain == 'hill' and movement_mods.get('poor_suspension', False) and not neighbor.has_road:
-                    continue
-                if terrain in ('marsh', 'stream') and movement_mods.get('thin_wheels', False) and not neighbor.has_road:
-                    continue
-
-                # Cost of this step
-                new_bonus = bonus
-                if along_road:
-                    if bonus:
-                        cost = 0            # first road hex of the phase is free
-                        new_bonus = False
-                    else:
-                        cost = 1            # along a road every hex counts as one
-                else:
-                    cost = self._get_terrain_cost_with_entry(unit, terrain, prev_terrain, movement_mods)
-                    # Rulebook "Minimum Movement": a speed-1 Vehicle may enter a
-                    # double-cost hex as its whole move in the movement phase
-                    if (minimum_movement and is_vehicle and max_speed == 1 and cost == 2
-                            and (q, r) == (start_q, start_r)):
-                        cost = 1
 
                 new_movement = movement - cost
                 if new_movement < 0:
@@ -304,6 +275,88 @@ class MovementSystem:
         self._last_came_from = came_from   # consumed by find_path()
         self._last_road_came_from = {}
         return reachable
+
+    def _step_cost(self, unit, movement_mods: dict, is_vehicle: bool, here, neighbor,
+                   prev_terrain: str, bonus: bool, road_only: bool = False,
+                   minimum_move: bool = False) -> Optional[Tuple[int, bool]]:
+        """Movement points to enter `neighbor` from `here`, or None if the step is
+        not allowed. Returns (cost, road_bonus_still_available)."""
+        terrain = neighbor.terrain
+        along_road = bool(here and here.has_road) and neighbor.has_road
+
+        # Water / impassable / marsh for vehicles
+        if movement_mods.get('water_craft', False):
+            if terrain != 'water':
+                return None
+        elif terrain == 'water':
+            if not movement_mods.get('amphibious', False):
+                return None
+        elif self.BASE_TERRAIN_COSTS.get(terrain, 1) >= 99 and not along_road:
+            return None
+        if is_vehicle and terrain in self.VEHICLE_IMPASSABLE and not along_road \
+                and not movement_mods.get('amphibious', False):
+            return None
+        if road_only and not along_road:
+            return None
+        if terrain == 'hill' and movement_mods.get('poor_suspension', False) and not neighbor.has_road:
+            return None
+        if terrain in ('marsh', 'stream') and movement_mods.get('thin_wheels', False) and not neighbor.has_road:
+            return None
+
+        new_bonus = bonus
+        if along_road:
+            if bonus:
+                cost = 0            # first road hex of the phase is free
+                new_bonus = False
+            else:
+                cost = 1            # along a road every hex counts as one
+        else:
+            cost = self._get_terrain_cost_with_entry(unit, terrain, prev_terrain, movement_mods)
+            # Rulebook "Minimum Movement": a speed-1 Vehicle may enter a
+            # double-cost hex as its whole move in the movement phase
+            if minimum_move and is_vehicle and cost == 2:
+                cost = 1
+        return cost, new_bonus
+
+    def path_cost(self, board: Board, unit, path: List[Tuple[int, int]], max_speed: int = None,
+                  is_damaged: bool = False, minimum_movement: bool = False,
+                  road_only: bool = False) -> Optional[int]:
+        """Movement points a specific route costs under the same rules as
+        get_reachable_hexes(), or None if the route is not legal for this unit
+        (non-adjacent steps, impassable terrain, or more than its speed)."""
+        if len(path) < 2:
+            return 0
+        movement_mods = self.ability_system.get_movement_modifiers(unit) if self.ability_system else {}
+        if self.ability_system and self.ability_system.is_obstacle_unit(unit):
+            return None
+        if max_speed is None:
+            max_speed = self.get_effective_speed(unit, movement_mods)
+            if is_damaged:
+                max_speed = max(0, max_speed - 1)
+        is_vehicle = 'Vehicle' in (unit.unit_type or '')
+        bonus = is_vehicle and not road_only
+        here = board.get_hex(*path[0])
+        if here is None:
+            return None
+        prev_terrain = here.terrain
+        total = 0
+        for i, (nq, nr) in enumerate(path[1:]):
+            q, r = path[i]
+            if board.hex_distance(q, r, nq, nr) != 1:
+                return None
+            neighbor = board.get_hex(nq, nr)
+            if neighbor is None:
+                return None
+            step = self._step_cost(unit, movement_mods, is_vehicle, here, neighbor, prev_terrain, bonus,
+                                   road_only=road_only, minimum_move=(minimum_movement and i == 0 and max_speed == 1))
+            if step is None:
+                return None
+            cost, bonus = step
+            total += cost
+            if total > max_speed:
+                return None
+            here, prev_terrain = neighbor, neighbor.terrain
+        return total
 
     def get_reachable_hexes_with_costs(self, board, start_q, start_r, unit,
                                         max_speed=None, friendly_positions=None):

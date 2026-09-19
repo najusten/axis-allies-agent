@@ -52,7 +52,7 @@ PHASE_LABELS = {
     INITIATIVE_PHASE: 'Initiative', DEPLOYMENT_PHASE: 'Deployment', DEPLOY_ORDER_PHASE: 'Deployment',
 }
 PHASE_HINTS = {
-    'movement': 'Select a unit, then click a green hex to move. Yellow = board transport, orange OUT = dismount, purple = ability. Vehicles roll 4+ to enter forest.',
+    'movement': 'Select a unit, then click a green hex to move (hover shows the route; shift-click hexes to set your own route). Yellow = board transport, orange OUT = dismount, purple = ability. Vehicles roll 4+ to enter forest.',
     'assault': 'Select a unit: red ⚔ = attack, orange IDF = indirect fire via spotter (no LOS needed), green = move instead of attacking, green with a red ring = Aggression move (may still attack afterwards). LOS checkbox shades what the unit cannot see.',
     'flight': 'Select an Aircraft in the sidebar, then click any cyan hex to place it. Antiair units may fire at it. Aircraft leave the map at the end of the turn.',
     'airstrike': 'Select an Aircraft on the map and click a red ⚔ hex to attack.',
@@ -244,6 +244,35 @@ class GameSession:
             'unit_actions': self.compute_unit_actions(),
             'log': self.log_lines(),
         }
+
+    def _route_budget(self, us, action) -> tuple:
+        """(max_speed, is_damaged, minimum_movement) the validator would use for this move."""
+        relocate = getattr(action, 'is_relocate', False) or getattr(action, 'is_strike_and_fade', False)
+        return (getattr(action, 'max_speed', None), us.is_damaged, not relocate)
+
+    def _check_route(self, action, path: list) -> Optional[str]:
+        gs = self.game_state
+        us = gs.get_unit_state(action.unit_id)
+        if us is None:
+            return 'unknown unit'
+        if path[0] != tuple(us.position) or path[-1] != (action.to_q, action.to_r):
+            return 'Route must start at the unit and end at the destination'
+        if len(set(path)) != len(path):
+            return 'Route may not visit a hex twice'
+        mv = self.systems.movement
+        max_speed, damaged, min_move = self._route_budget(us, action)
+        cost = mv.path_cost(gs.board, us.unit, path, max_speed=max_speed, is_damaged=damaged,
+                            minimum_movement=min_move)
+        if cost is None:
+            # High Gear: a road-only route may use the bonus speed
+            hg = (self.systems.executor.ability_system.get_movement_modifiers(us.unit) or {}).get('high_gear_bonus', 0) \
+                if getattr(self.systems.executor, 'ability_system', None) else 0
+            if hg:
+                base = max_speed or mv.get_effective_speed(us.unit, {})
+                cost = mv.path_cost(gs.board, us.unit, path, max_speed=base + hg, road_only=True)
+        if cost is None:
+            return 'That route is too long or crosses terrain this unit cannot enter'
+        return None
 
     def _deployment_zone(self, player: str) -> list:
         """Hexes where this player's remaining units may still be placed (Partisans:
@@ -499,6 +528,13 @@ class GameSession:
         action = find_legal_action(self.controller.legal_actions(), data)
         if action is None:
             return {'error': 'That action is not legal right now'}
+        if isinstance(action, MoveAction) and data.get('path'):
+            # Player-chosen route (waypoints): must be a legal route for this unit
+            path = [tuple(int(x) for x in h) for h in data['path']]
+            err = self._check_route(action, path)
+            if err:
+                return {'error': err}
+            action.path = path
 
         self._push_undo()
         result = self.controller.apply(action)
@@ -726,9 +762,22 @@ def api_path():
         legal = find_legal_action(session.controller.legal_actions(),
                                   {'type': 'move', 'unit_id': us.unit.id, 'to_q': to_q, 'to_r': to_r})
         friendly = {f.position for f in gs.get_units_by_owner(us.owner) if f.is_alive and f.unit.id != us.unit.id}
-        path = session.systems.movement.find_path(
-            gs.board, us.position[0], us.position[1], to_q, to_r, us.unit,
-            max_speed=getattr(legal, 'max_speed', None), friendly_positions=friendly)
+        mv = session.systems.movement
+        # optional waypoints: via=q,r;q,r  -> route through them in order
+        via = []
+        for part in (request.args.get('via') or '').split(';'):
+            if part.strip():
+                a, b = part.split(',')
+                via.append((int(a), int(b)))
+        stops = [tuple(us.position)] + via + [(to_q, to_r)]
+        path = [tuple(us.position)]
+        for a, b in zip(stops, stops[1:]):
+            seg = mv.find_path(gs.board, a[0], a[1], b[0], b[1], us.unit,
+                               max_speed=getattr(legal, 'max_speed', None), friendly_positions=friendly)
+            path.extend(seg[1:] if seg and seg[0] == a else seg)
+        route_ok = True
+        if via and legal is not None:
+            route_ok = session._check_route(legal, path) is None
         rolls = []
         is_vehicle = 'Vehicle' in (us.unit.unit_type or '')
         for a, b in zip(path, path[1:]):
@@ -741,7 +790,7 @@ def api_path():
             if kind and not along_road:
                 need = '5+' if kind in Board.EDGE_HEDGE else '4+'
                 rolls.append({'q': b[0], 'r': b[1], 'reason': f'{kind} {need}'})
-        return jsonify({'path': [list(h) for h in path], 'rolls': rolls})
+        return jsonify({'path': [list(h) for h in path], 'rolls': rolls, 'legal': route_ok and legal is not None})
 
 
 @app.route('/api/abilities')
