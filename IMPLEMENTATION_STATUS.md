@@ -103,7 +103,7 @@ initiative_system = InitiativeSystem(ability_system, movement_system)
 - ❌ Activation missing for: Aggression (move-then-attack), Gliderborne / Partisan (special deployment), Vanguard (pre-game phase; runner only), AVRE (explicit obstacle destruction), Improved Indirect Fire (US commander target designation)
 
 ### AI
-- ✅ `agents.HeuristicAgent` — **server default**. Static scoring of every legal action: attacks by expected damage (binomial over dice, cover roll, target value, focus fire), moves by objective pressure (phased by turn), cover, expected damage dealt/taken from the destination, rear exposure, forest bog risk, spreading. ~8 ms/decision. Beats AggressiveRandom 80–94%, Greedy 100%.
+- ✅ `agents.HeuristicAgent` — **server default**. Static scoring of every legal action: attacks by expected damage (binomial over dice, cover roll, target value, focus fire), moves by objective pressure (phased by turn), cover, expected damage dealt/taken from the destination, rear exposure, route risk (forest/stream/hedge rolls and defensive-fire exposure along the path), spreading. Chooses to go second on initiative until turn 6; deploys with a back/front/cover policy. ~10 ms/decision. Beats AggressiveRandom 80–94%, Greedy 100%.
 - ✅ `agents.LookaheadAgent` — heuristic top-K pruning + one-ply simulation scored by `GameStateEvaluator`. Currently slightly *weaker* than pure heuristic (the evaluator is the weak link).
 - ✅ Legacy: `RandomAgent`, `AggressiveRandomAgent`, `GreedyAgent` (`game_runner.py`)
 - ❌ `MCTSAgent` (`mcts.py`) still not playable (ignores phase transitions, full action branching, weak evaluator). Next step would be MCTS/rollouts using the heuristic policy through `TurnController`.
@@ -127,7 +127,7 @@ The official **Advanced Rulebook** is in `document.pdf` (local only, gitignored)
 
 - Special attacks (rockets, hull cannons, remote control, bombs) roll their own dice outside `_resolve_attack_full`: no cover roll, no facing, no rerolls. They now at least record pending counters correctly. Should be unified.
 - Bluffs/cliffs (fringe terrain), shell holes, half-hexes, and "road through forest" (roads are their own terrain type here) are not modelled.
-- Defensive fire hex choice is automatic (best of the two hexes); holding fire is a per-unit standing order rather than a per-shot decision.
+- Defensive fire: human defenders decide per shot (hex or hold); AI defenders use the automatic best-hex choice.
 - Deployment: human placement is by hex within the 5-column zone; Partisans/Paratroopers keep their own deployment rules (untested in the UI).
 - MCTS (`mcts.py`) still not playable.
 
@@ -150,6 +150,9 @@ The official **Advanced Rulebook** is in `document.pdf` (local only, gitignored)
 - Defensive fire is optional (hold-fire order) and the defender fires into the better of the two hexes.
 - Units may move through/into enemy hexes (stacking per army at the destination).
 - Aircraft: placement in the flight phase and airstrike attacks in the UI.
+- Only Aggression X grants move-then-attack in the assault phase (a keyword rule had extended it to ~20 other abilities).
+- Ability scenarios (`scenarios/abilities/`): Close Assault, Hand to Hand, Superior Armor, No Turret, Inaccurate, Crack Shot, Limited/Extended Range, Open Back, Sideskirts, Tall Silhouette, Shrapnel, Strike and Fade, Large, commanders (initiative bonus, Tally-Ho!, Command Leadership, Coordinated Fire), Blast, Double Shot defensive fire, transports, Amphibious, Excellent Suspension, Robust, Bombardment.
+- Route preview on hover (dashed path + dice markers where rolls happen); routes prefer fewer rolls at equal cost.
 - Spotter Q&A ([aamcardbase](http://www.aamcardbase.com/special_abilities_aam.aspx)): a Spotter that moves in the assault phase doesn't count.
 - Artillery assault-only movement, half-hexes, hex-side terrain: not implemented.
 - Ability activation UI missing for Aggression, Gliderborne, Partisan, AVRE, Improved Indirect Fire.
