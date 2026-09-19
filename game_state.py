@@ -295,6 +295,16 @@ class GameState:
 
             # Remove from units dict
             del self.units[unit_id]
+
+            # Rulebook: "If the transport Vehicle is destroyed, any Soldier on it
+            # is destroyed too." A passenger that dies leaves its transport empty.
+            passenger_id = unit_state.carried_unit_id
+            if passenger_id and passenger_id in self.units:
+                self.remove_unit(passenger_id)
+            if unit_state.carried_by_id:
+                carrier = self.units.get(unit_state.carried_by_id)
+                if carrier is not None and carrier.carried_unit_id == unit_id:
+                    carrier.carried_unit_id = None
     
     def get_unit(self, unit_id: str) -> Optional[Unit]:
         """Get a unit by ID"""

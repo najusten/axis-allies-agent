@@ -227,8 +227,7 @@ class GameSession:
                 'pending_initiative': (player if phase == INITIATIVE_PHASE else None),
                 'pending_deploy_order': (player if phase == DEPLOY_ORDER_PHASE else None),
                 'pending_defensive_fire': self._pending_df_payload(),
-                'deployment_zone': ([list(h) for h in gs.deployment_zone(player)]
-                                    if phase == DEPLOYMENT_PHASE else None),
+                'deployment_zone': (self._deployment_zone(player) if phase == DEPLOYMENT_PHASE else None),
                 'can_undo': bool(self._undo_stack) and self.is_human_turn(),
                 'can_redo': bool(self._redo_stack) and self.is_human_turn(),
                 'game_over': self.controller.game_over,
@@ -239,6 +238,17 @@ class GameSession:
             'unit_actions': self.compute_unit_actions(),
             'log': self.log_lines(),
         }
+
+    def _deployment_zone(self, player: str) -> list:
+        """Hexes where this player's remaining units may still be placed (Partisans:
+        board edges; Gliderborne: anywhere outside the enemy zone; others: 5 columns)."""
+        gs = self.game_state
+        zone = set()
+        for us in self.controller._undeployed(player):
+            zone.update(gs.deploy_zone_for(us))
+        if not zone:
+            zone = set(gs.deployment_zone(player))
+        return [list(h) for h in sorted(zone)]
 
     def _pending_df_payload(self):
         pend = self.controller.pending_df
@@ -252,7 +262,10 @@ class GameSession:
         for o in pend['opportunities']:
             d = o.defender_state
             hexes = []
-            for label, hex_ in (('from', pend['step_from']), ('to', pend['step_to'])):
+            steps = (('from', pend['step_from']), ('to', pend['step_to']))
+            if tuple(pend['step_from']) == tuple(pend['step_to']):
+                steps = (('to', pend['step_to']),)      # aircraft placement: one hex only
+            for label, hex_ in steps:
                 is_rear = False
                 if 'Vehicle' in (mover.unit.unit_type or ''):
                     facing = calculate_facing_for_defensive_fire(pend['step_from'], pend['step_to'])
@@ -273,10 +286,12 @@ class GameSession:
             options.append({
                 'defender_id': d.unit.id, 'defender_name': d.unit.name, 'defender_pos': list(d.position),
                 'hexes': hexes,
-                'suggested': 'from' if tuple(suggested_hex) == tuple(pend['step_from']) else 'to',
+                'suggested': 'from' if (tuple(suggested_hex) == tuple(pend['step_from'])
+                                        and len(hexes) > 1) else 'to',
             })
         return {
             'player': pend['player'],
+            'kind': pend.get('kind', 'move'),
             'mover_id': mover.unit.id, 'mover_name': mover.unit.name, 'mover_owner': mover.owner,
             'step_from': list(pend['step_from']), 'step_to': list(pend['step_to']),
             'options': options,

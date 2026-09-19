@@ -26,7 +26,8 @@ from functools import lru_cache
 from typing import Dict, List, Optional, Tuple
 
 from action import (Action, MoveAction, AttackAction, PassAction, EndPhaseAction,
-                    UseAbilityAction, BoardTransportAction, DismountTransportAction)
+                    UseAbilityAction, BoardTransportAction, DismountTransportAction,
+                    DeployAction, PlaceAircraftAction)
 from board import Board
 from game_state import GameState, GamePhase, UnitState
 from movement import MovementSystem
@@ -220,6 +221,12 @@ class HeuristicAgent:
             if 'facing' in name:
                 return -1.0
             return 0.2
+        if isinstance(a, (DeployAction, PlaceAircraftAction)):
+            # Paratrooper drop / hero arrival / aircraft placement: a unit off the
+            # map does nothing, so bringing it on is always worth it; pick the
+            # hex by the same position value as a move.
+            dest = (a.to_q, a.to_r)
+            return 3.0 + self._score_position(gs, us, dest, ctx)
         return 0.0
 
     def _score_attack(self, gs: GameState, a: AttackAction, us: UnitState, ctx: dict) -> float:

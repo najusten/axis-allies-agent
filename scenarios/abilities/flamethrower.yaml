@@ -1,0 +1,22 @@
+name: flamethrower-ignores-cover-and-three-sixes-destroy-immediately
+source: "Flamethrower: short-range attack ignores cover; three or more 6's at short range against a Soldier or Vehicle destroy the target immediately"
+board: {width: 10, height: 8, terrain: {forest: [[5,4]]}}
+units:
+  - {id: flame, owner: player1, at: [4,4], stats: {unit_type: Soldier, defense: "4", speed: 1, per: [10,0,0], veh: [8,0,0], abilities: "Flamethrower"}}
+  - {id: flame2, owner: player1, at: [4,3], stats: {unit_type: Soldier, defense: "4", speed: 1, per: [10,0,0], veh: [8,0,0], abilities: "Flamethrower"}}
+  - {id: tgt, owner: player2, at: [5,4], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+  - {id: tgt2, owner: player2, at: [5,3], stats: {unit_type: Vehicle Tank, defense: "6/5", per: [5,3,1], veh: [5,3,1]}}
+phase: assault
+active_player: player1
+# first attack: 10 dice, two 6s + eight 1s = 2 successes vs defense 4 -> no hit even without cover; no cover roll must follow
+# second attack: 8 dice with three 6s = 3 successes vs defense 6 -> would miss, but three 6s at short range destroy the tank outright
+dice: [6,6,1,1,1,1,1,1,1,1, 6,6,6,1,1,1,1,1]
+actions:
+  - {type: attack, unit: flame, target: tgt}
+  - {type: attack, unit: flame2, target: tgt2}
+expect:
+  dice_consumed: 18
+  no_events: [{type: cover_save}]
+  units:
+    tgt: {status: healthy}
+    tgt2: {status: destroyed}

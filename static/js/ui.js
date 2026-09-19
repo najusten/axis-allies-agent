@@ -242,7 +242,9 @@ export class UI {
           <label class="chk" style="display:block;margin:2px 0"><input type="radio" name="df-${i}" value="hold"> Hold fire (keep this unit's defensive fire for later this phase)</label>
         </div>`).join('');
       const box = this._modal(`<h2 class="${pend.player === 'player1' ? 'p1' : 'p2'}">${this.playerName(pend.player)}: defensive fire?</h2>
-        <p>${esc(unitName(pend.mover_id))} is moving from (${pend.step_from[0]},${pend.step_from[1]}) to (${pend.step_to[0]},${pend.step_to[1]}) past your unit${pend.options.length > 1 ? 's' : ''}. Defensive fire can only disrupt; a hit stops the move in that hex.</p>
+        <p>${pend.kind === 'aircraft_placed'
+          ? `${esc(unitName(pend.mover_id))} was placed at (${pend.step_to[0]},${pend.step_to[1]}) within reach of your Antiair/Ace unit${pend.options.length > 1 ? 's' : ''}. A reaction shot can only disrupt it.`
+          : `${esc(unitName(pend.mover_id))} is moving from (${pend.step_from[0]},${pend.step_from[1]}) to (${pend.step_to[0]},${pend.step_to[1]}) past your unit${pend.options.length > 1 ? 's' : ''}. Defensive fire can only disrupt; a hit stops the move in that hex.`}</p>
         ${rows}
         <div class="actions"><button class="btn primary" id="df-ok">Resolve</button></div>`);
       box.className = 'modal-box';

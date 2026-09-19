@@ -100,7 +100,9 @@ initiative_system = InitiativeSystem(ability_system, movement_system)
 ### Abilities
 - ✅ 212 abilities loaded; passive modifiers (attack, defense, movement, LOS) applied automatically
 - ✅ Manual activation via `UseAbilityAction` for many (Smoke Screen, Demolitions, change facing, …), exposed in the server UI
-- ❌ Activation missing for: Aggression (move-then-attack), Gliderborne / Partisan (special deployment), Vanguard (pre-game phase; runner only), AVRE (explicit obstacle destruction), Improved Indirect Fire (US commander target designation)
+- ✅ Special deployment through the UI: Partisan (any edge hex), Gliderborne (anywhere outside the enemy zone), Paratrooper (movement phase, not adjacent to an enemy, can't move that phase), Hero (movement phase, with a friendly Soldier of its nation). The AI uses them too.
+- ✅ Antiair / Ace reaction shots when an enemy Aircraft is placed (adjacent / within 4); a human defender is asked, as for defensive fire. Flamethrower instant kill (3+ sixes at short range). Covering Fire, Suppressive Fire, Multiturreted (one front-arc + one non-front-arc target) verified by scenarios.
+- ❌ Activation missing for: Aggression (move-then-attack), Vanguard (pre-game phase; runner only), AVRE (explicit obstacle destruction), Improved Indirect Fire (US commander target designation)
 
 ### AI
 - ✅ `agents.HeuristicAgent` — **server default**. Static scoring of every legal action: attacks by expected damage (binomial over dice, cover roll, target value, focus fire), moves by objective pressure (phased by turn), cover, expected damage dealt/taken from the destination, rear exposure, route risk (forest/stream/hedge rolls and defensive-fire exposure along the path), spreading. Chooses to go second on initiative until turn 6; deploys with a back/front/cover policy. ~10 ms/decision. Beats AggressiveRandom 80–94%, Greedy 100%.
@@ -128,7 +130,6 @@ The official **Advanced Rulebook** is in `document.pdf` (local only, gitignored)
 - Special attacks (rockets, hull cannons, remote control, bombs) roll their own dice outside `_resolve_attack_full`: no cover roll, no facing, no rerolls. They now at least record pending counters correctly. Should be unified.
 - Bluffs/cliffs (fringe terrain), shell holes, half-hexes, and "road through forest" (roads are their own terrain type here) are not modelled.
 - Defensive fire: human defenders decide per shot (hex or hold); AI defenders use the automatic best-hex choice.
-- Deployment: human placement is by hex within the 5-column zone; Partisans/Paratroopers keep their own deployment rules (untested in the UI).
 - MCTS (`mcts.py`) still not playable.
 
 ### Implemented straight from the rulebook (Sep 2026)
@@ -149,13 +150,14 @@ The official **Advanced Rulebook** is in `document.pdf` (local only, gitignored)
 - Speed-1 Vehicle minimum movement; Heavy Armor ignores the first Damaged counter; a damaged Vehicle receiving another Damaged counter is destroyed.
 - Defensive fire is optional (hold-fire order) and the defender fires into the better of the two hexes.
 - Units may move through/into enemy hexes (stacking per army at the destination).
-- Aircraft: placement in the flight phase and airstrike attacks in the UI.
+- Aircraft: placement in the flight phase and airstrike attacks in the UI; Aircraft don't count toward stacking (one per hex).
+- A destroyed transport destroys its passenger.
 - Only Aggression X grants move-then-attack in the assault phase (a keyword rule had extended it to ~20 other abilities).
-- Ability scenarios (`scenarios/abilities/`): Close Assault, Hand to Hand, Superior Armor, No Turret, Inaccurate, Crack Shot, Limited/Extended Range, Open Back, Sideskirts, Tall Silhouette, Shrapnel, Strike and Fade, Large, commanders (initiative bonus, Tally-Ho!, Command Leadership, Coordinated Fire), Blast, Double Shot defensive fire, transports, Amphibious, Excellent Suspension, Robust, Bombardment.
+- Ability scenarios (`scenarios/abilities/`): Close Assault, Hand to Hand, Superior Armor, No Turret, Inaccurate, Crack Shot, Limited/Extended Range, Open Back, Sideskirts, Tall Silhouette, Shrapnel, Strike and Fade, Large, commanders (initiative bonus, Tally-Ho!, Command Leadership, Coordinated Fire), Blast, Double Shot defensive fire, transports, Amphibious, Excellent Suspension, Robust, Bombardment, Paratrooper/Hero/Partisan/Gliderborne deployment, Antiair/Ace reactions, Flamethrower, Covering Fire, Suppressive Fire, Multiturreted, Smoke Screen.
 - Route preview on hover (dashed path + dice markers where rolls happen); routes prefer fewer rolls at equal cost.
 - Spotter Q&A ([aamcardbase](http://www.aamcardbase.com/special_abilities_aam.aspx)): a Spotter that moves in the assault phase doesn't count.
 - Artillery assault-only movement, half-hexes, hex-side terrain: not implemented.
-- Ability activation UI missing for Aggression, Gliderborne, Partisan, AVRE, Improved Indirect Fire.
+- Ability activation UI missing for Aggression, AVRE, Improved Indirect Fire.
 - Log/coordinates are axial (q, r); the UI's coords toggle shows the same. Fine for debugging, may want offset (col,row) for players.
 
 ### Fixed in the Sep 2026 rebuild

@@ -1,0 +1,17 @@
+name: destroyed-transport-destroys-its-passenger
+source: "Advanced rulebook, Transport: if the transport Vehicle is destroyed, any Soldier on it is destroyed too; if it is disrupted or damaged the Soldier is unaffected"
+board: {width: 10, height: 8}
+units:
+  - {id: truck, owner: player2, at: [5,4], facing: NW, stats: {unit_type: Vehicle, defense: "2/2", speed: 3, per: [0,0,0], veh: [0,0,0], abilities: "Transport"}}
+  - {id: rider, owner: player2, at: [5,4], in_transport: truck, stats: {unit_type: Soldier, defense: "4", speed: 1, per: [7,5,3]}}
+  - {id: gun, owner: player1, at: [3,4], stats: {unit_type: Vehicle, defense: "4/3", speed: 1, per: [8,6,4], veh: [12,10,8]}}
+phase: assault
+active_player: player1
+dice: [6,6,6,6,6,6,6,6,6,6]      # 10 successes vs defense 2: 3+ hits = destroyed
+actions:
+  - {type: attack, unit: gun, target: truck}
+  - {type: casualty}
+expect:
+  units:
+    truck: {status: destroyed}
+    rider: {status: destroyed}

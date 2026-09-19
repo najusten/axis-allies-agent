@@ -1,0 +1,18 @@
+name: covering-fire-target-cannot-defensive-fire-this-turn
+source: "Covering Fire: Soldiers attacked by this unit can't make defensive-fire attacks this turn"
+board: {width: 10, height: 8}
+units:
+  - {id: mg, owner: player1, at: [2,4], stats: {unit_type: Soldier, defense: "4", speed: 1, per: [8,6,4], abilities: "Covering Fire"}}
+  - {id: runner, owner: player1, at: [3,2], stats: {unit_type: Soldier, defense: "4", speed: 2, per: [7,5,3]}}
+  - {id: tgt, owner: player2, at: [4,4], stats: {unit_type: Soldier, defense: "4", per: [10,8,6]}}
+phase: assault
+active_player: player1
+dice: [1,1,1,1,1,1]        # covering fire attack misses; no defensive fire dice must follow
+actions:
+  - {type: attack, unit: mg, target: tgt}
+  - {type: move, unit: runner, to: [4,3]}    # adjacent to tgt: would normally draw defensive fire
+expect:
+  dice_consumed: 6
+  no_events: [{type: defensive_fire}]
+  units:
+    runner: {at: [4,3], status: healthy}

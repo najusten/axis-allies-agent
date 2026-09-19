@@ -97,9 +97,11 @@ class App {
     if (s.pending_defensive_fire && !s.game_over) {
       const pend = s.pending_defensive_fire;
       this.render();
+      const placed = pend.kind === 'aircraft_placed';
       this.renderer.setHighlights([
-        { q: pend.step_from[0], r: pend.step_from[1], kind: 'target', label: 'from' },
-        { q: pend.step_to[0], r: pend.step_to[1], kind: 'target', label: 'to' },
+        ...(placed ? [{ q: pend.step_to[0], r: pend.step_to[1], kind: 'target', label: '✈' }]
+                   : [{ q: pend.step_from[0], r: pend.step_from[1], kind: 'target', label: 'from' },
+                      { q: pend.step_to[0], r: pend.step_to[1], kind: 'target', label: 'to' }]),
         ...pend.options.map(o => ({ q: o.defender_pos[0], r: o.defender_pos[1], kind: 'ability', label: '★' })),
       ]);
       if (s.mode === 'hotseat' && this.lastHumanPlayer && this.lastHumanPlayer !== pend.player) await this.ui.showHandoff(pend.player);

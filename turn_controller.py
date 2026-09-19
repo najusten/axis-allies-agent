@@ -24,6 +24,7 @@ from typing import Dict, List, Optional, Tuple, Any
 
 from game_state import GameState, GamePhase
 from action import (Action, MoveAction, AttackAction, PassAction, EndPhaseAction, DeployAction)
+from action_executor import ActionResult
 
 
 VANGUARD_PHASE = "vanguard"
@@ -179,6 +180,7 @@ class TurnController:
             info = result.interrupted
             opps = info['opportunities']
             self.pending_df = {
+                'kind': info.get('kind', 'move'),
                 'player': opps[0].defender_state.owner,
                 'mover_player': player,
                 'action': action,
@@ -231,6 +233,17 @@ class TurnController:
             return
         self.pending_df = None
         orig = pend['action']
+        if pend.get('kind') == 'aircraft_placed':
+            # Ace/Antiair reaction shots at an aircraft that is already on the map
+            opps = pend['opportunities']
+            dec = {o.defender_id: decisions.get(o.defender_id, 'auto') for o in opps}
+            df_results = self.executor.resolve_antiair_reactions(self.game_state, opps, dec)
+            result = ActionResult(True, f"Ace/Antiair reaction: {len(df_results)} attack(s)",
+                                  defensive_fire_results=df_results)
+            self.executor._attach_combat_events(self.game_state, orig, result)
+            self._record_action(pend['player'], orig, result)
+            self._check_elimination()
+            return
         path = pend['remaining_path']
         cont = MoveAction(orig.unit_id, path[0][0], path[0][1], path[-1][0], path[-1][1],
                           path=list(path), movement_cost=getattr(orig, 'movement_cost', 0),
@@ -690,6 +703,8 @@ def format_event(ev: dict) -> Optional[str]:
     if t == 'action':
         prefix = "  " if ev.get('success') else "  ✗ "
         line = f"{prefix}{ev.get('message', '')}"
+        for d in ev.get('defensive_fire') or []:
+            line += f"\n    ⚔ {d.get('message', '')}"
         if ev.get('unit_destroyed'):
             line += f"\n    💥 {ev['unit_destroyed']} destroyed"
         return line

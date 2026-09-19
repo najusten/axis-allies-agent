@@ -1,0 +1,21 @@
+name: multiturreted-attacks-one-front-and-one-non-front-target
+source: "Multiturreted: this unit can attack twice during your assault phase. One target must be in front of this unit, the other must not be in front"
+board: {width: 10, height: 8}
+units:
+  - {id: tank, owner: player1, at: [4,4], facing: SE, stats: {unit_type: Vehicle Tank, defense: "5/4", speed: 2, per: [8,6,4], veh: [6,4,2], abilities: "Multiturreted"}}
+  - {id: front1, owner: player2, at: [6,4], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+  - {id: front2, owner: player2, at: [6,3], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+  - {id: rear, owner: player2, at: [2,4], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: assault
+active_player: player1
+dice: [1,1,1,1,1,1, 1,1,1,1,1,1]
+actions:
+  - {type: attack, unit: tank, target: front1}
+  - {type: attack, unit: tank, target: front2}     # second front-arc target: not allowed
+  - {type: attack, unit: tank, target: rear}
+expect:
+  results:
+    0: {success: true}
+    1: {success: false}
+    2: {success: true}
+  dice_consumed: 12

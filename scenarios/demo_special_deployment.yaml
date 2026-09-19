@@ -1,0 +1,19 @@
+name: "Demo: paratroopers, hero, partisans and antiair"
+playable: true
+coords: offset
+description: "Player 1 (Germany) holds a Fallschirmjager drop, a Grizzled Veteran hero and a Bf 109 Ace off the map; Player 2 (USSR) has Communist Partisans that deploy on any board edge and an M16 half-track with Antiair. Watch: the partisans go through the deployment phase, the paratroopers and hero deploy in a movement phase (paratrooper: not adjacent to enemies, hero: with a German Soldier), and when the Bf 109 is placed next to the M16 (or within 4 hexes of an enemy Ace) the defender is asked whether to take a reaction shot."
+board: {width: 12, height: 8, terrain: {forest: [[2,2],[9,5]], hill: [[6,1]], town: [[6,4]]}}
+objective: [6,4]
+units:
+  - {id: grens, owner: player1, name: "Panzergrenadier", at: [2,4]}
+  - {id: rifles, owner: player1, name: "Wehrmacht Veteran Infantrymen", at: [2,2]}
+  - {id: pzIII, owner: player1, name: "Panzer III Ausf. F", at: [1,5], facing: SE}
+  - {id: para, owner: player1, name: "Fallschirmjager", at: [0,0], is_deployed: false}
+  - {id: hero, owner: player1, name: "Grizzled Veteran", at: [0,0], is_deployed: false}
+  - {id: ace, owner: player1, name: "Bf 109 E Ace", at: [0,0]}
+  - {id: guards, owner: player2, name: "Guards Infantry", at: [9,3]}
+  - {id: smg, owner: player2, name: "PPSh-41 SMG", at: [9,5]}
+  - {id: m16, owner: player2, name: "M16 Half-Track", at: [10,4], facing: NW}
+  - {id: partisans, owner: player2, name: "Communist Partisans", at: [0,0], is_deployed: false}
+phase: movement
+active_player: player1

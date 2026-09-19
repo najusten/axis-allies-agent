@@ -79,7 +79,12 @@ def check_invariants(gs: GameState) -> List[str]:
                 problems.append(f"{uid} carried_by {us.carried_by_id} but carrier does not reference it")
         else:
             by_hex.setdefault((q, r), []).append(us)
-    for pos, units in by_hex.items():
+    for pos, all_units in by_hex.items():
+        # Rulebook: Aircraft don't count toward the limit, but only one Aircraft per hex
+        aircraft = [u for u in all_units if 'Aircraft' in (u.unit.unit_type or '')]
+        if len(aircraft) > 1:
+            problems.append(f">1 aircraft at {pos}: {[u.unit.name for u in aircraft]}")
+        units = [u for u in all_units if u not in aircraft]
         owners = {u.owner for u in units}
         for owner in owners:
             mine = [u for u in units if u.owner == owner]

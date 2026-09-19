@@ -21,7 +21,7 @@ from abilities import AbilitySystem
 from dice import DiceSystem, UnitStatus, UnitCategory, get_unit_category
 from defensive_fire import DefensiveFireSystem, DefensiveFireResult
 from facing import (
-    FacingSystem, HexDirection, is_front_arc_attack,
+    FacingSystem, HexDirection, is_front_arc_attack, is_target_in_front_arc,
     calculate_facing_after_move, get_direction_name
 )
 from casualty import CasualtySystem
@@ -1474,11 +1474,16 @@ class ActionExecutor:
 
         # Multiturreted: Track which arc was used for attack
         if self._has_multiturreted(attacker):
-            # Determine if this was a front or rear arc attack based on target position
-            if is_rear_attack:
-                attacker_state.multiturreted_rear_used = True
-            else:
+            # "One target must be a unit in front of this unit. The other target
+            # must be a unit not in front of this unit" - the attacker's own arc.
+            in_front = True
+            if attacker_state.facing is not None:
+                in_front = is_target_in_front_arc(attacker_state.position, target_state.position,
+                                                  HexDirection(attacker_state.facing))
+            if in_front:
                 attacker_state.multiturreted_front_used = True
+            else:
+                attacker_state.multiturreted_rear_used = True
 
         # Command Quick Reactions: Vehicles within 2 hexes can change facing after attack
         if 'Vehicle' in (attacker.unit_type or '') and game_state:
@@ -1542,6 +1547,13 @@ class ActionExecutor:
         notes_str = ""
         if result.get('notes'):
             notes_str = " | " + "; ".join(result['notes'][:3])
+
+        if result.get('instant_kill'):
+            # Flamethrower: "the target is destroyed immediately" - no face-down counter
+            game_state.remove_unit(action.target_id)
+            result['target_destroyed'] = True
+            message = f"{attacker.name} vs {target.name}:{dice_detail} - DESTROYED!{notes_str}"
+            return ActionResult(True, message, result['hits'], action.target_id, result)
 
         if use_simultaneous and result['hits'] > 0:
             # Record hits as face-down counters (don't apply yet).
@@ -2166,6 +2178,7 @@ class ActionExecutor:
             if sixes_rolled >= 3 and target.unit_type not in ('Aircraft', 'Obstacle'):
                 result['notes'].append(f"Flamethrower: {sixes_rolled} sixes rolled - TARGET DESTROYED!")
                 result['hits'] = 99  # Instant kill
+                result['instant_kill'] = True
                 result['target_destroyed'] = True
                 result['outcome'] = 'destroyed'
                 return result
@@ -2929,63 +2942,52 @@ class ActionExecutor:
         unit_state.position = (action.to_q, action.to_r)
         # Note: Aircraft don't occupy hexes like ground units - they fly over
 
-        # Check for Ace/Antiair defensive fire opportunities
-        df_results = []
-        enemy_owner = "player2" if unit_state.owner == "player1" else "player1"
-        enemy_units = game_state.get_units_by_owner(enemy_owner)
+        # Ace/Antiair reactions: "if an enemy Aircraft is placed [adjacent /
+        # within four hexes] of this unit, this unit may make a defensive-fire
+        # attack against it". Optional, so a human defender is asked.
         aircraft_pos = (action.to_q, action.to_r)
-
-        for enemy_state in enemy_units:
-            if not enemy_state.is_alive or enemy_state.is_disrupted:
-                continue
-
-            enemy_abilities = getattr(enemy_state.unit, 'abilities', []) or []
-            has_ace = any(a.lower() == 'ace' for a in enemy_abilities)
-            has_antiair = any('antiair' in a.lower() for a in enemy_abilities)
-
-            if not has_ace and not has_antiair:
-                continue
-
-            # Calculate distance
-            enemy_pos = enemy_state.position
-            distance = game_state.board.hex_distance(
-                enemy_pos[0], enemy_pos[1], aircraft_pos[0], aircraft_pos[1]
-            )
-
-            # Ace: within 4 hexes, Antiair: adjacent (within 1 hex)
-            can_fire = False
-            if has_ace and distance <= 4:
-                can_fire = True
-            elif has_antiair and distance <= 1:
-                can_fire = True
-
-            if can_fire:
-                # Create defensive fire opportunity and resolve
-                from defensive_fire import DefensiveFireOpportunity
-                opportunity = DefensiveFireOpportunity(
-                    defender_id=enemy_state.unit.id,
-                    defender_state=enemy_state,
-                    target_id=action.unit_id,
-                    target_state=unit_state,
-                    from_hex=aircraft_pos,  # Aircraft appears here
-                    to_hex=aircraft_pos,
-                    defender_pos=enemy_pos
-                )
-                result = self.defensive_fire.resolve_defensive_fire(
-                    game_state, opportunity, attack_in_hex=aircraft_pos
-                )
-                self.defensive_fire.apply_defensive_fire_result(game_state, result)
-                df_results.append(result)
-
+        opportunities = [
+            o for o in self.defensive_fire.check_antiair_defensive_fire(game_state, action.unit_id, aircraft_pos)
+            if not o.defender_state.hold_defensive_fire]
         game_state.apply_action(action)
+        decisions = self.df_decisions
+        need_ask = [o for o in opportunities
+                    if self.df_asker is not None and o.defender_id not in decisions
+                    and self.df_asker(game_state, o)]
+        if need_ask:
+            res = ActionResult(True, f"{unit_state.unit.name} placed at ({action.to_q},{action.to_r})"
+                                     " (defensive fire decision pending)",
+                               events=[{'type': 'place', 'unit': unit_state.unit.id, 'name': unit_state.unit.name,
+                                        'to': list(aircraft_pos)}])
+            res.interrupted = {
+                'kind': 'aircraft_placed', 'unit_id': action.unit_id,
+                'step_from': aircraft_pos, 'step_to': aircraft_pos,
+                'remaining_path': [aircraft_pos], 'opportunities': need_ask,
+            }
+            return res
+        df_results = self.resolve_antiair_reactions(game_state, opportunities, decisions)
 
         message = f"{unit_state.unit.name} placed at ({action.to_q},{action.to_r})"
         if df_results:
             message += f" - {len(df_results)} Ace/Antiair attack(s)"
 
         return ActionResult(
-            True, message, defensive_fire_results=df_results
+            True, message, defensive_fire_results=df_results,
+            events=[{'type': 'place', 'unit': unit_state.unit.id, 'name': unit_state.unit.name,
+                     'to': list(aircraft_pos)}]
         )
+
+    def resolve_antiair_reactions(self, game_state: GameState, opportunities, decisions=None) -> list:
+        """Resolve Ace/Antiair reaction shots; decisions {defender_id: 'hold'} skips a shot."""
+        decisions = decisions or {}
+        df_results = []
+        for o in opportunities:
+            if decisions.get(o.defender_id) == 'hold':
+                continue
+            result = self.defensive_fire.resolve_defensive_fire(game_state, o, attack_in_hex=o.to_hex)
+            self.defensive_fire.apply_defensive_fire_result(game_state, result)
+            df_results.append(result)
+        return df_results
 
     def execute_action_sequence(self, game_state: GameState,
                                actions: list) -> list:

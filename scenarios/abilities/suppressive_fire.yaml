@@ -1,0 +1,21 @@
+name: suppressive-fire-defensive-fires-more-than-once-per-phase
+source: "Suppressive Fire: this unit can make any number of defensive-fire attacks each phase"
+coords: offset
+board: {width: 10, height: 8}
+units:
+  - {id: mg, owner: player2, at: [4,4], stats: {unit_type: Soldier, defense: "4", per: [6,4,2], abilities: "Suppressive Fire"}}
+  - {id: plain, owner: player2, at: [8,4], stats: {unit_type: Soldier, defense: "4", per: [6,4,2]}}
+  - {id: a, owner: player1, at: [3,3], stats: {unit_type: Soldier, defense: "4", speed: 1, per: [7,5,3]}}
+  - {id: b, owner: player1, at: [5,3], stats: {unit_type: Soldier, defense: "4", speed: 1, per: [7,5,3]}}
+  - {id: c, owner: player1, at: [7,3], stats: {unit_type: Soldier, defense: "4", speed: 1, per: [7,5,3]}}
+  - {id: d, owner: player1, at: [9,3], stats: {unit_type: Soldier, defense: "4", speed: 1, per: [7,5,3]}}
+phase: movement
+active_player: player1
+dice: [1,1,1,1,1,1, 1,1,1,1,1,1, 1,1,1,1,1,1]
+actions:
+  - {type: move, unit: a, to: [3,4]}     # adjacent-to-adjacent around mg -> DF #1 (6 dice)
+  - {type: move, unit: b, to: [5,4]}     # around mg again -> DF #2 (Suppressive Fire)
+  - {type: move, unit: c, to: [7,4]}     # around plain -> DF #3
+  - {type: move, unit: d, to: [9,4]}     # around plain -> already fired this phase, no DF
+expect:
+  dice_consumed: 18

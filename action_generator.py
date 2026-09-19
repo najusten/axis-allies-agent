@@ -770,7 +770,10 @@ class ActionGenerator:
                     to_q=dest_q,
                     to_r=dest_r,
                     path=[(q, r), (dest_q, dest_r)],
-                    movement_cost=max(1, move_dist)
+                    movement_cost=max(1, move_dist),
+                    # speed bonuses (Tally-Ho!, Extra Fuel, Heavy Rifle) and partial
+                    # moves are situational: tell the validator the speed used
+                    max_speed=effective_speed if effective_speed != getattr(unit, 'speed', None) else None
                 )
                 
                 actions.append(move_action)
@@ -2529,7 +2532,8 @@ class ActionGenerator:
 
         # For front-arc restriction, we need the unit's facing (applies to vehicles)
         attacker_facing = None
-        needs_facing_check = has_no_turret or has_fixed_howitzer or has_fixed_gun or has_fixed_rear_gun
+        needs_facing_check = (has_no_turret or has_fixed_howitzer or has_fixed_gun or has_fixed_rear_gun
+                              or self._has_multiturreted(unit))
         if needs_facing_check and 'Vehicle' in unit.unit_type:
             facing_val = unit_state.facing
             if facing_val is not None:

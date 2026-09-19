@@ -125,7 +125,9 @@ class DefensiveFireSystem:
             return (abs(q1 - q2) + abs(q1 + r1 - q2 - r2) + abs(r1 - r2)) // 2
 
         for enemy_state in enemy_units:
-            if not enemy_state.is_alive:
+            if not enemy_state.is_alive or not enemy_state.is_deployed or enemy_state.carried_by_id:
+                continue
+            if 'Aircraft' in (enemy_state.unit.unit_type or '') and not enemy_state.is_aircraft_on_map:
                 continue
 
             enemy = enemy_state.unit
