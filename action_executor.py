@@ -753,7 +753,9 @@ class ActionExecutor:
                 unit_state.assault_moved = True
                 if getattr(action, 'is_aggression', False):
                     unit_state.aggression_moved = True
-                message = f"{unit.name} relocates to ({action.to_q}, {action.to_r})"
+                    message = f"{unit.name} moves to ({action.to_q}, {action.to_r}) (Aggression: may still attack)"
+                else:
+                    message = f"{unit.name} relocates to ({action.to_q}, {action.to_r})"
 
             # Update facing for vehicles
             if 'Vehicle' in (unit.unit_type or ''):

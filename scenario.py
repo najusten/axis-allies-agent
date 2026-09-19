@@ -282,6 +282,9 @@ def find_legal_action(legal: List[Action], data: dict,
             continue
         if kind == 'move' and isinstance(a, MoveAction):
             if (a.to_q, a.to_r) == dest():
+                if data.get('aggression') is not None and \
+                        bool(getattr(a, 'is_aggression', False)) != bool(data['aggression']):
+                    continue
                 return a
         elif kind == 'attack' and isinstance(a, AttackAction):
             target_id = ali(data.get('target') or data.get('target_id'))

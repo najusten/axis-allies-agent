@@ -1,0 +1,19 @@
+name: aggression-unit-full-speed-move-forfeits-attack
+source: "Aggression 1 unit choosing the ordinary assault move (green hex, not ⚔+) moves at full speed and may not attack afterwards"
+board: {width: 10, height: 8}
+units:
+  - {id: sturm, owner: player1, at: [2,3], stats: {unit_type: Soldier, defense: "4", speed: 2, per: [7,5,3], abilities: "Aggression 1"}}
+  - {id: enemy, owner: player2, at: [5,3], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+phase: assault
+active_player: player1
+actions:
+  - {type: move, unit: sturm, to: [3,3], aggression: false}
+  - {type: attack, unit: sturm, target: enemy}
+expect:
+  results:
+    0: {success: true}
+    1: {success: false}
+  units:
+    sturm: {at: [3,3], has_attacked: false, aggression_moved: false}
+  legal:
+    - {type: attack, unit: sturm, allowed: false}

@@ -138,10 +138,17 @@ class App {
     if (!ua) return [];
     const out = [];
     const u = this.state.game.units.find(x => x.id === id);
+    const aggr = new Set((ua.aggression || []).map(([q, r]) => `${q},${r}`));
     for (const [q, r] of ua.moves) {
+      if (aggr.has(`${q},${r}`)) continue;   // the Aggression version of this hex keeps the attack
       const turnInPlace = u && u.position[0] === q && u.position[1] === r;
       out.push({ q, r, kind: turnInPlace ? 'turn' : 'move', label: turnInPlace ? '↻ turn' : undefined,
-                 data: { type: 'move', unit_id: id, to_q: q, to_r: r } });
+                 data: { type: 'move', unit_id: id, to_q: q, to_r: r, aggression: false } });
+    }
+    for (const [q, r] of (ua.aggression || [])) {
+      const turnInPlace = u && u.position[0] === q && u.position[1] === r;
+      out.push({ q, r, kind: turnInPlace ? 'turn' : 'aggr', label: turnInPlace ? '↻ turn' : '⚔+',
+                 data: { type: 'move', unit_id: id, to_q: q, to_r: r, aggression: true } });
     }
     for (const a of ua.attacks) out.push({ q: a.q, r: a.r, kind: a.indirect ? 'indirect' : 'attack', label: a.indirect ? 'IDF' : '⚔', data: { type: 'attack', unit_id: id, target_id: a.target_id, target_q: a.q, target_r: a.r } });
     for (const b of ua.board) out.push({ q: b.q, r: b.r, kind: 'board', label: 'BOARD', data: { type: 'board_transport', unit_id: id, transport_id: b.transport_id, pos_q: b.q, pos_r: b.r } });
@@ -205,7 +212,7 @@ class App {
       this.renderer.hideLos();
     }
     // route preview for moves (debounced; shows where terrain rolls will happen)
-    const key = hl && hl.kind === 'move' && this.selected ? `${this.selected}:${hl.q},${hl.r}` : null;
+    const key = hl && (hl.kind === 'move' || hl.kind === 'aggr') && this.selected ? `${this.selected}:${hl.q},${hl.r}` : null;
     if (key !== this._hoverKey) {
       this._hoverKey = key;
       clearTimeout(this._hoverTimer);

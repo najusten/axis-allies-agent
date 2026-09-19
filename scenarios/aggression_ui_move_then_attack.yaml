@@ -8,7 +8,7 @@ phase: assault
 active_player: player1
 dice: [6,6,6,6,6,6,6]
 actions:
-  - {type: move, unit: sturm, to: [3,3]}
+  - {type: move, unit: sturm, to: [3,3], aggression: true}     # the ⚔+ hex in the UI
   - {type: attack, unit: sturm, target: enemy}
 expect:
   results:
@@ -18,3 +18,5 @@ expect:
     sturm: {at: [3,3], has_attacked: true, aggression_moved: true}
   legal:
     - {type: move, unit: sturm, allowed: false}
+
+

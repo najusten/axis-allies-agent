@@ -53,7 +53,7 @@ PHASE_LABELS = {
 }
 PHASE_HINTS = {
     'movement': 'Select a unit, then click a green hex to move. Yellow = board transport, orange OUT = dismount, purple = ability. Vehicles roll 4+ to enter forest.',
-    'assault': 'Select a unit: red ⚔ = attack, orange IDF = indirect fire via spotter (no LOS needed), green = move instead of attacking. LOS checkbox shades what the unit cannot see.',
+    'assault': 'Select a unit: red ⚔ = attack, orange IDF = indirect fire via spotter (no LOS needed), green = move instead of attacking, green with a red ring = Aggression move (may still attack afterwards). LOS checkbox shades what the unit cannot see.',
     'flight': 'Select an Aircraft in the sidebar, then click any cyan hex to place it. Antiair units may fire at it. Aircraft leave the map at the end of the turn.',
     'airstrike': 'Select an Aircraft on the map and click a red ⚔ hex to attack.',
     VANGUARD_PHASE: 'Pre-game Vanguard move (speed 4).',
@@ -306,7 +306,7 @@ class GameSession:
                 continue
             pending = self.systems.executor.casualty_system.get_pending_hits_summary(gs, uid)
             out[uid] = {
-                'moves': [], 'attacks': [], 'board': [], 'dismount': [], 'abilities': [], 'place': [], 'deploy': [],
+                'moves': [], 'aggression': [], 'attacks': [], 'board': [], 'dismount': [], 'abilities': [], 'place': [], 'deploy': [],
                 'pending_hits': pending.get('total', 0),
             }
         if not self.is_human_turn() or self.pending_facing:
@@ -329,7 +329,10 @@ class GameSession:
                     'parameters': action.parameters or None,
                 })
             elif isinstance(action, MoveAction):
-                entry['moves'].append([action.to_q, action.to_r])
+                if getattr(action, 'is_aggression', False):
+                    entry['aggression'].append([action.to_q, action.to_r])   # move X and still attack
+                else:
+                    entry['moves'].append([action.to_q, action.to_r])
             elif isinstance(action, AttackAction):
                 if getattr(action, 'improvised_attack', None) or any(
                         getattr(action, f, False) for f in ('is_rocket_salvo', 'is_rockets_8', 'is_top_mounted_rockets',

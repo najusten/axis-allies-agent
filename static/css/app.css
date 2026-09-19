@@ -63,6 +63,8 @@ button { font: inherit; }
 .hl { pointer-events: all; cursor: pointer; }
 .hl-move { fill: rgba(34,197,94,.35); stroke: #22c55e; stroke-width: 2; }
 .hl-move:hover { fill: rgba(34,197,94,.6); }
+.hl-aggr { fill: rgba(34,197,94,.35); stroke: #ef4444; stroke-width: 3; }
+.hl-aggr:hover { fill: rgba(34,197,94,.6); }
 .hl-turn { fill: none; stroke: #ffe600; stroke-width: 3; stroke-dasharray: 6 3; }
 .hl-place { fill: rgba(34,211,238,.25); stroke: #22d3ee; stroke-width: 1.5; }
 .hl-place:hover { fill: rgba(34,211,238,.55); }
