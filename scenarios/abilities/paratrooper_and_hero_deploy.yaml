@@ -1,0 +1,28 @@
+name: paratrooper-drops-in-movement-phase-hero-joins-friendly-soldier
+source: "Paratrooper: at the end of any of your movement phases, deploy in any hex not adjacent to an enemy; it can't move that phase. Hero: at the beginning of any of your movement phases, deploy in a hex containing a friendly Soldier of its nationality"
+coords: offset
+board: {width: 12, height: 8}
+units:
+  - {id: para, owner: player1, at: [0,0], is_deployed: false, stats: {unit_type: Soldier, defense: "4", speed: 1, per: [7,5,3], abilities: "Paratrooper", nation: US}}
+  - {id: hero, owner: player1, at: [0,0], is_deployed: false, stats: {unit_type: Soldier, defense: "5", speed: 1, per: [8,6,4], abilities: "U.S. Hero", nation: US}}
+  - {id: rifles, owner: player1, at: [3,3], stats: {unit_type: Soldier, defense: "4", speed: 1, per: [7,5,3], nation: US}}
+  - {id: tommies, owner: player1, at: [3,5], stats: {unit_type: Soldier, defense: "4", speed: 1, per: [7,5,3], nation: UK}}
+  - {id: enemy, owner: player2, at: [8,3], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: movement
+active_player: player1
+actions:
+  - {type: deploy, unit: para, to: [7,3]}     # adjacent to enemy: illegal
+  - {type: deploy, unit: para, to: [6,1]}     # legal drop
+  - {type: move, unit: para, to: [6,2]}       # can't move this phase
+  - {type: deploy, unit: hero, to: [3,5]}     # UK soldier: wrong nationality
+  - {type: deploy, unit: hero, to: [3,3]}     # US rifles: ok
+expect:
+  results:
+    0: {success: false}
+    1: {success: true}
+    2: {success: false}
+    3: {success: false}
+    4: {success: true}
+  units:
+    para: {at: [6,1], is_deployed: true}
+    hero: {at: [3,3], is_deployed: true}

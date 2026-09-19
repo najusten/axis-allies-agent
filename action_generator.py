@@ -1026,19 +1026,19 @@ class ActionGenerator:
                 ))
 
             # Generate HE Round attacks (once per game, 15 dice vs Soldier)
-            if self._has_he_round(unit) and not unit_state.he_round_used:
+            if can_attack and self._has_he_round(unit) and not unit_state.he_round_used:
                 actions.extend(self._get_he_round_attacks(
                     game_state, unit, unit_state, (q, r), enemy_units
                 ))
 
             # Generate Headshot attacks (once per game, 6 dice, 3+ successes = disrupt Vehicle)
-            if self._has_headshot(unit) and not unit_state.headshot_used:
+            if can_attack and self._has_headshot(unit) and not unit_state.headshot_used:
                 actions.extend(self._get_headshot_attacks(
                     game_state, unit, unit_state, (q, r), enemy_units
                 ))
 
             # Generate Armor-Piercing Rounds attacks (once per game, 2 hits = +1 hit vs Vehicle)
-            if self._has_armor_piercing_rounds(unit) and not unit_state.armor_piercing_used:
+            if can_attack and self._has_armor_piercing_rounds(unit) and not unit_state.armor_piercing_used:
                 actions.extend(self._get_armor_piercing_attacks(
                     game_state, unit, unit_state, (q, r), enemy_units
                 ))
@@ -1297,7 +1297,7 @@ class ActionGenerator:
                 continue
             if 'Soldier' not in (unit_state.unit.unit_type or ''):
                 continue
-            nationality = getattr(unit_state.unit, 'nationality', None)
+            nationality = getattr(unit_state.unit, 'nation', None) or getattr(unit_state.unit, 'nationality', None)
             if nationality:
                 if nationality not in soldier_positions_by_nationality:
                     soldier_positions_by_nationality[nationality] = set()
@@ -2461,15 +2461,25 @@ class ActionGenerator:
         if fade_speed <= 0:
             return actions
 
+        owner = unit_state.owner
+        friendly_positions = {
+            us.position for us in game_state.get_units_by_owner(owner)
+            if us.is_alive and us.unit.id != unit.id
+        }
+
         # Get reachable hexes at the fade speed
         reachable = self.movement_system.get_reachable_hexes(
-            game_state.board, q, r, unit, max_speed=fade_speed
+            game_state.board, q, r, unit, max_speed=fade_speed,
+            friendly_positions=friendly_positions, is_damaged=unit_state.is_damaged
         )
 
+        unit_type = getattr(unit, 'unit_type', 'Soldier')
         # Create move actions (these are special "fade" moves)
         for (dest_q, dest_r) in reachable:
             if (dest_q, dest_r) == (q, r):
                 continue  # Skip current position
+            if not game_state.can_stack_at(dest_q, dest_r, owner, unit_type, exclude_unit_id=unit.id):
+                continue
 
             move_action = MoveAction(
                 unit_id=unit.id,

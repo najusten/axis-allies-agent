@@ -544,17 +544,19 @@ class TurnController:
             self.apply(action)
 
     def _undeployed(self, player: str):
+        """Units that must be placed in the setup deployment (Paratroopers and
+        Heroes arrive later, during movement phases)."""
         return [us for us in self.game_state.get_units_by_owner(player)
                 if us.is_alive and not us.is_deployed and 'Aircraft' not in (us.unit.unit_type or '')
-                and not self._has_ability(us, 'paratrooper')]
+                and not self._has_ability(us, 'paratrooper')
+                and not any(a.lower().endswith(' hero') for a in (us.unit.abilities or []))]
 
     def _deployment_actions(self, player: str) -> List[Action]:
         gs = self.game_state
         actions: List[Action] = []
-        zone = gs.deployment_zone(player)
         for us in self._undeployed(player):
             is_vehicle = 'Vehicle' in (us.unit.unit_type or '')
-            for (q, r) in zone:
+            for (q, r) in gs.deploy_zone_for(us):
                 h = gs.board.get_hex(q, r)
                 if h.terrain in ('water', 'impassable') or (is_vehicle and h.terrain == 'marsh'):
                     continue

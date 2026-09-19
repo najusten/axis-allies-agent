@@ -2836,7 +2836,7 @@ class ActionExecutor:
         dest = game_state.board.get_hex(action.to_q, action.to_r)
         if dest is None:
             return ActionResult(False, "Invalid deployment location")
-        if not game_state.can_deploy_at(action.to_q, action.to_r, unit_state.owner):
+        if (action.to_q, action.to_r) not in set(game_state.deploy_zone_for(unit_state)):
             return ActionResult(False, "Outside your deployment zone")
         if dest.terrain in ('water', 'impassable'):
             return ActionResult(False, f"Cannot deploy in {dest.terrain}")
@@ -2871,20 +2871,31 @@ class ActionExecutor:
         dest_hex = game_state.board.get_hex(action.to_q, action.to_r)
         if not dest_hex:
             return ActionResult(False, "Invalid deployment location")
-        if dest_hex.terrain == 'impassable':
-            return ActionResult(False, "Cannot deploy in impassable terrain")
-        if dest_hex.unit is not None:
-            return ActionResult(False, "Deployment hex is occupied")
+        if dest_hex.terrain in ('impassable', 'water'):
+            return ActionResult(False, f"Cannot deploy in {dest_hex.terrain}")
+        if not game_state.can_stack_at(action.to_q, action.to_r, unit_state.owner, unit_state.unit.unit_type,
+                                       exclude_unit_id=unit_state.unit.id):
+            return ActionResult(False, "Deployment hex is full (stacking limit)")
 
-        # Check adjacency to enemies
-        enemy_owner = "player2" if unit_state.owner == "player1" else "player1"
-        for enemy_state in game_state.get_units_by_owner(enemy_owner):
-            if not enemy_state.is_alive:
-                continue
-            eq, er = enemy_state.position
-            dist = game_state.board.hex_distance(action.to_q, action.to_r, eq, er)
-            if dist <= 1:
-                return ActionResult(False, "Cannot deploy adjacent to enemy units")
+        abilities_lower = [a.lower() for a in (getattr(unit_state.unit, 'abilities', []) or [])]
+        is_hero = any(a.endswith(' hero') for a in abilities_lower)
+        if is_hero:
+            # Hero: only into a hex containing a friendly Soldier of its nationality
+            if not any(f.is_alive and f.is_deployed and 'Soldier' in (f.unit.unit_type or '')
+                       and f.unit.nation == unit_state.unit.nation
+                       for f in game_state.get_units_at_position(action.to_q, action.to_r)
+                       if f.owner == unit_state.owner):
+                return ActionResult(False, "Heroes deploy in a hex with a friendly Soldier of their nationality")
+        else:
+            # Paratrooper: any hex that isn't adjacent to an enemy unit
+            enemy_owner = "player2" if unit_state.owner == "player1" else "player1"
+            for enemy_state in game_state.get_units_by_owner(enemy_owner):
+                if not enemy_state.is_alive or not enemy_state.is_deployed:
+                    continue
+                eq, er = enemy_state.position
+                dist = game_state.board.hex_distance(action.to_q, action.to_r, eq, er)
+                if dist <= 1:
+                    return ActionResult(False, "Cannot deploy adjacent to enemy units")
 
         # Deploy the unit
         unit_state.is_deployed = True
@@ -2895,7 +2906,9 @@ class ActionExecutor:
         game_state.apply_action(action)
         return ActionResult(
             True,
-            f"{unit_state.unit.name} (Paratrooper) deployed at ({action.to_q},{action.to_r})"
+            f"{unit_state.unit.name} deployed at ({action.to_q},{action.to_r})",
+            events=[{'type': 'deploy', 'unit': unit_state.unit.id, 'name': unit_state.unit.name,
+                     'to': [action.to_q, action.to_r]}]
         )
 
     def _execute_place_aircraft(self, game_state: GameState,

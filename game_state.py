@@ -330,6 +330,24 @@ class GameState:
         col = self.board.axial_to_offset(q, r)[0]
         return col < self.DEPLOY_DEPTH if owner == 'player1' else col >= self.board.width - self.DEPLOY_DEPTH
 
+    def deploy_zone_for(self, unit_state) -> list:
+        """
+        Hexes this particular unit may be deployed in during setup:
+        - Partisan: any unoccupied hex on the edge of the map
+        - Gliderborne: any unoccupied hex not in the opponent's starting area
+        - otherwise: within DEPLOY_DEPTH of the owner's edge
+        """
+        abilities = [a.lower() for a in (getattr(unit_state.unit, 'abilities', []) or [])]
+        owner = unit_state.owner
+        other = 'player2' if owner == 'player1' else 'player1'
+        if 'partisan' in abilities:
+            return [(q, r) for (q, r) in self.board.hexes if self.board.is_edge(q, r)
+                    and not self.get_units_at_position(q, r)]
+        if 'gliderborne' in abilities:
+            return [(q, r) for (q, r) in self.board.hexes if not self.can_deploy_at(q, r, other)
+                    and not self.get_units_at_position(q, r)]
+        return self.deployment_zone(owner)
+
     def get_all_alive_units(self) -> List[UnitState]:
         """All living units, both players."""
         return [us for us in self.units.values() if us.is_alive]

@@ -241,6 +241,10 @@ def build_action(game_state: GameState, data: dict,
         to = hexpair(('to_q', 'to_r'), 'to')
         return PlaceAircraftAction(unit_id, to[0], to[1])
 
+    if kind == 'deploy':
+        to = hexpair(('to_q', 'to_r'), 'to')
+        return DeployAction(unit_id, to[0], to[1], setup=game_state.current_phase == GamePhase.DEPLOYMENT)
+
     if kind == 'pass':
         return PassAction(unit_id)
 
@@ -654,11 +658,31 @@ def scenario_from_dict(raw: dict, name: str = 'scenario') -> Scenario:
         systems.executor.reset_defensive_fire_phase(game_state)
     game_state.rng_seed = int(raw.get('seed', 0))
 
+    actions = [_convert_coords(dict(a), H) for a in (raw.get('actions') or [])]
+    expect = dict(raw.get('expect') or {})
+    if expect.get('units'):
+        expect['units'] = {k: _convert_coords(dict(v), H) for k, v in expect['units'].items()}
+    if expect.get('legal'):
+        expect['legal'] = [_convert_coords(dict(a), H) for a in expect['legal']]
+
     return Scenario(
         name=name, source=raw.get('source', ''), game_state=game_state, systems=systems,
-        dice=dice, aliases=aliases, actions=list(raw.get('actions') or []),
-        expect=raw.get('expect') or {}, raw=raw,
+        dice=dice, aliases=aliases, actions=actions, expect=expect, raw=raw,
     )
+
+
+_HEX_KEYS = ('to', 'at', 'target_hex', 'target')
+
+
+def _convert_coords(d: dict, H) -> dict:
+    """Apply the scenario's coordinate convention to hex pairs in an action/expectation dict."""
+    for key in _HEX_KEYS:
+        v = d.get(key)
+        if isinstance(v, (list, tuple)) and len(v) == 2 and all(isinstance(x, int) for x in v):
+            d[key] = list(H(v))
+    if isinstance(d.get('path'), list):
+        d['path'] = [list(H(p)) for p in d['path']]
+    return d
 
 
 def run_scenario_file(path: str) -> Tuple[Scenario, List[StepResult], List[str]]:

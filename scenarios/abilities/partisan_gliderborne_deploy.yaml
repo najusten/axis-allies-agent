@@ -1,0 +1,14 @@
+name: partisan-deploys-on-any-edge-gliderborne-anywhere-outside-enemy-zone
+source: "Partisan: during deployment, deploy in any unoccupied hex on the edge of the map. Gliderborne: any unoccupied hex not in the opponent's starting area"
+coords: offset
+board: {width: 12, height: 8}
+units:
+  - {id: part, owner: player1, at: [0,0], is_deployed: false, stats: {unit_type: Soldier, defense: "4", speed: 1, per: [6,4,2], abilities: "Partisan"}}
+  - {id: glider, owner: player1, at: [0,0], is_deployed: false, stats: {unit_type: Soldier, defense: "4", speed: 1, per: [6,4,2], abilities: "Gliderborne"}}
+  - {id: rifles, owner: player1, at: [0,0], is_deployed: false, stats: {unit_type: Soldier, defense: "4", speed: 1, per: [6,4,2]}}
+  - {id: enemy, owner: player2, at: [11,4], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: deployment
+active_player: player1
+actions: []
+expect:
+  legal: []
