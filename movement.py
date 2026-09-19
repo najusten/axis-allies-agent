@@ -25,6 +25,7 @@ class MovementSystem:
     def __init__(self, ability_system=None):
         """Initialize with optional ability system"""
         self.ability_system = ability_system
+        self._los_cache: Dict[tuple, tuple] = {}
     
     def get_terrain_cost(self, unit, terrain: str) -> int:
         """
@@ -651,6 +652,22 @@ class MovementSystem:
         Returns (has_los, blocking_hexes)
         """
         smoke_screens = smoke_screens or set()
+        # LOS depends only on terrain, smoke and the viewer's abilities, and the
+        # same pairs are asked for thousands of times per turn (AI scoring,
+        # lookahead on cloned boards): memoise on the board's terrain signature.
+        cache_key = (board.terrain_signature(), q1, r1, q2, r2, frozenset(smoke_screens),
+                     tuple(getattr(unit, 'abilities', None) or ()))
+        hit = self._los_cache.get(cache_key)
+        if hit is not None:
+            return hit[0], list(hit[1])
+        res = self._has_line_of_sight_uncached(board, unit, q1, r1, q2, r2, smoke_screens)
+        if len(self._los_cache) > 200000:
+            self._los_cache.clear()
+        self._los_cache[cache_key] = (res[0], list(res[1]))
+        return res
+
+    def _has_line_of_sight_uncached(self, board: Board, unit, q1: int, r1: int, q2: int, r2: int,
+                                    smoke_screens: set) -> Tuple[bool, List[Hex]]:
         # Hex-side terrain (hedges) crossed by the sight line
         if board.edge_obstacles and self.hex_side_effects(board, q1, r1, q2, r2)['blocked']:
             return False, []

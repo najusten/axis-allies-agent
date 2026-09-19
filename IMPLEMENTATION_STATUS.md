@@ -32,7 +32,7 @@ Legend: ✅ implemented · ⚠️ partial / caveat · ❌ missing
 | `scenario.py` | YAML scenario loader + `ScriptedDice`; `build_action()` shared with the server |
 | `simulate.py` | AI-vs-AI fuzzer/benchmark with invariant checks |
 | `game_runner.py` | AI-vs-AI runner (thin wrapper over TurnController); `RandomAgent`, `AggressiveRandomAgent`, `GreedyAgent` |
-| `mcts.py` | `MCTSAgent` (UCB1) — not yet usable in play, see Known Issues |
+| `mcts.py` | `MCTSAgent` — flat Monte Carlo over the heuristic's top-K candidates: each is played on a simulated `TurnController` (cloned state, heuristic policy for both sides, separate dice RNG) for a few phases and valued by material + objective; UCB1 spends the time budget. Needs `agent.attach(controller)`. |
 | `visualization.py`, `game_visualizer.py` | Legacy HTML/SVG page generator (only `game_runner --visualize`; candidate for removal) |
 | `server.py` | Flask JSON API (`/api/state`, `/api/action`, `/api/new_game`, …) serving `static/` |
 | `static/` | Frontend: `js/renderer.js` (swappable SVG board), `js/ui.js`, `js/app.js`, `js/hex.js`, `js/api.js` |
@@ -104,14 +104,15 @@ initiative_system = InitiativeSystem(ability_system, movement_system)
 - ✅ Antiair / Ace reaction shots when an enemy Aircraft is placed (adjacent / within 4); a human defender is asked, as for defensive fire. Flamethrower instant kill (3+ sixes at short range). Covering Fire, Suppressive Fire, Multiturreted (one front-arc + one non-front-arc target) verified by scenarios.
 - ✅ Aggression X in the UI: assault-phase hexes within X are shown with a red ring (⚔+) and keep the attack; plain green hexes are the full-speed move that gives it up.
 - ✅ AVRE (crosses/destroys obstacles without rolls) and Improved Indirect Fire (US commander within 4 as spotter) are passive and scenario-tested; the latter never worked before (wrong nationality attribute).
-- ❌ Vanguard pre-game phase exists in the controller but has no UI hint yet.
+- ✅ Vanguard pre-game phase (speed-4 move before turn 1) runs through the controller and UI.
 
 ### AI
 - ✅ `agents.HeuristicAgent` — **server default**. Static scoring of every legal action: attacks by expected damage (binomial over dice, cover roll, target value, focus fire), moves by objective pressure (phased by turn), cover, expected damage dealt/taken from the destination, rear exposure, route risk (forest/stream/hedge rolls and defensive-fire exposure along the path), spreading. Chooses to go second on initiative until turn 6; deploys with a back/front/cover policy. ~10 ms/decision. Beats AggressiveRandom 80–94%, Greedy 100%.
 - ✅ `agents.LookaheadAgent` — heuristic top-K pruning + one-ply simulation scored by `GameStateEvaluator`. Currently slightly *weaker* than pure heuristic (the evaluator is the weak link).
 - ✅ Legacy: `RandomAgent`, `AggressiveRandomAgent`, `GreedyAgent` (`game_runner.py`)
-- ❌ `MCTSAgent` (`mcts.py`) still not playable (ignores phase transitions, full action branching, weak evaluator). Next step would be MCTS/rollouts using the heuristic policy through `TurnController`.
+- ✅ `MCTSAgent` (`mcts.py`) — heuristic top-K candidates + Monte Carlo rollouts through a simulated `TurnController` (3 phases, ~70 ms each after the LOS memo), UCB1 over candidates, ~1–1.5 s per decision. Selectable in New Game ("Monte Carlo"). Benchmark: `python3 simulate.py -n 6 --deploy --p1 mcts --p2 heuristic --mcts-time 1.0` (see the win-rate line in the git log of this file's last update).
 - Benchmark: `python3 simulate.py -n 16 --p1 heuristic --p2 aggressive --seed 2000`
+- `MovementSystem.has_line_of_sight` is memoised on the board's terrain signature (`Board.terrain_signature()`, survives cloning): heuristic play went from ~25 to ~10 ms/action.
 
 ### Server / UI (`server.py` + `static/`)
 - ✅ JSON API; frontend updates in place (no reload); moves animate; dice popups for attacks, cover rolls, movement rolls, defensive fire; LOS line; casualty fades; initiative banner; click to skip
@@ -132,7 +133,6 @@ The official **Advanced Rulebook** is in `document.pdf` (local only, gitignored)
 - Special attacks (rockets, hull cannons, remote control, bombs) roll their own dice outside `_resolve_attack_full`: no cover roll, no facing, no rerolls. They now at least record pending counters correctly. Should be unified.
 - Bluffs/cliffs (fringe terrain), shell holes, half-hexes, and "road through forest" (roads are their own terrain type here) are not modelled.
 - Defensive fire: human defenders decide per shot (hex or hold); AI defenders use the automatic best-hex choice.
-- MCTS (`mcts.py`) still not playable.
 
 ### Implemented straight from the rulebook (Sep 2026)
 - Sequence of play; assault phase = each unit moves (as in the movement phase) **or** attacks; a unit may move in both phases.

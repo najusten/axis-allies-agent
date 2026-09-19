@@ -123,6 +123,9 @@ class GameSession:
             game_state, self.systems.executor, self.systems.generator,
             self.systems.initiative, players, movement_system=self.systems.movement,
         )
+        for agent in players.values():
+            if hasattr(agent, 'attach'):
+                agent.attach(self.controller)    # search agents simulate forward from the live game
         self.pending_facing: Optional[str] = None
         self._undo_stack: list = []
         self._redo_stack: list = []
@@ -143,6 +146,9 @@ class GameSession:
         if kind == 'lookahead':
             return LookaheadAgent(name, executor=self.systems.executor, evaluator=GameStateEvaluator(),
                                   movement_system=self.systems.movement)
+        if kind == 'mcts':
+            from mcts import MCTSAgent
+            return MCTSAgent(name, time_limit=1.5, movement_system=self.systems.movement)
         return HeuristicAgent(name, movement_system=self.systems.movement)
 
     def _create_showcase_game(self) -> GameState:

@@ -280,6 +280,7 @@ export class UI {
         <option value="ai_vs_ai">AI vs AI (watch)</option></select></div>
       <div class="row"><label>AI</label><select id="ng-ai">
         <option value="heuristic">Heuristic (strongest)</option>
+        <option value="mcts">Monte Carlo (heuristic + rollouts, ~1.5 s per decision)</option>
         <option value="lookahead">Lookahead (heuristic + 1-ply simulation)</option>
         <option value="aggressive">Aggressive (random-ish, easy)</option>
         <option value="greedy">Greedy (old evaluator)</option>

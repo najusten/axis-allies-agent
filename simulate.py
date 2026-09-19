@@ -27,6 +27,7 @@ from turn_controller import TurnController
 
 
 AGENTS = ['random', 'aggressive', 'greedy', 'heuristic', 'lookahead', 'mcts']
+MCTS_TIME = 1.0   # seconds per MCTS decision (--mcts-time)
 
 
 def make_agent(kind: str, name: str, systems):
@@ -45,11 +46,8 @@ def make_agent(kind: str, name: str, systems):
                               movement_system=systems.movement, rng=random.Random(random.random()))
     if kind == 'mcts':
         from mcts import MCTSAgent
-        agent = MCTSAgent(name, time_limit=1.0)
-        agent.set_action_executor(systems.executor)
-        agent.set_action_generator(systems.generator)
-        agent.set_evaluator(GameStateEvaluator())
-        return agent
+        return MCTSAgent(name, time_limit=MCTS_TIME, movement_system=systems.movement,
+                         rng=random.Random(random.random()))
     raise ValueError(f"unknown agent {kind!r}; choose from {AGENTS}")
 
 
@@ -141,6 +139,9 @@ def play_one(seed: int, p1: str, p2: str, points: int, max_turns: int,
               "player2": make_agent(p2, f"P2-{p2}", systems)}
     tc = CheckingController(gs, systems.executor, systems.generator, systems.initiative,
                             agents, max_turns=max_turns, movement_system=systems.movement)
+    for agent in agents.values():
+        if hasattr(agent, 'attach'):
+            agent.attach(tc)    # search agents simulate forward from the live controller
     t0 = time.perf_counter()
     crash = None
     try:
@@ -158,10 +159,12 @@ def play_one(seed: int, p1: str, p2: str, points: int, max_turns: int,
         'turns': res.get('turns', gs.turn_number), 'actions': n_actions,
         'seconds': elapsed, 'violations': tc.violations, 'crash': crash,
         'failed_actions': [e['message'] for e in tc.events if e['type'] == 'action' and not e['success']],
+        'search': {p: dict(a.stats) for p, a in agents.items() if hasattr(a, 'stats')},
     }
 
 
 def main(argv=None):
+    global MCTS_TIME
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('-n', '--games', type=int, default=10)
     ap.add_argument('--p1', default='aggressive', choices=AGENTS)
@@ -173,7 +176,9 @@ def main(argv=None):
     ap.add_argument('--show-failed', action='store_true', help='print failed action messages')
     ap.add_argument('--deploy', action='store_true', help='run the coin-flip/deployment phase (AI policy) instead of fixed placement')
     ap.add_argument('--historical', action='store_true', help='apply historical army limits')
+    ap.add_argument('--mcts-time', type=float, default=1.0, help='seconds per MCTS decision')
     args = ap.parse_args(argv)
+    MCTS_TIME = args.mcts_time
 
     out = open(args.events, 'w') if args.events else None
     wins = Counter()
@@ -201,8 +206,10 @@ def main(argv=None):
         elif r['violations']:
             flag = f"  {len(r['violations'])} violation(s)"
             bad.append(r)
+        search = "".join(f"  [{p} {st['rollouts']} rollouts, {st['seconds'] / max(1, st['decisions']):.2f}s/decision]"
+                         for p, st in r['search'].items() if st['decisions'])
         print(f"seed {seed:>4}: {str(r['winner']):8} {str(r['reason']):12} "
-              f"{r['turns']:>2} turns {r['actions']:>4} actions {r['seconds']:5.1f}s{flag}")
+              f"{r['turns']:>2} turns {r['actions']:>4} actions {r['seconds']:5.1f}s{flag}{search}")
     if out:
         out.close()
 

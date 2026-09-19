@@ -129,14 +129,27 @@ class Board:
         new.height = self.height
         new.hexes = {key: Hex(h.q, h.r, h.terrain) for key, h in self.hexes.items()}
         new.edge_obstacles = dict(self.edge_obstacles)
+        new._sig = getattr(self, '_sig', None)
         return new
-    
+
+    def terrain_signature(self) -> int:
+        """Hash of everything that affects line of sight / movement costs. Equal
+        for clones of the same board, so caches keyed on it survive cloning."""
+        sig = getattr(self, '_sig', None)
+        if sig is None:
+            sig = hash((self.width, self.height,
+                        tuple(sorted((k, h.terrain) for k, h in self.hexes.items())),
+                        tuple(sorted(self.edge_obstacles.items()))))
+            self._sig = sig
+        return sig
+
     def set_terrain(self, q, r, terrain):
         """Set terrain type for a hex"""
         if terrain not in self.TERRAIN_TYPES:
             raise ValueError(f"Invalid terrain type: {terrain}")
         if (q, r) in self.hexes:
             self.hexes[(q, r)].terrain = terrain
+            self._sig = None
     
     def place_unit(self, unit, q, r):
         """Place a unit at hex (q, r)"""
@@ -179,12 +192,14 @@ class Board:
             raise ValueError(f"Edge terrain must join adjacent hexes: ({q1},{r1})-({q2},{r2})")
         key = self._edge_key(q1, r1, q2, r2)
         self.edge_obstacles[key] = obstacle_type
+        self._sig = None
 
     def remove_edge_obstacle(self, q1: int, r1: int, q2: int, r2: int):
         """Remove an edge obstacle between two hexes."""
         key = self._edge_key(q1, r1, q2, r2)
         if key in self.edge_obstacles:
             del self.edge_obstacles[key]
+            self._sig = None
 
     def get_edge_obstacle(self, q1: int, r1: int, q2: int, r2: int) -> Optional[str]:
         """Get the obstacle type on the edge between two hexes, or None."""
