@@ -63,25 +63,44 @@ class Unit:
         }
 
     def icon_kind(self) -> str:
-        """Coarse icon class for rendering: soldier, mg, tank, transport, halftrack, aircraft, obstacle."""
+        """Icon class for rendering (see static/js/renderer.js _icon): soldier, mg, artillery,
+        commander, sniper, antitank, tank, tank_destroyer, assault_gun, armored_car, halftrack,
+        transport, sp_artillery, aircraft, obstacle."""
         ut = (self.unit_type or '')
+        utl = ut.lower()
         name = self.name.lower()
         abilities = [a.lower() for a in self.abilities]
         if ut == 'Obstacle':
             return 'obstacle'
         if ut.startswith('Soldier'):
+            if 'commander' in utl or any('commander abilities' in a for a in abilities):
+                return 'commander'
+            if 'artillery' in utl or 'mortar' in name:
+                return 'artillery'
+            if 'sniper' in utl or 'sniper' in name:
+                return 'sniper'
             if 'mg' in name or 'machine gun' in name or any('double shot' in a for a in abilities):
                 return 'mg'
+            if (self.veh_short or 0) >= 8 and (self.per_short or 0) <= 4:
+                return 'antitank'     # bazookas, Panzerfausts, PIATs: strong vs vehicles, weak vs soldiers
             return 'soldier'
         if ut.startswith('Vehicle'):
-            if 'half-track' in name or 'half track' in name or 'motorcycle' in name:
+            if 'half-track' in name or 'half track' in name or 'motorcycle' in name or 'half-track' in utl:
                 return 'halftrack'
             is_transport = any('transport' in a or 'towing' in a for a in abilities)
             has_gun = self.veh_short > 0 or self.veh_medium > 0
-            if (is_transport or 'artillery' in ut.lower()) and not has_gun:
+            if 'artillery' in utl and has_gun:
+                return 'sp_artillery'
+            if (is_transport or 'artillery' in utl) and not has_gun:
                 return 'transport'
+            if 'armored car' in utl or 'car' in utl.split():
+                return 'armored_car'
+            if 'tank destroyer' in utl:
+                return 'tank_destroyer'
+            if 'assault gun' in utl:
+                return 'assault_gun'
             return 'tank'
-        if ut.startswith('Aircraft'):
+        if ut.startswith('Aircraft') or 'jet' in utl:
             return 'aircraft'
         return 'unknown'
 

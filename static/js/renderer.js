@@ -31,6 +31,16 @@ const el = (tag, attrs = {}, cls = null) => {
 };
 const txt = (x, y, s, cls, attrs = {}) => { const t = el('text', { x, y, ...attrs }, cls); t.textContent = s; return t; };
 
+// "M4A1 Sherman" -> "Sherman", "MG 42 Machine Gun Team" -> "MG 42": a label that fits under a token
+function shortName(name) {
+  const words = String(name || '').replace(/["“”]/g, '').split(/\s+/).filter(Boolean);
+  if (!words.length) return '';
+  const hasDigit = (w) => /\d/.test(w);
+  let pick = words.find(w => w.length >= 4 && !hasDigit(w) && !/^(the|and|of|de|mk|ausf|type|model)$/i.test(w));
+  if (!pick || /^(machine|infantry|rifle|gun|team|gunner|veteran|elite)$/i.test(pick)) pick = words.slice(0, 2).join(' ');
+  return pick.length > 10 ? pick.slice(0, 9) + '…' : pick;
+}
+
 export class BoardRenderer {
   constructor(svg, handlers) {
     this.svg = svg;
@@ -225,31 +235,69 @@ export class BoardRenderer {
     const g = el('g', {}, 'icon');
     const kind = u.card.icon;
     const stroke = '#111';
-    if (kind === 'soldier' || kind === 'mg' || kind === 'obstacle') {
+    const W = (d, w = 2) => el('path', { d, stroke: '#fff', 'stroke-width': w, fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+    const SOLDIER_KINDS = ['soldier', 'mg', 'artillery', 'commander', 'sniper', 'antitank', 'obstacle'];
+    if (SOLDIER_KINDS.includes(kind)) {
       g.appendChild(el('circle', { cx: 0, cy: 0, r: 14, fill: pc.fill, stroke, 'stroke-width': 1.5 }));
       if (kind === 'mg') {
-        g.appendChild(el('path', { d: 'M-9,6 L-3,-2 L3,-2 L9,6 M0,-2 L0,7 M-2,-4 L12,-9', stroke: '#fff', 'stroke-width': 2, fill: 'none', 'stroke-linecap': 'round' }));
+        g.appendChild(W('M-9,6 L-3,-2 L3,-2 L9,6 M0,-2 L0,7 M-2,-4 L12,-9'));
       } else if (kind === 'obstacle') {
-        g.appendChild(el('path', { d: 'M-8,-8 L8,8 M-8,8 L8,-8', stroke: '#fff', 'stroke-width': 2.5 }));
+        g.appendChild(W('M-8,-8 L8,8 M-8,8 L8,-8', 2.5));
+      } else if (kind === 'artillery') {
+        // mortar / gun: tube on a baseplate with a shell
+        g.appendChild(W('M-8,8 L8,8 M-4,8 L6,-7 M-7,-1 L1,3', 2.5));
+        g.appendChild(el('circle', { cx: 8, cy: -9, r: 2.2, fill: '#fff' }));
+      } else if (kind === 'sniper') {
+        g.appendChild(el('circle', { cx: 0, cy: 0, r: 7, fill: 'none', stroke: '#fff', 'stroke-width': 2 }));
+        g.appendChild(W('M0,-11 L0,-4 M0,4 L0,11 M-11,0 L-4,0 M4,0 L11,0'));
+        g.appendChild(el('circle', { cx: 0, cy: 0, r: 1.8, fill: '#fff' }));
+      } else if (kind === 'antitank') {
+        // shoulder-fired tube with a big warhead
+        g.appendChild(el('circle', { cx: -3, cy: -6, r: 3, fill: '#fff' }));
+        g.appendChild(W('M-3,-3 L-3,5 M-3,5 L-7,10 M-3,5 L1,10 M-10,2 L10,-6', 2));
+        g.appendChild(el('circle', { cx: 10, cy: -6, r: 3, fill: '#fff' }));
       } else {
         g.appendChild(el('circle', { cx: 0, cy: -6, r: 3, fill: '#fff' }));
-        g.appendChild(el('path', { d: 'M0,-3 L0,5 M-5,0 L5,0 M0,5 L-4,10 M0,5 L4,10', stroke: '#fff', 'stroke-width': 2, fill: 'none', 'stroke-linecap': 'round' }));
+        g.appendChild(W('M0,-3 L0,5 M-5,0 L5,0 M0,5 L-4,10 M0,5 L4,10'));
+        if (kind === 'commander') {
+          g.appendChild(el('polygon', { points: '9,-13 10.8,-9.4 14.8,-8.9 11.9,-6.1 12.6,-2.2 9,-4.1 5.4,-2.2 6.1,-6.1 3.2,-8.9 7.2,-9.4',
+            fill: '#ffe600', stroke: '#000', 'stroke-width': .6 }));
+        }
       }
-    } else if (kind === 'tank' || kind === 'transport' || kind === 'halftrack') {
+    } else if (['tank', 'tank_destroyer', 'assault_gun', 'armored_car', 'halftrack', 'transport', 'sp_artillery'].includes(kind)) {
       const rot = u.facing != null ? dirAngleDeg(u.facing) : 0;
       const body = el('g', { transform: `rotate(${rot.toFixed(1)})` });
+      const hull = (w, h, rx) => el('rect', { x: -w / 2, y: -h / 2, width: w, height: h, rx, fill: pc.fill, stroke, 'stroke-width': 1.5 });
+      const tracks = (w, h) => { for (const y of [-h / 2 - 1.5, h / 2 - 1.5]) body.appendChild(el('rect', { x: -w / 2, y, width: w, height: 3, fill: '#222', rx: 1.5 })); };
+      const wheels = (xs, y) => { for (const cx of xs) for (const cy of [-y, y]) body.appendChild(el('circle', { cx, cy, r: 3, fill: '#222', stroke: '#000', 'stroke-width': .5 })); };
       if (kind === 'tank') {
-        body.appendChild(el('rect', { x: -13, y: -9, width: 26, height: 18, rx: 3, fill: pc.fill, stroke, 'stroke-width': 1.5 }));
+        body.appendChild(hull(26, 18, 3)); tracks(26, 18);
         body.appendChild(el('rect', { x: -6, y: -4.5, width: 11, height: 9, rx: 2, fill: pc.light, stroke, 'stroke-width': 1 }));
         body.appendChild(el('line', { x1: 4, y1: 0, x2: 17, y2: 0, stroke: '#111', 'stroke-width': 2.5 }));
+      } else if (kind === 'tank_destroyer') {
+        body.appendChild(hull(26, 18, 3)); tracks(26, 18);
+        body.appendChild(el('polygon', { points: '-8,-5 6,-4 6,4 -8,5', fill: pc.light, stroke, 'stroke-width': 1 }));
+        body.appendChild(el('line', { x1: 5, y1: 0, x2: 21, y2: 0, stroke: '#111', 'stroke-width': 2.5 }));
+      } else if (kind === 'assault_gun') {
+        body.appendChild(hull(26, 18, 2)); tracks(26, 18);
+        body.appendChild(el('polygon', { points: '-10,-6 8,-6 10,-2 10,2 8,6 -10,6', fill: pc.light, stroke, 'stroke-width': 1 }));
+        body.appendChild(el('line', { x1: 8, y1: 0, x2: 18, y2: 0, stroke: '#111', 'stroke-width': 3.5 }));
+      } else if (kind === 'sp_artillery') {
+        body.appendChild(hull(26, 18, 2)); tracks(26, 18);
+        body.appendChild(el('rect', { x: -12, y: -6, width: 12, height: 12, rx: 1, fill: pc.light, stroke, 'stroke-width': 1 }));
+        body.appendChild(el('line', { x1: -4, y1: 0, x2: 20, y2: -5, stroke: '#111', 'stroke-width': 3 }));
+      } else if (kind === 'armored_car') {
+        body.appendChild(hull(24, 14, 6)); wheels([-7, 7], 7.5);
+        body.appendChild(el('circle', { cx: 0, cy: 0, r: 4.5, fill: pc.light, stroke, 'stroke-width': 1 }));
+        body.appendChild(el('line', { x1: 3, y1: 0, x2: 13, y2: 0, stroke: '#111', 'stroke-width': 2 }));
       } else if (kind === 'halftrack') {
-        body.appendChild(el('rect', { x: -12, y: -8, width: 24, height: 16, rx: 3, fill: pc.fill, stroke, 'stroke-width': 1.5 }));
-        body.appendChild(el('circle', { cx: 7, cy: 0, r: 3.5, fill: '#222' }));
-        body.appendChild(el('rect', { x: -11, y: -3, width: 12, height: 6, fill: '#222', rx: 2 }));
+        body.appendChild(hull(24, 16, 3));
+        for (const y of [-9.5, 6.5]) body.appendChild(el('rect', { x: -12, y, width: 14, height: 3, fill: '#222', rx: 1.5 }));
+        wheels([8], 8);
+        body.appendChild(el('rect', { x: -10, y: -4, width: 12, height: 8, fill: pc.light, rx: 1, stroke, 'stroke-width': .8 }));
       } else {
-        body.appendChild(el('rect', { x: -12, y: -8, width: 24, height: 16, rx: 5, fill: pc.fill, stroke, 'stroke-width': 1.5 }));
-        for (const cx of [-7, 7]) body.appendChild(el('circle', { cx, cy: 6, r: 3, fill: '#222' }));
-        body.appendChild(el('rect', { x: -4, y: -5, width: 12, height: 7, fill: pc.light, rx: 1 }));
+        body.appendChild(hull(24, 16, 5)); wheels([-7, 7], 8);
+        body.appendChild(el('rect', { x: -4, y: -5, width: 12, height: 10, fill: pc.light, rx: 1, stroke, 'stroke-width': .8 }));
       }
       g.appendChild(body);
       if (u.facing != null) {
@@ -261,8 +309,10 @@ export class BoardRenderer {
         g.appendChild(el('polygon', { points: `${(ax * 36).toFixed(1)},${(ay * 36).toFixed(1)} ${(ax * 28 - ay * 5).toFixed(1)},${(ay * 28 + ax * 5).toFixed(1)} ${(ax * 28 + ay * 5).toFixed(1)},${(ay * 28 - ax * 5).toFixed(1)}`, fill: '#ffe600', stroke: '#000', 'stroke-width': .8 }));
       }
     } else if (kind === 'aircraft') {
-      g.appendChild(el('polygon', { points: '0,-16 14,0 0,16 -14,0', fill: pc.fill, stroke, 'stroke-width': 1.5 }));
-      g.appendChild(el('path', { d: 'M0,-12 L0,12 M-10,0 L10,0', stroke: '#fff', 'stroke-width': 2 }));
+      // plan view: fuselage, swept wings, tailplane
+      g.appendChild(el('path', { d: 'M0,-17 L3,-10 L15,-2 L15,2 L3,0 L2,9 L7,12 L7,14 L0,12 L-7,14 L-7,12 L-2,9 L-3,0 L-15,2 L-15,-2 L-3,-10 Z',
+        fill: pc.fill, stroke, 'stroke-width': 1.2, 'stroke-linejoin': 'round' }));
+      g.appendChild(el('circle', { cx: 0, cy: -6, r: 2, fill: '#fff' }));
     } else {
       g.appendChild(el('circle', { cx: 0, cy: 0, r: 12, fill: pc.fill, stroke, 'stroke-width': 1.5 }));
     }
@@ -276,6 +326,7 @@ export class BoardRenderer {
     g.appendChild(el('rect', { x: -12, y: 16, width: 24, height: 4, fill: '#222', rx: 1 }));
     g.appendChild(el('rect', { x: -12, y: 16, width: (24 * frac).toFixed(1), height: 4, rx: 1,
       fill: frac > .6 ? '#22c55e' : frac > .3 ? '#f59e0b' : '#ef4444' }));
+    g.appendChild(txt(0, 27, shortName(u.card.name), 'unit-name', { 'text-anchor': 'middle' }));
     let rx = 16;
     const badge = (label, fill, color = '#000') => {
       g.appendChild(el('circle', { cx: rx, cy: -18, r: 6.5, fill, stroke: '#000', 'stroke-width': .8 }));
