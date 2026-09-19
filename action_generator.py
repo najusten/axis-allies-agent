@@ -92,8 +92,9 @@ class ActionGenerator:
     def _is_us_commander(self, unit) -> bool:
         """Check if a unit is a U.S. Commander."""
         abilities = getattr(unit, 'abilities', []) or []
-        nationality = getattr(unit, 'nationality', '').lower()
-        is_commander = any('commander abilities' in a.lower() for a in abilities)
+        nationality = (getattr(unit, 'nation', None) or getattr(unit, 'nationality', None) or '').lower()
+        is_commander = (any('commander abilities' in a.lower() for a in abilities)
+                        or 'commander' in (getattr(unit, 'unit_type', '') or '').lower())
         return is_commander and nationality == 'us'
 
     def _has_improvisation(self, unit) -> bool:
@@ -319,7 +320,7 @@ class ActionGenerator:
                 return 'US'
             elif ability_lower == 'hero':
                 # Generic Hero - matches unit's own nationality
-                return getattr(unit, 'nationality', None)
+                return getattr(unit, 'nation', None) or getattr(unit, 'nationality', None)
         return None
 
     def _has_hero_ability(self, unit) -> bool:

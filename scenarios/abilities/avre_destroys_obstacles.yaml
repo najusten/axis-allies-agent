@@ -1,0 +1,22 @@
+name: avre-ignores-and-destroys-obstacles-it-crosses
+source: "AVRE: this unit ignores Obstacles, destroys each Obstacle it crosses and each Obstacle in hexes it enters"
+board:
+  width: 10
+  height: 8
+  edge_obstacles:
+    - {a: [2,3], b: [3,3], type: barbed wire}
+units:
+  - {id: avre, owner: player1, at: [2,3], facing: SE, stats: {unit_type: Vehicle Tank, defense: "6/5", speed: 2, per: [10,8,6], veh: [8,6,4], abilities: "AVRE"}}
+  - {id: block, owner: player2, at: [4,3], stats: {unit_type: Obstacle, defense: "1", speed: 0, per: [0,0,0], abilities: "Tank Obstacle"}}
+  - {id: enemy, owner: player2, at: [9,7], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: movement
+active_player: player1
+actions:
+  - {type: move, unit: avre, to: [4,3], path: [[2,3],[3,3],[4,3]]}
+expect:
+  dice_consumed: 0          # no barbed wire / tank obstacle rolls
+  results:
+    0: {success: true, message_contains: "AVRE destroyed"}
+  units:
+    avre: {at: [4,3]}
+    block: {status: destroyed}

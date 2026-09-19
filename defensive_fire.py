@@ -282,6 +282,9 @@ class DefensiveFireSystem:
             # Rule: Disrupted units cannot make defensive fire attacks
             if enemy_state.is_disrupted:
                 continue
+            # Obstacles, undeployed units and passengers don't fire
+            if (enemy_unit.unit_type or '') == 'Obstacle' or not enemy_state.is_deployed or enemy_state.carried_by_id:
+                continue
 
             # Check for Limited Ammo - can't make defensive fire attacks
             enemy_abilities = getattr(enemy_unit, 'abilities', []) or []

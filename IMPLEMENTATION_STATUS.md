@@ -103,7 +103,8 @@ initiative_system = InitiativeSystem(ability_system, movement_system)
 - ✅ Special deployment through the UI: Partisan (any edge hex), Gliderborne (anywhere outside the enemy zone), Paratrooper (movement phase, not adjacent to an enemy, can't move that phase), Hero (movement phase, with a friendly Soldier of its nation). The AI uses them too.
 - ✅ Antiair / Ace reaction shots when an enemy Aircraft is placed (adjacent / within 4); a human defender is asked, as for defensive fire. Flamethrower instant kill (3+ sixes at short range). Covering Fire, Suppressive Fire, Multiturreted (one front-arc + one non-front-arc target) verified by scenarios.
 - ✅ Aggression X in the UI: assault-phase hexes within X are shown with a red ring (⚔+) and keep the attack; plain green hexes are the full-speed move that gives it up.
-- ❌ Activation missing for: Vanguard (pre-game phase; runner only), AVRE (explicit obstacle destruction), Improved Indirect Fire (US commander target designation)
+- ✅ AVRE (crosses/destroys obstacles without rolls) and Improved Indirect Fire (US commander within 4 as spotter) are passive and scenario-tested; the latter never worked before (wrong nationality attribute).
+- ❌ Vanguard pre-game phase exists in the controller but has no UI hint yet.
 
 ### AI
 - ✅ `agents.HeuristicAgent` — **server default**. Static scoring of every legal action: attacks by expected damage (binomial over dice, cover roll, target value, focus fire), moves by objective pressure (phased by turn), cover, expected damage dealt/taken from the destination, rear exposure, route risk (forest/stream/hedge rolls and defensive-fire exposure along the path), spreading. Chooses to go second on initiative until turn 6; deploys with a back/front/cover policy. ~10 ms/decision. Beats AggressiveRandom 80–94%, Greedy 100%.
@@ -158,7 +159,6 @@ The official **Advanced Rulebook** is in `document.pdf` (local only, gitignored)
 - Route preview on hover (dashed path + dice markers where rolls happen); routes prefer fewer rolls at equal cost.
 - Spotter Q&A ([aamcardbase](http://www.aamcardbase.com/special_abilities_aam.aspx)): a Spotter that moves in the assault phase doesn't count.
 - Artillery assault-only movement, half-hexes, hex-side terrain: not implemented.
-- Ability activation UI missing for AVRE, Improved Indirect Fire.
 - Log/coordinates are axial (q, r); the UI's coords toggle shows the same. Fine for debugging, may want offset (col,row) for players.
 
 ### Fixed in the Sep 2026 rebuild
