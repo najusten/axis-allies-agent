@@ -161,6 +161,7 @@ class HeuristicAgent:
 
     def choose_action(self, game_state: GameState, legal_actions: List[Action], player: str) -> Action:
         self._los_cache.clear()
+        self._path_cache: Dict[str, dict] = {}
         scored = self.score_actions(game_state, legal_actions, player)
         if not scored:
             return next((a for a in legal_actions if isinstance(a, PassAction)), legal_actions[0])
@@ -254,14 +255,67 @@ class HeuristicAgent:
         here = self._score_position(gs, us, us.position, ctx)
         there = self._score_position(gs, us, dest, ctx)
         score = there - here
-        # Bog risk for vehicles entering forest
-        hex_ = gs.board.get_hex(*dest)
-        if hex_ and hex_.terrain == 'forest' and is_vehicle(us.unit):
-            score -= self.W_BOG
+        # Route risks: movement rolls (forest for vehicles, streams, hedges) and
+        # defensive fire from enemies the route passes.
+        score -= self._route_risk(gs, us, a, ctx)
         # In the assault phase moving forfeits the attack: only worth it if clearly better
-        if gs.current_phase == GamePhase.ASSAULT:
+        if gs.current_phase == GamePhase.ASSAULT and not getattr(a, 'is_aggression', False):
             score -= 2.0
         return score
+
+    def _route(self, gs: GameState, us: UnitState, a: MoveAction) -> list:
+        """Cheapest route for this move, from one reachable-hex search per unit."""
+        if self.movement is None:
+            return [tuple(us.position), (a.to_q, a.to_r)]
+        cache = getattr(self, '_path_cache', None)
+        if cache is None:
+            self._path_cache = cache = {}
+        key = us.unit.id
+        if key not in cache:
+            friendly = {f.position for f in gs.get_units_by_owner(us.owner) if f.is_alive and f.unit.id != us.unit.id}
+            self.movement.get_reachable_hexes(gs.board, us.position[0], us.position[1], us.unit,
+                                              max_speed=getattr(a, 'max_speed', None),
+                                              friendly_positions=friendly, is_damaged=us.is_damaged)
+            cache[key] = dict(getattr(self.movement, '_last_came_from', {}) or {})
+        came_from = cache[key]
+        dest = (a.to_q, a.to_r)
+        path = [dest]
+        cur = dest
+        while cur != tuple(us.position) and cur in came_from and len(path) < 50:
+            cur = came_from[cur]
+            path.append(cur)
+        path.reverse()
+        return path if path[0] == tuple(us.position) else [tuple(us.position), dest]
+
+    def _route_risk(self, gs: GameState, us: UnitState, a: MoveAction, ctx: dict) -> float:
+        path = self._route(gs, us, a)
+        board = gs.board
+        risk = 0.0
+        value = float(us.unit.cost or 10)
+        vehicle = is_vehicle(us.unit)
+        for step_from, step_to in zip(path, path[1:]):
+            h_from, h_to = board.get_hex(*step_from), board.get_hex(*step_to)
+            along_road = bool(h_from and h_from.has_road and h_to and h_to.has_road)
+            # 50% to fail each roll; failing wastes the rest of the move
+            if vehicle and h_to and h_to.terrain == 'forest' and not along_road:
+                risk += 0.5 * self.W_BOG
+            kind = board.get_edge_obstacle(step_from[0], step_from[1], step_to[0], step_to[1])
+            if kind and not along_road:
+                risk += (0.67 if kind in Board.EDGE_HEDGE else 0.5) * self.W_BOG
+            # defensive fire: enemies adjacent to both hexes (or in the entered hex)
+            for e in ctx['enemies']:
+                if e.is_disrupted or e.hold_defensive_fire or e.unit.id in gs.defensive_fire_used:
+                    continue
+                if not vehicle and is_vehicle(e.unit):
+                    continue    # Soldiers don't provoke defensive fire from Vehicles
+                d0 = board.hex_distance(e.position[0], e.position[1], *step_from)
+                d1 = board.hex_distance(e.position[0], e.position[1], *step_to)
+                if d0 <= 1 and d1 <= 1:
+                    dice = attack_dice(e.unit, us.unit, min(d0, d1))
+                    if dice > 0:
+                        p = hit_distribution(dice, us.unit.defense_rear if vehicle else (us.unit.defense_front or 4))
+                        risk += self.W_THREAT * (p[0] + p[1] + p[2]) * value * 0.35
+        return risk
 
     def _score_position(self, gs: GameState, us: UnitState, pos: Tuple[int, int], ctx: dict) -> float:
         board = gs.board
