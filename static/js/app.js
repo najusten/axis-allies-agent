@@ -206,7 +206,9 @@ class App {
     // Clicking a unit standing on one of the selected unit's highlights = that action
     // (attack an enemy there, or "turn in place" on the selected vehicle itself)
     if (this.selected) {
-      const hl = this.highlightsFor(this.selected).find(h => h.q === u.position[0] && h.r === u.position[1]);
+      const here = this.highlightsFor(this.selected).filter(h => h.q === u.position[0] && h.r === u.position[1]);
+      // clicking a specific enemy token in a stacked hex targets that unit
+      const hl = here.find(h => h.data && h.data.target_id === id) || here[0];
       if (hl && (this.selected !== id || hl.kind === 'turn')) { this.onHighlightClick(hl); return; }
     }
     this.select(this.selected === id ? null : id);
@@ -215,7 +217,18 @@ class App {
   onHexClick(q, r) {
     if (this.busy) return;
     if (q === null) { this.select(null); return; }
-    const hl = this.highlightsFor(this.selected).find(h => h.q === q && h.r === r);
+    const here = this.highlightsFor(this.selected).filter(h => h.q === q && h.r === r);
+    const targets = here.filter(h => h.data && h.data.target_id);
+    if (targets.length > 1) {
+      // several enemies in the hex: let the player pick the target
+      const units = this.state.game.units;
+      this.ui.chooseOne('Which target?', targets.map(h => {
+        const t = units.find(x => x.id === h.data.target_id);
+        return { label: t ? `${t.card.name} (def ${t.card.defense_front}${t.is_disrupted ? ', disrupted' : ''}${t.is_damaged ? ', damaged' : ''})` : h.data.target_id, value: h };
+      })).then(hl => { if (hl && !this.busy) this.send(hl.data); });
+      return;
+    }
+    const hl = here[0];
     if (hl) this.onHighlightClick(hl);
     else {
       // select a friendly unit standing there, if any
@@ -227,6 +240,11 @@ class App {
 
   onHighlightClick(hl) {
     if (this.busy || !hl.data) return;
+    if (hl.data.target_id && this.selected) {
+      // a highlight polygon covers the whole hex: with several enemies there, ask which
+      const targets = this.highlightsFor(this.selected).filter(h => h.q === hl.q && h.r === hl.r && h.data && h.data.target_id);
+      if (targets.length > 1) { this.onHexClick(hl.q, hl.r); return; }
+    }
     this.send(hl.data);
   }
 

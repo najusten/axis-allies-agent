@@ -210,6 +210,17 @@ export class UI {
     });
   }
 
+  chooseOne(title, options) {
+    return new Promise(resolve => {
+      const box = this._modal(`<h2>${esc(title)}</h2>
+        <div class="actions" style="flex-direction:column;align-items:stretch">${options.map((o, i) => `<button class="btn" data-i="${i}">${esc(o.label)}</button>`).join('')}
+        <button class="btn" id="m-cancel">Cancel</button></div>`);
+      box.className = 'modal-box';
+      box.querySelectorAll('button[data-i]').forEach(b => { b.onclick = () => { this.closeModal(); resolve(options[+b.dataset.i].value); }; });
+      box.querySelector('#m-cancel').onclick = () => { this.closeModal(); resolve(null); };
+    });
+  }
+
   showHandoff(player) {
     return new Promise(resolve => {
       const box = this._modal(`<h2 class="${player === 'player1' ? 'p1' : 'p2'}">${this.playerName(player)}</h2>
