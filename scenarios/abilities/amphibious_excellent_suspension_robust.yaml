@@ -1,0 +1,27 @@
+name: amphibious-stream-excellent-suspension-hill-robust-movement-roll
+source: "Amphibious: cross streams without a roll. Excellent Suspension: hills as clear. Robust: +1 on movement rolls (forest needs 3+)"
+board:
+  width: 12
+  height: 8
+  terrain: {hill: [[4,2]], forest: [[4,5]]}
+  edge_obstacles:
+    - {a: [2,3], b: [3,3], type: stream}
+units:
+  - {id: amph, owner: player1, at: [2,3], facing: SE, stats: {unit_type: Vehicle, defense: "3/2", speed: 3, veh: [4,3,2], per: [6,4,2], abilities: "Amphibious"}}
+  - {id: susp, owner: player1, at: [2,2], facing: SE, stats: {unit_type: Vehicle, defense: "4/3", speed: 2, veh: [6,4,2], per: [6,4,2], abilities: "Excellent Suspension"}}
+  - {id: rob, owner: player1, at: [3,5], facing: SE, stats: {unit_type: Vehicle, defense: "4/3", speed: 2, veh: [6,4,2], per: [6,4,2], abilities: "Robust"}}
+  - {id: enemy, owner: player2, at: [11,7], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: movement
+active_player: player1
+dice: [3]
+actions:
+  - {type: move, unit: amph, to: [3,3]}      # stream, no roll
+  - {type: move, unit: susp, to: [4,2]}      # hill at cost 1
+  - {type: move, unit: rob, to: [4,5]}       # forest: roll 3 succeeds with +1
+expect:
+  dice_consumed: 1
+  units:
+    amph: {at: [3,3]}
+    susp: {at: [4,2]}
+    rob: {at: [4,5]}
+  legal: []

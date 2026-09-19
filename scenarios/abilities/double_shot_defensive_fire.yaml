@@ -1,0 +1,15 @@
+name: double-shot-makes-two-defensive-fire-rolls
+source: "Double Shot: when making a defensive-fire attack, this unit makes two attack rolls"
+board: {width: 10, height: 8}
+units:
+  - {id: mg, owner: player2, at: [4,4], stats: {unit_type: Soldier, defense: "4", per: [10,8,6], abilities: "Double Shot"}}
+  - {id: rifles, owner: player1, at: [3,4], stats: {unit_type: Soldier, defense: "4", speed: 2, per: [7,5,3]}}
+phase: movement
+active_player: player1
+dice: [1,1,1,1,1,1,1,1,1,1, 6,6,6,6,1,1,1,1,1,1]     # first roll misses, second roll disrupts
+actions:
+  - {type: move, unit: rifles, to: [4,3]}
+expect:
+  dice_consumed: 20
+  units:
+    rifles: {status: disrupted}

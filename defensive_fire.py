@@ -728,12 +728,15 @@ class DefensiveFireSystem:
 
         # Build result message
         any_hit = hit_1 or hit_2
+        rolls_txt = f"[{','.join(map(str, attack_result.rolls))}] {attack_result.successes}"
+        if attack_result_2 is not None:
+            rolls_txt += f" + [{','.join(map(str, attack_result_2.rolls))}] {attack_result_2.successes}"
         if num_dice == 0:
             message = f"{defender.name} has no attack against {target.name}"
         elif hits_applied == 0:
             if not any_hit:
                 message = (f"{defender.name} defensive fire vs {target.name}: "
-                          f"{attack_result.successes} successes vs defense {defense} - MISS{ability_notes_str}")
+                          f"{rolls_txt} successes vs defense {defense} - MISS{ability_notes_str}")
             else:
                 message = (f"{defender.name} defensive fire vs {target.name}: "
                           f"HIT but cover saves succeeded - NEGATED{ability_notes_str}")
@@ -745,7 +748,7 @@ class DefensiveFireSystem:
                       f"{hits_applied} hits - DISRUPTED and DAMAGED! Movement stopped.{ability_notes_str}")
         else:
             message = (f"{defender.name} defensive fire vs {target.name}: "
-                      f"{attack_result.successes} successes vs defense {defense} - "
+                      f"{rolls_txt} successes vs defense {defense} - "
                       f"DISRUPTED! Movement stopped.{ability_notes_str}")
 
         return DefensiveFireResult(

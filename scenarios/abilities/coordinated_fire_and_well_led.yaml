@@ -1,0 +1,18 @@
+name: coordinated-fire-and-command-leadership-extra-die
+source: "Coordinated Fire: +1 attack die while adjacent to a friendly Commander. Command Leadership: friendly Vehicles within two hexes get Well Led (+1 die in the assault phase)"
+board: {width: 10, height: 8}
+units:
+  - {id: cmd, owner: player1, at: [2,3], stats: {unit_type: "Soldier Commander", defense: "4", per: [6,4,2], abilities: "COMMANDER ABILITIES:2, Command Leadership"}}
+  - {id: rif, owner: player1, at: [2,4], stats: {unit_type: Soldier, defense: "4", per: [6,4,2], abilities: "Coordinated Fire"}}
+  - {id: tank, owner: player1, at: [3,3], facing: SE, stats: {unit_type: Vehicle, defense: "5/3", speed: 3, veh: [8,6,4], per: [6,4,2]}}
+  - {id: e1, owner: player2, at: [4,4], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+  - {id: e2, owner: player2, at: [5,3], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: assault
+active_player: player1
+actions:
+  - {type: attack, unit: rif, target: e1}     # medium range 4 dice +1 = 5
+  - {type: attack, unit: tank, target: e2}    # medium range 4 dice +1 (Well Led) = 5
+expect:
+  results:
+    0: {combat: {attack_dice: 5}}
+    1: {combat: {attack_dice: 5}}

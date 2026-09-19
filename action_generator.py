@@ -2528,6 +2528,14 @@ class ActionGenerator:
         for enemy_state in enemy_units:
             if not enemy_state.is_alive:
                 continue
+            # Rulebook: "A boarded Soldier can't be attacked" (Exposed Transport
+            # passengers are handled by _get_exposed_transport_attacks)
+            if enemy_state.carried_by_id:
+                continue
+            # Units still off the map (undeployed, Aircraft not placed) can't be targets
+            if not enemy_state.is_deployed or (
+                    'Aircraft' in (enemy_state.unit.unit_type or '') and not enemy_state.is_aircraft_on_map):
+                continue
 
             enemy = enemy_state.unit
             enemy_q, enemy_r = enemy_state.position

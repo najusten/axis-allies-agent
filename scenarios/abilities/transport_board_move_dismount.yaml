@@ -1,0 +1,27 @@
+name: transport-board-then-move-then-dismount-next-turn
+source: "Transport: a Soldier in the same hex may board instead of moving; a boarded Soldier can't move, attack or be attacked; next turn the Vehicle moves and the Soldier may dismount"
+board: {width: 12, height: 8}
+units:
+  - {id: ht, owner: player1, at: [2,3], facing: SE, stats: {unit_type: Vehicle, defense: "3/2", speed: 4, veh: [0,0,0], per: [6,4,2], abilities: "Transport"}}
+  - {id: r1, owner: player1, at: [2,3], stats: {unit_type: Soldier, defense: "4", speed: 1, per: [7,5,3]}}
+  - {id: enemy, owner: player2, at: [9,3], stats: {unit_type: Soldier, defense: "4", per: [10,8,6]}}
+phase: movement
+active_player: player1
+actions:
+  - {type: board, unit: r1, transport: ht}
+  - {type: move, unit: ht, to: [5,3]}
+  - {type: set_phase, phase: assault, active_player: player2}
+  - {type: attack, unit: enemy, target: r1}          # boarded: can't be attacked
+  - {type: new_turn}
+  - {type: set_phase, phase: movement, active_player: player1}
+  - {type: move, unit: ht, to: [7,3]}
+  - {type: dismount, unit: r1, transport: ht, to: [7,3]}
+expect:
+  results:
+    0: {success: true}
+    1: {success: true}
+    3: {success: false}
+    6: {success: true}
+    7: {success: true}
+  units:
+    r1: {at: [7,3]}
