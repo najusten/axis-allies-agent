@@ -1,0 +1,16 @@
+name: no-turret-attacks-vehicles-only-in-front-arc
+source: "No Turret: can attack Vehicles only if they are in front of this unit (Soldiers from any direction)"
+board: {width: 8, height: 6}
+units:
+  - {id: sg, owner: player1, at: [3,3], facing: SE, stats: {unit_type: Vehicle, defense: "5/4", speed: 3, veh: [9,7,5], per: [7,5,3], abilities: "No Turret"}}
+  - {id: front_v, owner: player2, at: [5,3], facing: NW, stats: {unit_type: Vehicle, defense: "4/3", speed: 3, veh: [6,4,2], per: [5,3,1]}}
+  - {id: rear_v, owner: player2, at: [1,3], facing: SE, stats: {unit_type: Vehicle, defense: "4/3", speed: 3, veh: [6,4,2], per: [5,3,1]}}
+  - {id: rear_s, owner: player2, at: [1,4], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: assault
+active_player: player1
+actions: []
+expect:
+  legal:
+    - {type: attack, unit: sg, target: front_v, allowed: true}
+    - {type: attack, unit: sg, target: rear_v, allowed: false}
+    - {type: attack, unit: sg, target: rear_s, allowed: true}

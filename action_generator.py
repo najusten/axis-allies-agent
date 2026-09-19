@@ -756,7 +756,7 @@ class ActionGenerator:
                     continue
 
                 # Enforce stacking limits at destination
-                if not game_state.can_stack_at(dest_q, dest_r, unit_state.owner, unit_type):
+                if not game_state.can_stack_at(dest_q, dest_r, unit_state.owner, unit_type, exclude_unit_id=unit.id):
                     continue
                 
                 # Calculate movement cost (hex distance as minimum)
@@ -2432,7 +2432,7 @@ class ActionGenerator:
                     actions.append(MoveAction(unit_id=unit.id, from_q=q, from_r=r, to_q=q, to_r=r,
                                               path=[(q, r)], movement_cost=0, is_relocate=True))
                 continue
-            if not game_state.can_stack_at(dest_q, dest_r, owner, unit_type):
+            if not game_state.can_stack_at(dest_q, dest_r, owner, unit_type, exclude_unit_id=unit.id):
                 continue
 
             move_action = MoveAction(

@@ -1,0 +1,14 @@
+name: shrapnel-each-success-vs-soldiers-counts-double
+source: "Shrapnel: each success this unit rolls against a Soldier counts as two successes"
+board: {width: 8, height: 6}
+units:
+  - {id: mortar, owner: player1, at: [2,3], stats: {unit_type: "Soldier Artillery", defense: "3", per: [4,4,4], veh: [2,2,2], abilities: "Shrapnel"}}
+  - {id: inf, owner: player2, at: [4,3], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: assault
+active_player: player1
+dice: [6,6,1,1]      # 2 successes → 4 with Shrapnel = defense → 1 hit
+actions:
+  - {type: attack, unit: mortar, target: inf}
+expect:
+  results:
+    0: {combat: {hits: 1}}

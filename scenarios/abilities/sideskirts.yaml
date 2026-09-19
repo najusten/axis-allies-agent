@@ -1,0 +1,13 @@
+name: sideskirts-plus-one-defense-vs-close-assault-units
+source: "Sideskirts: +1/+1 defense against units that have the close assault ability"
+board: {width: 8, height: 6}
+units:
+  - {id: pf, owner: player1, at: [3,3], stats: {unit_type: Soldier, defense: "4", per: [6,4,2], veh: [2,1,0], abilities: "Close Assault 11"}}
+  - {id: tank, owner: player2, at: [3,3], facing: SE, stats: {unit_type: Vehicle, defense: "5/3", speed: 3, veh: [8,6,4], per: [6,4,2], abilities: "Sideskirts"}}
+phase: assault
+active_player: player1
+actions:
+  - {type: attack, unit: pf, target: tank}
+expect:
+  results:
+    0: {combat: {defense: 4}}      # rear 3 + 1

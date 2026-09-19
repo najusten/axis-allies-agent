@@ -1,0 +1,18 @@
+name: inaccurate-minus-one-and-crack-shot-plus-one-per-die
+source: "Inaccurate 1: -1 on each attack die (hits on 5+); Crack Shot: +1 on each attack die (hits on 3+)"
+board: {width: 8, height: 6}
+units:
+  - {id: bad, owner: player1, at: [2,3], stats: {unit_type: Soldier, defense: "4", per: [6,6,6], abilities: "Inaccurate 1"}}
+  - {id: good, owner: player1, at: [2,2], stats: {unit_type: Soldier, defense: "4", per: [6,6,6], abilities: "Crack Shot"}}
+  - {id: t1, owner: player2, at: [4,3], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+  - {id: t2, owner: player2, at: [4,2], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: assault
+active_player: player1
+dice: [4,4,4,4,4,4, 3,3,3,3,3,3]
+actions:
+  - {type: attack, unit: bad, target: t1}      # six 4s: with -1 none hit
+  - {type: attack, unit: good, target: t2}     # six 3s: with +1 all hit
+expect:
+  results:
+    0: {combat: {successes: 0}}
+    1: {combat: {successes: 6}}

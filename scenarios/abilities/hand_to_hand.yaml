@@ -1,0 +1,16 @@
+name: hand-to-hand-value-vs-soldier-in-same-hex
+source: "Hand to Hand X: attack value X against Soldiers in its hex; ignores cover"
+board: {width: 8, height: 6, terrain: {town: [[3,3]]}}
+units:
+  - {id: a, owner: player1, at: [3,3], stats: {unit_type: Soldier, defense: "4", per: [5,3,1], abilities: "Hand to Hand 10"}}
+  - {id: b, owner: player2, at: [3,3], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+phase: assault
+active_player: player1
+dice: [6,6,6,6,6,6,6,6,6,6]
+actions:
+  - {type: attack, unit: a, target: b}
+expect:
+  results:
+    0: {combat: {attack_dice: 10}}
+  no_events:
+    - {type: cover_save}

@@ -1,0 +1,19 @@
+name: limited-range-2-and-extended-range-vs-vehicles
+source: "Limited Range 2: can attack only at ranges of 2 or less. Extended Range 10: long range against Vehicles is 5-10"
+board: {width: 14, height: 6}
+units:
+  - {id: flamer, owner: player1, at: [1,3], stats: {unit_type: Soldier, defense: "4", per: [12,12,12], veh: [6,6,6], abilities: "Limited Range 2"}}
+  - {id: gun88, owner: player1, at: [1,1], stats: {unit_type: "Soldier Artillery", defense: "3", veh: [12,10,8], per: [3,2,1], abilities: "Extended Range 10"}}
+  - {id: near, owner: player2, at: [3,3], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+  - {id: far, owner: player2, at: [4,3], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+  - {id: tank10, owner: player2, at: [11,1], facing: NW, stats: {unit_type: Vehicle, defense: "4/3", speed: 3, veh: [6,4,2], per: [5,3,1]}}
+  - {id: inf10, owner: player2, at: [11,0], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: assault
+active_player: player1
+actions: []
+expect:
+  legal:
+    - {type: attack, unit: flamer, target: near, allowed: true}
+    - {type: attack, unit: flamer, target: far, allowed: false}
+    - {type: attack, unit: gun88, target: tank10, allowed: true}
+    - {type: attack, unit: gun88, target: inf10, allowed: false}

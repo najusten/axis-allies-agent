@@ -1,0 +1,16 @@
+name: close-assault-value-vs-vehicle-in-same-hex-ignores-cover
+source: "Close Assault X: attack value X against Vehicles in its hex; this attack ignores cover"
+board: {width: 8, height: 6, terrain: {forest: [[3,3]]}}
+units:
+  - {id: pf, owner: player1, at: [3,3], stats: {unit_type: Soldier, defense: "4", per: [6,4,2], veh: [2,1,0], abilities: "Close Assault 11"}}
+  - {id: tank, owner: player2, at: [3,3], facing: SE, stats: {unit_type: Vehicle, defense: "5/3", speed: 3, veh: [8,6,4], per: [6,4,2]}}
+phase: assault
+active_player: player1
+dice: [6,6,6,6,6,6,6,6,6,6,6]
+actions:
+  - {type: attack, unit: pf, target: tank}
+expect:
+  results:
+    0: {combat: {attack_dice: 11}}
+  no_events:
+    - {type: cover_save}

@@ -1,0 +1,13 @@
+name: open-back-rear-attacks-use-anti-soldier-values
+source: "Open Back: enemy units can use their anti-Soldier attack values when attacking the rear defense of this unit"
+board: {width: 8, height: 6}
+units:
+  - {id: mg, owner: player1, at: [5,3], stats: {unit_type: Soldier, defense: "4", per: [10,8,6], veh: [2,1,0]}}
+  - {id: ht, owner: player2, at: [3,3], facing: NW, stats: {unit_type: Vehicle, defense: "3/2", speed: 4, veh: [4,3,2], per: [6,4,2], abilities: "Open Back"}}
+phase: assault
+active_player: player1
+actions:
+  - {type: attack, unit: mg, target: ht}
+expect:
+  results:
+    0: {combat: {attack_dice: 8, defense: 2}}

@@ -1,0 +1,15 @@
+name: tall-silhouette-fails-cover-rolls
+source: "Tall Silhouette: this unit fails cover rolls"
+board: {width: 8, height: 6, terrain: {forest: [[4,3]]}}
+units:
+  - {id: gun, owner: player1, at: [2,3], stats: {unit_type: Soldier, defense: "4", veh: [9,7,5], per: [4,3,2]}}
+  - {id: big, owner: player2, at: [4,3], facing: NW, stats: {unit_type: Vehicle, defense: "3/2", speed: 3, veh: [6,4,2], per: [5,3,1], abilities: "Tall Silhouette"}}
+phase: assault
+active_player: player1
+dice: [6,6,6,6,6,6,6]
+actions:
+  - {type: attack, unit: gun, target: big}
+expect:
+  dice_consumed: 7
+  results:
+    0: {combat: {cover_success: false}}

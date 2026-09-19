@@ -85,7 +85,7 @@ def check_invariants(gs: GameState) -> List[str]:
             mine = [u for u in units if u.owner == owner]
             if len(mine) > 2:
                 problems.append(f"stacking >2 at {pos} for {owner}: {[u.unit.name for u in mine]}")
-        vehicles = [u for u in units if (u.unit.unit_type or '').startswith('Vehicle')]
+        vehicles = [u for u in units if (u.unit.unit_type or '').startswith('Vehicle') or any(a.lower() == 'large' for a in u.unit.abilities)]
         if len(vehicles) > 1:
             problems.append(f">1 vehicle at {pos}: {[u.unit.name for u in vehicles]}")
     for uid in gs.pending_hits:

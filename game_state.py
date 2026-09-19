@@ -360,6 +360,11 @@ class GameState:
         Vehicle in total. Aircraft (one per hex, separate limit), Obstacles and
         transported units don't count.
         """
+        def vehicle_like(unit):
+            # "Large: this unit is treated as a Vehicle for stacking purposes"
+            return 'Vehicle' in (unit.unit_type or '') or any(
+                a.lower() == 'large' for a in (getattr(unit, 'abilities', []) or []))
+
         here = [us for us in self.get_units_at_position(q, r)
                 if us.is_alive and us.unit.id != exclude_unit_id
                 and getattr(us.unit, 'unit_type', '') not in ('Aircraft', 'Obstacle')
@@ -372,7 +377,9 @@ class GameState:
         friendly = [us for us in here if us.owner == owner]
         if len(friendly) >= 2:
             return False
-        if 'Vehicle' in (unit_type or '') and any('Vehicle' in (us.unit.unit_type or '') for us in here):
+        mover = self.units.get(exclude_unit_id) if exclude_unit_id else None
+        mover_is_vehicle = 'Vehicle' in (unit_type or '') or (mover is not None and vehicle_like(mover.unit))
+        if mover_is_vehicle and any(vehicle_like(us.unit) for us in here):
             return False
         return True
 

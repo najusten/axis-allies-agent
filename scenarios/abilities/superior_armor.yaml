@@ -1,0 +1,14 @@
+name: superior-armor-2-needs-defense-plus-2-for-two-hits
+source: "Superior Armor 2: an attack must beat this unit's defense by 2 or more to score two hits"
+board: {width: 8, height: 6}
+units:
+  - {id: gun, owner: player1, at: [2,3], stats: {unit_type: Soldier, defense: "4", veh: [9,7,5], per: [4,3,2]}}
+  - {id: tiger, owner: player2, at: [4,3], facing: NW, stats: {unit_type: Vehicle, defense: "5/4", speed: 3, veh: [10,8,6], per: [8,6,4], abilities: "Superior Armor 2"}}
+phase: assault
+active_player: player1
+dice: [6,6,6,6,6,6,1]     # 6 successes = defense+1: only ONE hit with SA2
+actions:
+  - {type: attack, unit: gun, target: tiger}
+expect:
+  results:
+    0: {combat: {hits: 1}}
