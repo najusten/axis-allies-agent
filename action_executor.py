@@ -751,6 +751,8 @@ class ActionExecutor:
             elif is_relocate:
                 unit_state.has_moved = True  # Relocate uses all remaining movement
                 unit_state.assault_moved = True
+                if getattr(action, 'is_aggression', False):
+                    unit_state.aggression_moved = True
                 message = f"{unit.name} relocates to ({action.to_q}, {action.to_r})"
 
             # Update facing for vehicles
@@ -2520,18 +2522,38 @@ class ActionExecutor:
         move_result = self._execute_move(game_state, action.move_action)
         if not move_result:
             return move_result
-        
-        # Then execute attack from new position
-        attack_result = self._execute_attack(game_state, action.attack_action)
-        
-        combined_message = f"{move_result.message}, then {attack_result.message}"
-        return ActionResult(
+        if getattr(move_result, 'interrupted', None):
+            return move_result   # defensive-fire decision pending; the attack is lost for this action
+        us = game_state.get_unit_state(action.unit_id)
+        # Aggression: the move is the unit's assault move, but it may still attack
+        us.assault_moved = False
+        if not us.is_alive or us.is_disrupted or tuple(us.position) != (action.move_action.to_q, action.move_action.to_r):
+            # stopped short (defensive fire, failed roll): no attack
+            move_result.message += " — attack cancelled"
+            return move_result
+
+        # Then attack from the new position (recompute distance/range from where it really is)
+        atk = action.attack_action
+        target = game_state.get_unit_state(atk.target_id)
+        if target is None or not target.is_alive:
+            return move_result
+        dist = game_state.board.hex_distance(us.position[0], us.position[1], *target.position)
+        atk.attacker_q, atk.attacker_r = us.position
+        atk.distance = dist
+        atk.range_category = MovementSystem.get_range_category(dist)
+        attack_result = self._execute_attack(game_state, atk)
+        self._attach_combat_events(game_state, atk, attack_result)
+
+        combined = ActionResult(
             attack_result.success,
-            combined_message,
+            f"{move_result.message}, then {attack_result.message}",
             attack_result.hits,
             attack_result.unit_destroyed,
-            attack_result.combat_details
+            attack_result.combat_details,
+            defensive_fire_results=move_result.defensive_fire_results,
+            events=move_result.events + attack_result.events,
         )
+        return combined
     
     def _execute_ability(self, game_state: GameState,
                         action: UseAbilityAction) -> ActionResult:

@@ -939,8 +939,8 @@ class ActionGenerator:
             if can_attack and unit_state.has_moved:
                 # Some abilities forbid shooting after moving (can_move_and_shoot)
                 can_attack = self.movement_system.can_unit_move_and_attack(unit)
-            if unit_state.assault_moved:
-                can_attack = False   # assault phase is attack OR move
+            if unit_state.assault_moved and not unit_state.aggression_moved:
+                can_attack = False   # assault phase is attack OR move (Aggression excepted)
             if can_attack:
                 actions.extend(self._get_attack_actions(
                     game_state, unit, unit_state, (q, r), enemy_units
@@ -969,7 +969,15 @@ class ActionGenerator:
             # enemy or move again"). Units with Relocate use that speed.
             if not unit_state.has_attacked and not unit_state.assault_moved:
                 relocate_speed = self._get_relocate_speed(unit)
-                if relocate_speed > 0:
+                aggression = self.movement_system.get_assault_move_range(unit)
+                if aggression > 0 and relocate_speed == 0:
+                    # Aggression X: move up to X now and still attack afterwards
+                    for mv in self._get_relocate_moves(game_state, unit, unit_state, aggression):
+                        mv.is_aggression = True
+                        actions.append(mv)
+                    # a full-speed move (giving up the attack) is still allowed
+                    actions.extend(self._get_assault_moves(game_state, unit, unit_state))
+                elif relocate_speed > 0:
                     actions.extend(self._get_relocate_moves(
                         game_state, unit, unit_state, relocate_speed
                     ))
@@ -2742,23 +2750,34 @@ class ActionGenerator:
         if assault_range == 0:
             return actions
         
+        # Aggression: may not be used after attacking / after an assault move
+        if unit_state.has_attacked or unit_state.assault_moved:
+            return actions
+        friendly_positions = {us.position for us in game_state.get_units_by_owner(unit_state.owner)
+                              if us.is_alive and us.unit.id != unit.id}
         # Get reachable positions for assault move
         reachable = self.movement_system.get_reachable_hexes(
-            game_state.board, q, r, unit, max_speed=assault_range
+            game_state.board, q, r, unit, max_speed=assault_range,
+            friendly_positions=friendly_positions
         )
         
         # For each reachable position, check what we can attack from there
         for (move_q, move_r) in reachable:
             if (move_q, move_r) == (q, r):
                 continue  # Skip staying in place
+            if not game_state.can_stack_at(move_q, move_r, unit_state.owner, unit.unit_type,
+                                           exclude_unit_id=unit.id):
+                continue
             
-            # Create move action
+            # Create move action (assault-phase move at the Aggression speed)
             move_action = MoveAction(
                 unit_id=unit.id,
                 from_q=q,
                 from_r=r,
                 to_q=move_q,
-                to_r=move_r
+                to_r=move_r,
+                is_relocate=True,
+                max_speed=assault_range
             )
             
             # Check what we can attack from this new position

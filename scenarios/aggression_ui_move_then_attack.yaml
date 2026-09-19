@@ -1,0 +1,20 @@
+name: aggression-unit-moves-then-still-attacks-via-separate-actions
+source: "Aggression 1: the UI path — an assault-phase move of ≤1 hex keeps the attack; a second move or a longer move gives it up"
+board: {width: 10, height: 8}
+units:
+  - {id: sturm, owner: player1, at: [2,3], stats: {unit_type: Soldier, defense: "4", speed: 2, per: [7,5,3], abilities: "Aggression 1"}}
+  - {id: enemy, owner: player2, at: [4,3], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+phase: assault
+active_player: player1
+dice: [6,6,6,6,6,6,6]
+actions:
+  - {type: move, unit: sturm, to: [3,3]}
+  - {type: attack, unit: sturm, target: enemy}
+expect:
+  results:
+    0: {success: true}
+    1: {success: true}
+  units:
+    sturm: {at: [3,3], has_attacked: true, aggression_moved: true}
+  legal:
+    - {type: move, unit: sturm, allowed: false}

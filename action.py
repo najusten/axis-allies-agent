@@ -44,6 +44,7 @@ class MoveAction(Action):
         self.is_strike_and_fade = is_strike_and_fade
         self.is_relocate = is_relocate
         self.max_speed = max_speed  # override unit speed (e.g. Vanguard pre-game move at 4)
+        self.is_aggression = False  # Aggression X assault move: the unit may still attack
 
     def __str__(self):
         suffix = ""

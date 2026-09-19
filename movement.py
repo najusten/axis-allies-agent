@@ -428,22 +428,14 @@ class MovementSystem:
         if not self.ability_system:
             return 0
         
-        movement_mods = self.ability_system.get_movement_modifiers(unit)
-        
-        # Check for assault movement abilities
-        for note in movement_mods.get('notes', []):
-            # Parse "Aggression 1: Can move 1 before attacking"
-            if 'Aggression' in note or 'move' in note.lower():
-                # Extract number from note
-                import re
-                match = re.search(r'move (\d+)', note.lower())
-                if match:
-                    return int(match.group(1))
-        
-        # Can move in assault phase? (Strike and Fade, etc.)
-        if movement_mods.get('can_assault_move'):
-            return unit.speed if isinstance(unit.speed, int) else 0
-        
+        # Only Aggression X lets a unit move (at speed X) BEFORE attacking in the
+        # assault phase. Strike and Fade moves AFTER attacking and is handled by
+        # strike_and_fade_available; everything else is attack OR move.
+        import re
+        for ability in (getattr(unit, 'abilities', []) or []):
+            m = re.match(r'Aggression\s+(\d+)', ability, re.IGNORECASE)
+            if m:
+                return int(m.group(1))
         return 0
     
     @staticmethod

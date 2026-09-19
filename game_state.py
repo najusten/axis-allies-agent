@@ -40,6 +40,7 @@ class UnitState:
     facing: Optional[int] = None  # HexDirection value (0-5) for vehicles, None for soldiers
     strike_and_fade_available: bool = False
     assault_moved: bool = False  # moved (instead of attacking) in this turn's assault phase
+    aggression_moved: bool = False  # Aggression X: moved ≤ X in the assault phase and may still attack
     hold_defensive_fire: bool = False  # player's standing order: don't fire defensively (rulebook: optional)  # Enabled after attack if unit has Strike and Fade
     heavy_armor_used: bool = False  # Heavy Armor: ignore first Damaged counter each game
     covering_fire_target: bool = False  # True if hit by Covering Fire this turn (can't defensive fire)
@@ -122,6 +123,7 @@ class UnitState:
         self.has_attacked = False
         self.attacks_this_turn = 0
         self.assault_moved = False
+        self.aggression_moved = False
         self.strike_and_fade_available = False
         self.all_guns_blazing_available = False
         self.strafe_available = False

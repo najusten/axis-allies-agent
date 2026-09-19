@@ -51,7 +51,7 @@ import yaml
 from abilities import AbilitySystem
 from action import (Action, MoveAction, AttackAction, UseAbilityAction,
                     BoardTransportAction, DismountTransportAction, PassAction,
-                    PlaceAircraftAction, DeployAction)
+                    PlaceAircraftAction, DeployAction, MoveAndAttackAction)
 from action_executor import ActionExecutor, ActionResult
 from action_generator import ActionGenerator
 from board import Board
@@ -298,6 +298,10 @@ def find_legal_action(legal: List[Action], data: dict,
                 return a
         elif kind == 'deploy' and isinstance(a, DeployAction):
             if (a.to_q, a.to_r) == dest():
+                return a
+        elif kind == 'move_attack' and isinstance(a, MoveAndAttackAction):
+            target_id = ali(data.get('target') or data.get('target_id'))
+            if (a.move_action.to_q, a.move_action.to_r) == dest() and (not target_id or a.attack_action.target_id == target_id):
                 return a
         elif kind in ('board', 'board_transport') and isinstance(a, BoardTransportAction):
             tid = ali(data.get('transport') or data.get('transport_id'))
@@ -564,6 +568,8 @@ def _action_matches(action: Action, spec: dict, aliases: Dict[str, str]) -> bool
     if kind == 'use_ability':
         return isinstance(action, UseAbilityAction) and (
             not spec.get('ability') or action.ability_name == spec['ability'])
+    if kind == 'move_attack':
+        return isinstance(action, MoveAndAttackAction)
     if kind == 'board':
         return isinstance(action, BoardTransportAction)
     if kind == 'dismount':

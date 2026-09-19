@@ -306,11 +306,8 @@ class AbilitySystem:
                 continue
             description_lower = description.lower()
 
-            # Check for specific movement modifiers
-            if 'assault' in description_lower:
-                modifiers['can_assault_move'] = True
-                modifiers['notes'].append(f"{ability}: Can move in assault phase")
-
+            # (No keyword rules for assault-phase movement: only Aggression X
+            # grants move-then-attack, see MovementSystem.get_assault_move_range.)
             if 'foot soldier' in description_lower:
                 modifiers['notes'].append(f"{ability}: Infantry movement rules")
 
