@@ -36,7 +36,7 @@ from game_setup import load_all_units, GameSetup, GameSetupConfig
 from board import Board
 from game_state import GameState, GamePhase, UnitState
 from scenario import build_action, build_systems, find_legal_action, load_scenario, ABILITY_CSV
-from turn_controller import (TurnController, format_event, VANGUARD_PHASE, INITIATIVE_PHASE,
+from turn_controller import (_unit_name, TurnController, format_event, VANGUARD_PHASE, INITIATIVE_PHASE,
                              DEPLOYMENT_PHASE, DEPLOY_ORDER_PHASE)
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
@@ -128,6 +128,7 @@ class GameSession:
                 agent.attach(self.controller)    # search agents simulate forward from the live game
         self.pending_facing: Optional[str] = None
         self._undo_stack: list = []
+        self._undo_actions: list = []
         self._redo_stack: list = []
         if mode != 'ai_vs_ai':
             self.controller.run_until_human()
@@ -235,6 +236,7 @@ class GameSession:
                 'pending_defensive_fire': self._pending_df_payload(),
                 'deployment_zone': (self._deployment_zone(player) if phase == DEPLOYMENT_PHASE else None),
                 'can_undo': bool(self._undo_stack) and self.is_human_turn(),
+                'undoable_units': self.undoable_units() if self.is_human_turn() else [],
                 'can_redo': bool(self._redo_stack) and self.is_human_turn(),
                 'game_over': self.controller.game_over,
                 'result': self.controller.result,
@@ -398,13 +400,45 @@ class GameSession:
         self.controller.restore(snap['controller'])
         self.pending_facing = snap['pending_facing']
 
-    def _push_undo(self):
+    def _push_undo(self, data: Optional[dict] = None):
         self._undo_stack.append(self._snapshot())
+        self._undo_actions.append(dict(data or {}))
         self._redo_stack.clear()
 
     def _clear_undo(self):
         self._undo_stack.clear()
+        self._undo_actions.clear()
         self._redo_stack.clear()
+
+    def undoable_units(self) -> list:
+        """Units whose last action can still be taken back individually."""
+        return sorted({d.get('unit_id') for d in self._undo_actions if d.get('unit_id')})
+
+    def undo_unit(self, unit_id: str, start: int) -> dict:
+        """Take back one unit's actions (its move/deploy/facing/boarding) while
+        keeping everything other units did afterwards: rewind to the snapshot
+        before that unit's first undoable action and replay the other actions.
+        Only possible while no dice have been rolled since (the undo stack is
+        cleared otherwise), so the replay is deterministic."""
+        idx = next((i for i, d in enumerate(self._undo_actions) if d.get('unit_id') == unit_id), None)
+        if idx is None:
+            return {'error': 'Nothing to undo for that unit'}
+        later = [d for d in self._undo_actions[idx + 1:] if d.get('unit_id') != unit_id]
+        backup = (self._snapshot(), list(self._undo_stack), list(self._undo_actions))
+        self._restore(self._undo_stack[idx])
+        del self._undo_stack[idx:]
+        del self._undo_actions[idx:]
+        self._redo_stack.clear()
+        for d in later:
+            res = self.execute(d)
+            if 'error' in res:
+                self._restore(backup[0])
+                self._undo_stack, self._undo_actions = backup[1], backup[2]
+                return {'error': f"Cannot undo that unit: a later action depends on it ({res['error']})"}
+        ev = {'type': 'undo', 'unit': unit_id,
+              'message': f"{_unit_name(self.game_state, unit_id)}: action taken back"}
+        self.controller.events.append(ev)
+        return {'success': True, 'events': [ev]}
 
     # -- actions ----------------------------------------------------------
 
@@ -413,18 +447,25 @@ class GameSession:
         kind = data.get('type')
         start = len(self.controller.events)
 
+        if kind == 'undo_unit':
+            if not self.is_human_turn():
+                return {'error': 'Not your turn'}
+            return self.undo_unit(data.get('unit_id'), start)
+
         if kind == 'undo':
             if not self._undo_stack:
                 return {'error': 'Nothing to undo'}
-            self._redo_stack.append(self._snapshot())
+            self._redo_stack.append((self._snapshot(), self._undo_actions.pop()))
             self._restore(self._undo_stack.pop())
             return {'success': True, 'events': []}
 
         if kind == 'redo':
             if not self._redo_stack:
                 return {'error': 'Nothing to redo'}
+            snap, action_data = self._redo_stack.pop()
             self._undo_stack.append(self._snapshot())
-            self._restore(self._redo_stack.pop())
+            self._undo_actions.append(action_data)
+            self._restore(snap)
             return {'success': True, 'events': []}
 
         if self.controller.game_over:
@@ -493,7 +534,7 @@ class GameSession:
             uid = data.get('unit_id')
             if not uid or uid != self.pending_facing:
                 return {'error': 'No facing selection expected'}
-            self._push_undo()
+            self._push_undo(data)
             us = self.game_state.get_unit_state(uid)
             facing = int(data.get('facing', 0))
             us.facing = facing
@@ -536,10 +577,11 @@ class GameSession:
                 return {'error': err}
             action.path = path
 
-        self._push_undo()
+        self._push_undo(data)
         result = self.controller.apply(action)
         if not result.success:
             self._undo_stack.pop()
+            self._undo_actions.pop()
             del self.controller.events[start:]
             return {'error': result.message}
 

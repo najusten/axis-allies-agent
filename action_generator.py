@@ -869,9 +869,13 @@ class ActionGenerator:
             if unit_state.is_aircraft_on_map:
                 continue
 
-            # Aircraft can be placed in any hex on the map
+            # Aircraft can be placed in any hex on the map (terrain doesn't matter),
+            # except one already holding an Aircraft (rulebook: one Aircraft per hex)
+            occupied = {tuple(o.position) for o in game_state.get_all_alive_units()
+                        if 'Aircraft' in (o.unit.unit_type or '') and o.is_aircraft_on_map}
             for (q, r), hex_tile in list(game_state.board.hexes.items()):
-                # Aircraft ignore terrain restrictions
+                if (q, r) in occupied:
+                    continue
 
                 actions.append(PlaceAircraftAction(
                     unit_id=unit_state.unit.id,

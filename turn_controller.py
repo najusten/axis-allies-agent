@@ -710,7 +710,7 @@ def format_event(ev: dict) -> Optional[str]:
         return line
     if t == 'status':
         return f"  ✓ {ev.get('name', ev.get('unit'))}: {ev.get('change')} ({ev.get('cause')})"
-    if t in ('facing', 'hold_fire'):
+    if t in ('facing', 'hold_fire', 'undo'):
         return f"  {ev.get('message', '')}"
     if t == 'casualty':
         parts = []

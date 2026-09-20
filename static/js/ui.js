@@ -93,6 +93,9 @@ export class UI {
       const mine = s.human_players.includes(u.owner);
       if (mine && !s.game_over) {
         html += `<div style="margin:6px 0"><label class="chk" style="margin:0"><input type="checkbox" id="card-holdfire" ${u.hold_defensive_fire ? 'checked' : ''}> hold defensive fire (rulebook: optional)</label></div>`;
+        if ((s.undoable_units || []).includes(u.id) && s.is_human_turn && u.owner === s.current_player) {
+          html += `<div style="margin:6px 0"><button class="btn" id="card-undo" title="Take back this unit's move (other units' moves stay)">↶ Undo this unit's move</button></div>`;
+        }
       }
       if (c.abilities.length) {
         html += '<div class="ab">';
@@ -107,6 +110,8 @@ export class UI {
     box.hidden = false;
     const hf = box.querySelector('#card-holdfire');
     if (hf) hf.onchange = () => this.h.onHoldFire(u.id, hf.checked);
+    const cu = box.querySelector('#card-undo');
+    if (cu) cu.onclick = () => this.h.onUndoUnit(u.id);
   }
 
   abilityDesc(name) {

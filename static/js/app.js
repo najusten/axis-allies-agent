@@ -29,6 +29,7 @@ class App {
       onNewGame: (opts) => this.newGame(opts),
       onHoverUnit: (id) => this.hoverUnit(id),
       onHoldFire: (id, hold) => this.send({ type: 'hold_fire', unit_id: id, hold }),
+      onUndoUnit: (id) => this.send({ type: 'undo_unit', unit_id: id }),
       listScenarios: () => api.scenarios(),
       listUnits: () => api.units(),
     });

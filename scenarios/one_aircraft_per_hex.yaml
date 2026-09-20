@@ -1,0 +1,20 @@
+name: only-one-aircraft-per-hex
+source: "Advanced rulebook, Aircraft Stacking: Aircraft don't count toward the stacking limit, but there is a limit of one Aircraft in a hex"
+board: {width: 10, height: 8}
+units:
+  - {id: p1, owner: player1, at: [0,0], stats: {unit_type: Aircraft, defense: "4/4", speed: 20, per: [8,6,4], veh: [6,4,2]}}
+  - {id: p2, owner: player1, at: [0,0], stats: {unit_type: Aircraft, defense: "4/4", speed: 20, per: [8,6,4], veh: [6,4,2]}}
+  - {id: rifles, owner: player1, at: [4,4], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+  - {id: grens, owner: player1, at: [4,4], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+  - {id: enemy, owner: player2, at: [9,7], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: flight
+active_player: player1
+actions:
+  - {type: place, unit: p1, to: [4,4]}    # a full hex (two soldiers) still takes an aircraft
+  - {type: place, unit: p2, to: [4,4]}    # second aircraft: not allowed
+  - {type: place, unit: p2, to: [4,5]}
+expect:
+  results:
+    0: {success: true}
+    1: {success: false}
+    2: {success: true}

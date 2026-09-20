@@ -220,8 +220,9 @@ class ActionExecutor:
                 continue
 
             # Check line of sight
-            has_los = self.movement_system.has_line_of_sight(
-                game_state.board, spotter_pos, target_pos
+            has_los, _ = self.movement_system.has_line_of_sight(
+                game_state.board, unit, spotter_pos[0], spotter_pos[1], target_q, target_r,
+                smoke_screens=game_state.smoke_screens
             )
             if has_los:
                 return True
@@ -2938,6 +2939,11 @@ class ActionExecutor:
 
         if unit_state.is_aircraft_on_map:
             return ActionResult(False, "Aircraft is already on the map")
+
+        # Rulebook: only one Aircraft per hex
+        if any('Aircraft' in (o.unit.unit_type or '') and o.is_aircraft_on_map and o.is_alive
+               for o in game_state.get_units_at_position(action.to_q, action.to_r)):
+            return ActionResult(False, "Only one Aircraft may occupy a hex")
 
         # Place the Aircraft
         unit_state.is_aircraft_on_map = True
