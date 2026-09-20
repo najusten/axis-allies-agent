@@ -61,7 +61,12 @@ export class UI {
         if (u.is_damaged) tags.push('<span class="tag dmg">damaged</span>');
         if (u.carried_by_id) tags.push('<span class="tag">aboard</span>');
         if (u.card.unit_type === 'Aircraft' && !u.is_aircraft_on_map) tags.push('<span class="tag">off-map</span>');
-        if (!u.is_deployed && u.card.unit_type !== 'Aircraft') tags.push('<span class="tag pend">deploy</span>');
+        if (!u.is_deployed && u.card.unit_type !== 'Aircraft') {
+          const abil = u.card.abilities.map(a => a.toLowerCase());
+          const later = abil.includes('paratrooper') ? 'drops in a movement phase'
+            : abil.some(a => a.endsWith(' hero')) ? 'joins a friendly Soldier in a movement phase' : null;
+          tags.push(later ? `<span class="tag" title="${later}">later</span>` : '<span class="tag pend">deploy</span>');
+        }
         if (u.has_moved && u.has_attacked) tags.push('<span class="tag done">done</span>');
         else if (u.has_moved) tags.push('<span class="tag done">moved</span>');
         else if (u.has_attacked) tags.push('<span class="tag done">fired</span>');

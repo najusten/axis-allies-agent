@@ -28,6 +28,7 @@ from turn_controller import TurnController
 
 AGENTS = ['random', 'aggressive', 'greedy', 'heuristic', 'lookahead', 'mcts']
 MCTS_TIME = 1.0   # seconds per MCTS decision (--mcts-time)
+MCTS_HORIZON = 3  # phases simulated per rollout (--mcts-horizon)
 
 
 def make_agent(kind: str, name: str, systems):
@@ -46,7 +47,7 @@ def make_agent(kind: str, name: str, systems):
                               movement_system=systems.movement, rng=random.Random(random.random()))
     if kind == 'mcts':
         from mcts import MCTSAgent
-        return MCTSAgent(name, time_limit=MCTS_TIME, movement_system=systems.movement,
+        return MCTSAgent(name, time_limit=MCTS_TIME, horizon_phases=MCTS_HORIZON, movement_system=systems.movement,
                          rng=random.Random(random.random()))
     raise ValueError(f"unknown agent {kind!r}; choose from {AGENTS}")
 
@@ -166,7 +167,7 @@ def play_one(seed: int, p1: str, p2: str, points: int, max_turns: int,
 
 
 def main(argv=None):
-    global MCTS_TIME
+    global MCTS_TIME, MCTS_HORIZON
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('-n', '--games', type=int, default=10)
     ap.add_argument('--p1', default='aggressive', choices=AGENTS)
@@ -179,8 +180,10 @@ def main(argv=None):
     ap.add_argument('--deploy', action='store_true', help='run the coin-flip/deployment phase (AI policy) instead of fixed placement')
     ap.add_argument('--historical', action='store_true', help='apply historical army limits')
     ap.add_argument('--mcts-time', type=float, default=1.0, help='seconds per MCTS decision')
+    ap.add_argument('--mcts-horizon', type=int, default=3, help='phases simulated per MCTS rollout')
     args = ap.parse_args(argv)
     MCTS_TIME = args.mcts_time
+    MCTS_HORIZON = args.mcts_horizon
 
     out = open(args.events, 'w') if args.events else None
     wins = Counter()
