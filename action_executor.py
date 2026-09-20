@@ -1059,19 +1059,16 @@ class ActionExecutor:
                 successes = sum(1 for r in attack_rolls if r >= threshold)
 
                 # Get defense and calculate hits
-                defense_mods = self.ability_system.get_defense_modifiers(
-                    target, attacker, action.distance, target_terrain,
-                    is_rear_attack, target_state
-                )
-                base_defense = defense_mods.get('defense', target.defense_front or 3)
-                superior_armor = defense_mods.get('superior_armor', 0)
+                base_defense, superior_armor = self._special_defense(
+
+                    game_state, attacker, attacker_state, target_state, action.distance)
                 hits = self.dice.calculate_hits(successes, base_defense, superior_armor)
 
                 # Apply damage
                 result_msg = f"{attacker.name} Remote Control vs {target.name}: range rolls [{range_roll_1}, {range_roll_2}] > {range_to_target}, "
                 result_msg += f"{successes} successes from {attack_dice} dice"
 
-                result_msg += self._apply_special_hits(game_state, target_state, hits)
+                result_msg += self._apply_special_hits(game_state, target_state, hits, attacker_state)
 
                 return ActionResult(
                     True,
@@ -1139,18 +1136,15 @@ class ActionExecutor:
                 successes = sum(1 for r in rolls if r >= threshold)
 
                 # Get defense
-                defense_mods = self.ability_system.get_defense_modifiers(
-                    affected_unit, attacker, 0, affected_terrain, False, affected_state
-                )
-                base_defense = defense_mods.get('defense', affected_unit.defense_front or 3)
-                superior_armor = defense_mods.get('superior_armor', 0)
+                base_defense, superior_armor = self._special_defense(
+                    game_state, attacker, attacker_state, affected_state, 0)
                 hits = self.dice.calculate_hits(successes, base_defense, superior_armor)
 
                 # Apply damage
                 owner_str = "friendly" if affected_state.owner == attacker_state.owner else "enemy"
                 unit_msg = f"  {affected_unit.name} ({owner_str} {affected_unit.unit_type}): {salvo_dice} dice, {successes} successes"
 
-                unit_msg += self._apply_special_hits(game_state, affected_state, hits)
+                unit_msg += self._apply_special_hits(game_state, affected_state, hits, attacker_state)
 
                 results_messages.append(unit_msg)
                 salvo_results.append({
@@ -1189,18 +1183,15 @@ class ActionExecutor:
             successes = sum(1 for r in attack_rolls if r >= threshold)
 
             # Get defense and calculate hits
-            defense_mods = self.ability_system.get_defense_modifiers(
-                target, attacker, action.distance, target_terrain,
-                is_rear_attack, target_state
-            )
-            base_defense = defense_mods.get('defense', target.defense_front or 3)
-            superior_armor = defense_mods.get('superior_armor', 0)
+            base_defense, superior_armor = self._special_defense(
+
+                game_state, attacker, attacker_state, target_state, action.distance)
             hits = self.dice.calculate_hits(successes, base_defense, superior_armor)
 
             # Apply damage
             result_msg = f"{attacker.name} Rockets 8 vs {target.name}: {successes} successes from 8 dice"
 
-            result_msg += self._apply_special_hits(game_state, target_state, hits)
+            result_msg += self._apply_special_hits(game_state, target_state, hits, attacker_state)
 
             return ActionResult(
                 True,
@@ -1255,18 +1246,15 @@ class ActionExecutor:
                 successes = sum(1 for r in rolls if r >= threshold)
 
                 # Get defense (no cover due to Top-Mounted Rockets)
-                defense_mods = self.ability_system.get_defense_modifiers(
-                    affected_unit, attacker, 0, affected_terrain, False, affected_state
-                )
-                base_defense = defense_mods.get('defense', affected_unit.defense_front or 3)
-                superior_armor = defense_mods.get('superior_armor', 0)
+                base_defense, superior_armor = self._special_defense(
+                    game_state, attacker, attacker_state, affected_state, 0)
                 hits = self.dice.calculate_hits(successes, base_defense, superior_armor)
 
                 # Apply damage
                 owner_str = "friendly" if affected_state.owner == attacker_state.owner else "enemy"
                 unit_msg = f"  {affected_unit.name} ({owner_str} {affected_unit.unit_type}): {rocket_dice} dice, {successes} successes"
 
-                unit_msg += self._apply_special_hits(game_state, affected_state, hits)
+                unit_msg += self._apply_special_hits(game_state, affected_state, hits, attacker_state)
 
                 results_messages.append(unit_msg)
                 rocket_results.append({
@@ -1309,16 +1297,14 @@ class ActionExecutor:
             attack_rolls = [self.dice.roll_single_die() for _ in range(hull_dice)]
             successes = sum(1 for r in attack_rolls if r >= threshold)
 
-            defense_mods = self.ability_system.get_defense_modifiers(
-                target, attacker, action.distance, target_terrain,
-                is_rear_attack, target_state
-            )
-            base_defense = defense_mods.get('defense', target.defense_front or 3)
-            superior_armor = defense_mods.get('superior_armor', 0)
+            base_defense, superior_armor = self._special_defense(
+
+
+                game_state, attacker, attacker_state, target_state, action.distance)
             hits = self.dice.calculate_hits(successes, base_defense, superior_armor)
 
             result_msg = f"{attacker.name} Additional Hull-Mounted Cannon vs {target.name}: {successes} successes from {hull_dice} dice"
-            result_msg += self._apply_special_hits(game_state, target_state, hits)
+            result_msg += self._apply_special_hits(game_state, target_state, hits, attacker_state)
 
             return ActionResult(True, result_msg, attack_result={
                 'attack_rolls': attack_rolls, 'successes': successes,
@@ -1350,16 +1336,14 @@ class ActionExecutor:
             attack_rolls = [self.dice.roll_single_die() for _ in range(hull_dice)]
             successes = sum(1 for r in attack_rolls if r >= threshold)
 
-            defense_mods = self.ability_system.get_defense_modifiers(
-                target, attacker, action.distance, target_terrain,
-                is_rear_attack, target_state
-            )
-            base_defense = defense_mods.get('defense', target.defense_front or 3)
-            superior_armor = defense_mods.get('superior_armor', 0)
+            base_defense, superior_armor = self._special_defense(
+
+
+                game_state, attacker, attacker_state, target_state, action.distance)
             hits = self.dice.calculate_hits(successes, base_defense, superior_armor)
 
             result_msg = f"{attacker.name} Extra Hull-Mounted Cannon vs {target.name}: {successes} successes from {hull_dice} dice"
-            result_msg += self._apply_special_hits(game_state, target_state, hits)
+            result_msg += self._apply_special_hits(game_state, target_state, hits, attacker_state)
 
             return ActionResult(True, result_msg, attack_result={
                 'attack_rolls': attack_rolls, 'successes': successes,
@@ -2500,28 +2484,75 @@ class ActionExecutor:
         
         return max(0, dice)
     
-    def _apply_special_hits(self, game_state: GameState, target_state: UnitState, hits: int) -> str:
+    @staticmethod
+    def _is_rear_of(attacker_state: UnitState, target_state: UnitState) -> bool:
+        """Attack against a Vehicle's rear defense (rulebook facing; same hex = rear)."""
+        if 'Vehicle' not in (target_state.unit.unit_type or '') or target_state.facing is None:
+            return False
+        if tuple(attacker_state.position) == tuple(target_state.position):
+            return True
+        return not is_front_arc_attack(tuple(attacker_state.position), tuple(target_state.position),
+                                       HexDirection(target_state.facing))
+
+    def _special_defense(self, game_state: GameState, attacker, attacker_state: UnitState,
+                         target_state: UnitState, distance: int) -> Tuple[int, int]:
+        """(defense, superior_armor) for a special attack (rockets, hull cannons,
+        remote control, bombs): the same facing / status / ability rules as a
+        normal attack."""
+        target = target_state.unit
+        is_rear = self._is_rear_of(attacker_state, target_state)
+        if is_rear:
+            base = getattr(target, 'defense_rear', getattr(target, 'defense_front', 3))
+        else:
+            base = getattr(target, 'defense_front', 3)
+        fanatic = any(a.lower() == 'fanatic' for a in (getattr(target, 'abilities', []) or []))
+        if (target_state.is_disrupted and not fanatic) or target_state.is_damaged:
+            base = max(1, base - 1)
+        hex_ = game_state.board.get_hex(*target_state.position)
+        terrain = hex_.terrain if hex_ else 'open'
+        mods = self.ability_system.get_defense_modifiers(
+            target, terrain, is_rear, attacker, distance, game_state=game_state, unit_state=target_state)
+        if mods.get('entrenched', False) and not target_state.has_moved:
+            base += 1
+        base += mods.get('defense_bonus', 0)
+        return max(1, base or 3), mods.get('superior_armor', 0)
+
+    def _apply_special_hits(self, game_state: GameState, target_state: UnitState, hits: int,
+                            attacker_state: Optional[UnitState] = None) -> str:
         """
         Apply hits from a special attack (rockets, hull cannons, remote control...)
-        the same way a normal attack does: as face-down counters in simultaneous
-        mode, or immediately otherwise. Returns a message fragment.
+        the same way a normal attack does: cover roll if the target has cover
+        (success limits the attack to disruption), then face-down counters in
+        simultaneous mode, or immediately otherwise. Returns a message fragment.
         """
         if hits <= 0:
             return " - No effect"
         unit = target_state.unit
+        note = ""
+        hex_ = game_state.board.get_hex(*target_state.position)
+        if hex_ is not None and Board.gives_cover(hex_.terrain, unit.unit_type) and hits > 0 \
+                and not any(a.lower() == 'tall silhouette' for a in (unit.abilities or [])):
+            same_hex = attacker_state is not None and tuple(attacker_state.position) == tuple(target_state.position)
+            cover = self.dice.roll_cover_save(get_unit_category(unit), same_hex, 0)
+            note = f" | cover:{cover.roll} ({'saved' if cover.success else 'failed'})"
+            if cover.success:
+                pending = game_state.pending_hits.get(unit.id)
+                if self.use_simultaneous_combat and pending is not None and pending.get_face_down_count() > 0:
+                    return note + " - already has a face-down Disrupted counter"
+                hits = 1
         if self.use_simultaneous_combat:
             counters = self.casualty_system.record_hits(game_state, unit.id, unit.unit_type, min(3, hits))
             if self.casualty_system.unit_has_pending_destroyed(game_state, unit.id):
-                return " - DESTROYED (pending)"
-            return " - " + "/".join(c.value.upper() for c in counters) + " (pending)"
+                return note + " - DESTROYED (pending)"
+            return note + " - " + "/".join(c.value.upper() for c in counters) + " (pending)"
         category = get_unit_category(unit)
         from dice import get_unit_status
         dmg = self.dice.resolve_damage(hits, category, get_unit_status(target_state), False)
         self._apply_status_to_unit_state(target_state, dmg.new_status)
         if dmg.new_status == UnitStatus.DESTROYED:
             game_state.remove_unit(unit.id)
-            return " - DESTROYED!"
-        return f" - {dmg.new_status.value.upper()}"
+            return note + " - DESTROYED!"
+        return note + f" - {dmg.new_status.value.upper()}"
 
     def _apply_status_to_unit_state(self, unit_state: UnitState, new_status: UnitStatus):
         """Apply a UnitStatus to a UnitState object"""

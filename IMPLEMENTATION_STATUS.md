@@ -133,7 +133,7 @@ The official **Advanced Rulebook** is in `document.pdf` (local only, gitignored)
 
 ## Known issues / open rules questions
 
-- Special attacks (rockets, hull cannons, remote control, bombs) roll their own dice outside `_resolve_attack_full`: no cover roll, no facing, no rerolls. They now at least record pending counters correctly. Should be unified.
+- Special attacks (rockets, hull cannons, remote control, bombs) roll their own dice outside `_resolve_attack_full`; they now use facing/status/ability defense, cover rolls and pending counters like normal attacks, but not attacker rerolls (Guard Crew etc.).
 - Bluffs/cliffs (fringe terrain), shell holes, half-hexes, and "road through forest" (roads are their own terrain type here) are not modelled. Large Transport carries one Soldier (data model has a single passenger slot).
 - Defensive fire: human defenders decide per shot (hex or hold); AI defenders use the automatic best-hex choice.
 

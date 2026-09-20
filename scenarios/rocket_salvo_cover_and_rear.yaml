@@ -1,0 +1,20 @@
+name: area-attacks-allow-cover-rolls-and-use-rear-armor
+source: "Special attacks are attacks: a target in defensive terrain makes a cover roll (success limits the effect to disruption) and a Vehicle hit from behind uses its rear defense"
+board: {width: 10, height: 10, terrain: {forest: [[6,5]]}}
+units:
+  - {id: neb, owner: player2, at: [2,5], stats: {unit_type: Soldier, defense: "3", per: [4,4,4], veh: [2,2,2], abilities: "Rocket Salvo"}}
+  - {id: hidden, owner: player1, at: [6,5], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+  - {id: tank, owner: player1, at: [7,5], facing: SE, stats: {unit_type: Vehicle Tank, defense: "6/3", per: [7,5,3], veh: [7,5,3]}}   # facing away from the launcher: rear armor 3
+phase: assault
+active_player: player2
+# hidden: 10 dice all 6 -> 3 hits, but the cover roll 4 saves -> only disrupted
+# tank: 5 dice, 4 successes: below front defense 6 but > rear defense 3 -> 2 hits (disrupted + damaged)
+dice: [6,6,6,6,6,6,6,6,6,6, 4, 6,6,6,6,1]
+actions:
+  - {type: attack, unit: neb, target: hidden, special: rocket_salvo}
+  - {type: casualty}
+expect:
+  dice_consumed: 16
+  units:
+    hidden: {status: disrupted}
+    tank: {status: disrupted+damaged}
