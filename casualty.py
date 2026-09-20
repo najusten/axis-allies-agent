@@ -122,7 +122,7 @@ class CasualtySystem:
                 # First counter is always Disrupted
                 counters.append(HitCounterType.DISRUPTED)
             elif counter_num == 2:
-                if unit_type == 'Vehicle':
+                if (unit_type or '').startswith('Vehicle'):     # "Vehicle Tank" etc.
                     # Second counter for Vehicle is Damaged
                     counters.append(HitCounterType.DAMAGED)
                 else:

@@ -25,6 +25,12 @@ from facing import (
     calculate_facing_after_move, get_direction_name
 )
 from casualty import CasualtySystem
+
+
+def _is_ground(unit) -> bool:
+    """Soldier or Vehicle of any subtype ("Vehicle Tank", "Soldier Artillery", ...)."""
+    ut = getattr(unit, 'unit_type', '') or ''
+    return ut.startswith('Soldier') or ut.startswith('Vehicle')
 from board import Board
 
 
@@ -1099,7 +1105,7 @@ class ActionExecutor:
             affected_units = []
             for u_state in all_units:
                 if u_state.position in affected_hexes:
-                    if u_state.unit.unit_type in ('Soldier', 'Vehicle'):
+                    if _is_ground(u_state.unit):
                         affected_units.append(u_state)
 
             results_messages = [f"{attacker.name} Rocket Salvo centered on ({action.target_q}, {action.target_r}):"]
@@ -1215,7 +1221,7 @@ class ActionExecutor:
             affected_units = []
             for u_state in all_units:
                 if u_state.position in affected_hexes:
-                    if u_state.unit.unit_type in ('Soldier', 'Vehicle'):
+                    if _is_ground(u_state.unit):
                         affected_units.append(u_state)
 
             results_messages = [f"{attacker.name} Top-Mounted Rockets centered on ({action.target_q}, {action.target_r}):"]
@@ -2017,7 +2023,7 @@ class ActionExecutor:
         attacker_abilities_list = getattr(attacker, 'abilities', []) or []
         has_shock_troop = any(a.lower() == 'shock troop' for a in attacker_abilities_list)
         if has_shock_troop and not attacker_state.shock_troop_used:
-            if target.unit_type in ('Soldier', 'Vehicle'):
+            if _is_ground(target):
                 attack_ability_mod -= 1  # -1 means easier to hit
                 result['notes'].append("Shock Troop: +1 on each attack die (first attack)")
                 attacker_state.shock_troop_used = True  # Mark as used
@@ -2099,7 +2105,7 @@ class ActionExecutor:
 
         # Plentiful Ammo: Friendly unit with this ability allows reroll of 1s
         # Check if there's a friendly unit with Plentiful Ammo
-        if game_state and attacker.unit_type in ('Soldier', 'Vehicle') and 1 in attack_result.rolls:
+        if game_state and _is_ground(attacker) and 1 in attack_result.rolls:
             friendly_units = game_state.get_units_by_owner(attacker_state.owner)
             has_plentiful_ammo_nearby = False
             for friendly_state in friendly_units:

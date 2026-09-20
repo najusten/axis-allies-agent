@@ -272,7 +272,7 @@ class GameStateEvaluator:
                     score += dice * self.ATTACK_POTENTIAL_PER_DIE
 
             # Check if my rear is exposed (for vehicles)
-            if unit.unit_type == 'Vehicle' and unit_state.facing is not None:
+            if (unit.unit_type or '').startswith('Vehicle') and unit_state.facing is not None:
                 rear_exposed = self._is_rear_exposed(unit_state, enemy_units, game_state)
                 if rear_exposed:
                     score += self.REAR_EXPOSED_PENALTY
@@ -280,7 +280,7 @@ class GameStateEvaluator:
         # Enemy rear exposure is good for me
         for enemy_state in enemy_units:
             enemy = enemy_state.unit
-            if enemy.unit_type == 'Vehicle' and enemy_state.facing is not None:
+            if (enemy.unit_type or '').startswith('Vehicle') and enemy_state.facing is not None:
                 rear_exposed = self._is_rear_exposed(enemy_state, my_units, game_state)
                 if rear_exposed:
                     score -= self.REAR_EXPOSED_PENALTY  # Bonus for me
@@ -471,7 +471,7 @@ class GameStateEvaluator:
 
         # Check target type
         target_type = getattr(target, 'unit_type', 'Soldier')
-        is_vehicle = target_type == 'Vehicle'
+        is_vehicle = (target_type or '').startswith('Vehicle')
 
         if is_vehicle:
             if range_cat == 'short':

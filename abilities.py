@@ -909,7 +909,7 @@ class AbilitySystem:
 
             # Gun Shield: +1/+1 defense against Soldiers at long range (5+ hexes)
             if ability_lower == 'gun shield' and attacker is not None:
-                is_attacker_soldier = getattr(attacker, 'unit_type', '') == 'Soldier'
+                is_attacker_soldier = (getattr(attacker, 'unit_type', '') or '').startswith('Soldier')
                 is_long_range = distance >= 5
                 if is_attacker_soldier and is_long_range:
                     modifiers['defense_bonus'] = modifiers.get('defense_bonus', 0) + 1

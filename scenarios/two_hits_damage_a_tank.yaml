@@ -1,0 +1,23 @@
+name: two-simultaneous-hits-damage-a-vehicle-and-destroy-a-soldier
+source: "Advanced rulebook: a Vehicle that receives two simultaneous hits gets a face-down Disrupted and a face-down Damaged counter; a Soldier with two hits gets a Destroyed counter; three hits destroy a Vehicle"
+board: {width: 10, height: 8}
+units:
+  - {id: g1, owner: player1, at: [3,3], stats: {unit_type: Soldier, defense: "4", per: [9,7,5], veh: [9,7,5]}}
+  - {id: g2, owner: player1, at: [3,4], stats: {unit_type: Soldier, defense: "4", per: [9,7,5], veh: [9,7,5]}}
+  - {id: g3, owner: player1, at: [3,5], stats: {unit_type: Soldier, defense: "4", per: [12,9,6], veh: [12,9,6]}}
+  - {id: tank, owner: player2, at: [5,3], facing: NW, stats: {unit_type: Vehicle Tank, defense: "4/3", per: [7,5,3], veh: [7,5,3]}}
+  - {id: rifles, owner: player2, at: [5,4], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+  - {id: tank2, owner: player2, at: [5,5], facing: NW, stats: {unit_type: Vehicle Tank Destroyer, defense: "4/3", per: [7,5,3], veh: [7,5,3]}}
+phase: assault
+active_player: player1
+dice: [6,6,6,6,6,6,1, 6,6,6,6,6,1,1, 6,6,6,6,6,6,6,6,1]   # medium range: 7, 7 and 9 dice. 6 successes vs def 4 = 2 hits; 8 = twice the defense = 3 hits
+actions:
+  - {type: attack, unit: g1, target: tank}
+  - {type: attack, unit: g2, target: rifles}
+  - {type: attack, unit: g3, target: tank2}
+  - {type: casualty}
+expect:
+  units:
+    tank: {status: disrupted+damaged}
+    rifles: {status: destroyed}
+    tank2: {status: destroyed}

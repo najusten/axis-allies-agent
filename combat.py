@@ -82,7 +82,7 @@ class CombatSystem:
         
         # Check if target is a vehicle
         target_type = getattr(target, 'unit_type', 'Soldier')
-        is_vehicle = target_type == 'Vehicle'
+        is_vehicle = (target_type or '').startswith('Vehicle')
         
         if is_vehicle:
             if range_category == 'short':

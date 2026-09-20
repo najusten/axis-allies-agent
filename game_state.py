@@ -277,7 +277,7 @@ class GameState:
 
             # Track wreck for Improvisation ability (only Soldiers and Vehicles)
             q, r = unit_state.position
-            if unit.unit_type in ('Soldier', 'Vehicle'):
+            if (unit.unit_type or '').startswith(('Soldier', 'Vehicle')):
                 wreck_data = {
                     'unit_type': unit.unit_type,
                     'name': unit.name,
