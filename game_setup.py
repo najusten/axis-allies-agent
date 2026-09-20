@@ -355,10 +355,10 @@ class ArmyBuilder:
                 break
             if unit.cost > remaining_points:
                 continue
-            if constraints.max_vehicles and unit.unit_type == 'Vehicle':
+            if constraints.max_vehicles and (unit.unit_type or '').startswith('Vehicle'):
                 if vehicle_count >= constraints.max_vehicles:
                     continue
-            if constraints.max_soldiers and unit.unit_type == 'Soldier':
+            if constraints.max_soldiers and (unit.unit_type or '').startswith('Soldier'):
                 if soldier_count >= constraints.max_soldiers:
                     continue
 
@@ -366,16 +366,16 @@ class ArmyBuilder:
             units.append(deepcopy(unit))
             remaining_points -= unit.cost
 
-            if unit.unit_type == 'Vehicle':
+            if (unit.unit_type or '').startswith('Vehicle'):
                 vehicle_count += 1
-            elif unit.unit_type == 'Soldier':
+            elif (unit.unit_type or '').startswith('Soldier'):
                 soldier_count += 1
 
         # Check require_infantry constraint
         if constraints.require_infantry and soldier_count == 0:
             # Try to add an infantry unit
             infantry = [u for u in self.available_units
-                       if u.unit_type == 'Soldier' and u.cost <= remaining_points]
+                       if (u.unit_type or '').startswith('Soldier') and u.cost <= remaining_points]
             if infantry:
                 units.append(deepcopy(random.choice(infantry)))
 
@@ -412,8 +412,8 @@ class ArmyBuilder:
         remaining_points = constraints.max_points
 
         # Separate by type
-        infantry = [u for u in self.available_units if u.unit_type == 'Soldier']
-        vehicles = [u for u in self.available_units if u.unit_type == 'Vehicle']
+        infantry = [u for u in self.available_units if (u.unit_type or '').startswith('Soldier')]
+        vehicles = [u for u in self.available_units if (u.unit_type or '').startswith('Vehicle')]
         other = [u for u in self.available_units
                 if u.unit_type not in ('Soldier', 'Vehicle')]
 
@@ -426,7 +426,7 @@ class ArmyBuilder:
 
         # Add infantry
         for unit in infantry[:target_infantry * 2]:  # Extra candidates for cost fitting
-            if len([u for u in units if u.unit_type == 'Soldier']) >= target_infantry:
+            if len([u for u in units if (u.unit_type or '').startswith('Soldier')]) >= target_infantry:
                 break
             if unit.cost <= remaining_points and len(units) < constraints.max_units:
                 units.append(deepcopy(unit))
@@ -434,11 +434,11 @@ class ArmyBuilder:
 
         # Add vehicles
         for unit in vehicles[:target_vehicles * 2]:
-            if len([u for u in units if u.unit_type == 'Vehicle']) >= target_vehicles:
+            if len([u for u in units if (u.unit_type or '').startswith('Vehicle')]) >= target_vehicles:
                 break
             if unit.cost <= remaining_points and len(units) < constraints.max_units:
                 if constraints.max_vehicles is None or \
-                   len([u for u in units if u.unit_type == 'Vehicle']) < constraints.max_vehicles:
+                   len([u for u in units if (u.unit_type or '').startswith('Vehicle')]) < constraints.max_vehicles:
                     units.append(deepcopy(unit))
                     remaining_points -= unit.cost
 
@@ -828,7 +828,7 @@ class GameSetup:
             defense = getattr(unit, 'defense_front', unit.defense_front)
             unit_state = UnitState(unit, pos, owner, defense)
             # Set facing based on owner
-            if unit.unit_type == 'Vehicle':
+            if (unit.unit_type or '').startswith('Vehicle'):
                 unit_state.facing = 0 if owner == 'player1' else 3  # East or West
             occupied_hexes.add(pos)
             return unit_state

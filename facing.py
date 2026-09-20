@@ -317,7 +317,7 @@ class FacingSystem:
         facing: HexDirection = HexDirection.EAST
     ):
         """Set initial facing for a unit during deployment."""
-        if unit_type == 'Vehicle':
+        if (unit_type or '').startswith('Vehicle'):
             self._unit_facing[unit_id] = facing
     
     def can_change_facing(self, unit_state: 'UnitState') -> bool:

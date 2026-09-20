@@ -216,7 +216,7 @@ class DiceSystem:
         
         return CoverResult(
             roll=roll,
-            threshold=base_threshold,
+            threshold=effective_threshold,   # what the roll actually needed
             modifier=modifier,
             success=success
         )
@@ -560,11 +560,12 @@ def get_unit_category(unit) -> UnitCategory:
     Returns:
         UnitCategory enum value
     """
-    unit_type = getattr(unit, 'unit_type', 'Soldier')
-    
-    if unit_type == 'Vehicle':
+    unit_type = (getattr(unit, 'unit_type', 'Soldier') or 'Soldier')
+
+    # unit_type carries subtypes ("Vehicle Tank", "Soldier Artillery", "Aircraft Jet")
+    if unit_type.startswith('Vehicle'):
         return UnitCategory.VEHICLE
-    elif unit_type == 'Aircraft':
+    elif unit_type.startswith('Aircraft') or 'Jet' in unit_type:
         return UnitCategory.AIRCRAFT
     else:
         # Soldier, Artillery treated as soldiers

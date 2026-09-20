@@ -1,0 +1,21 @@
+name: same-hex-attack-hits-rear-armor-and-gives-minus-one-on-the-cover-roll
+source: "Advanced rulebook: attacks from the same hex are against the rear defense; a target in the attacker's hex suffers -1 on its cover roll"
+board: {width: 10, height: 8, terrain: {forest: [[5,4]]}}
+units:
+  - {id: pf, owner: player1, at: [5,4], stats: {unit_type: Soldier, defense: "4", speed: 1, per: [5,3,1], veh: [9,0,0]}}
+  - {id: tank, owner: player2, at: [5,4], facing: NW, stats: {unit_type: Vehicle Tank, defense: "6/3", speed: 3, per: [7,5,3], veh: [7,5,3]}}
+  - {id: rifles, owner: player1, at: [3,3], stats: {unit_type: Soldier, defense: "4", speed: 1, per: [7,5,3]}}
+  - {id: grens, owner: player2, at: [3,3], stats: {unit_type: Soldier, defense: "4", speed: 1, per: [7,5,3]}}
+phase: assault
+active_player: player1
+# pf: nine dice, four 6s -> 4 successes: beats rear defense 3 (front would be 6); vehicle in forest: cover roll 5+ becomes 6+, rolls a 5 -> fails
+# rifles vs grens in open ground: no cover roll; 7 dice, four 5s = 4 successes vs 4 -> disrupted
+dice: [6,6,6,6,1,1,1,1,1, 5, 5,5,5,5,1,1,1]
+actions:
+  - {type: attack, unit: pf, target: tank}
+  - {type: attack, unit: rifles, target: grens}
+expect:
+  dice_consumed: 17
+  results:
+    0: {success: true, combat: {defense: 3, cover_threshold: 6, cover_success: false}}
+    1: {success: true, combat: {successes: 4, hits: 1}}

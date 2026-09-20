@@ -1,0 +1,18 @@
+name: vehicles-save-cover-on-5-plus-soldiers-on-4-plus
+source: "Advanced rulebook glossary, cover roll: Vehicles normally succeed on 5 or higher and Soldiers succeed on 4 or higher"
+board: {width: 10, height: 8, terrain: {forest: [[5,3],[5,5]]}}
+units:
+  - {id: gun, owner: player1, at: [3,3], stats: {unit_type: Soldier, defense: "4", per: [8,6,4], veh: [8,6,4]}}
+  - {id: gun2, owner: player1, at: [3,5], stats: {unit_type: Soldier, defense: "4", per: [8,6,4], veh: [8,6,4]}}
+  - {id: tank, owner: player2, at: [5,3], facing: NW, stats: {unit_type: Vehicle Tank, defense: "4/3", per: [7,5,3], veh: [7,5,3]}}
+  - {id: rifles, owner: player2, at: [5,5], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+phase: assault
+active_player: player1
+dice: [6,6,6,6,1,1, 4, 6,6,6,6,1,1, 4]     # both cover rolls are a 4: the Soldier saves, the Vehicle (a Tank subtype) does not
+actions:
+  - {type: attack, unit: gun, target: tank}
+  - {type: attack, unit: gun2, target: rifles}
+expect:
+  results:
+    0: {success: true, combat: {cover_threshold: 5, cover_success: false}}
+    1: {success: true, combat: {cover_threshold: 4, cover_success: true}}
