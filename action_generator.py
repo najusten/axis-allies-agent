@@ -16,7 +16,7 @@ from action import (
 )
 from movement import MovementSystem
 from combat import CombatSystem
-from abilities import granted_abilities, AbilitySystem
+from abilities import granted_abilities, transport_capacity, can_carry, AbilitySystem
 from facing import HexDirection, is_target_in_front_arc
 
 
@@ -359,12 +359,8 @@ class ActionGenerator:
         return False
 
     def _has_transport(self, unit) -> bool:
-        """Check if a unit has Transport ability (can carry a soldier)."""
-        abilities = getattr(unit, 'abilities', []) or []
-        for ability in abilities:
-            if ability.lower() == 'transport':
-                return True
-        return False
+        """Check if a unit has any transport ability (Transport, Exposed/Gun/Large Transport)."""
+        return transport_capacity(unit) > 0
 
     def _get_limited_range(self, unit) -> int:
         """
@@ -721,17 +717,18 @@ class ActionGenerator:
             if movement_spent > 0:
                 effective_speed = max(0, effective_speed - movement_spent)
             if effective_speed <= 0:
-                continue  # No movement remaining
-            reachable = self.movement_system.get_reachable_hexes(
-                game_state.board, q, r, unit, max_speed=effective_speed,
-                friendly_positions=friendly_positions,
-                minimum_movement=(movement_spent == 0)   # speed-1 Vehicles may enter forest/hill
-            )
+                reachable = set()      # no movement, but speed-0 Soldiers may still board/dismount
+            else:
+                reachable = self.movement_system.get_reachable_hexes(
+                    game_state.board, q, r, unit, max_speed=effective_speed,
+                    friendly_positions=friendly_positions,
+                    minimum_movement=(movement_spent == 0)   # speed-1 Vehicles may enter forest/hill
+                )
 
             # High Gear: If unit has High Gear, also calculate road-only moves with bonus
             movement_mods = self.ability_system.get_movement_modifiers(unit)
             high_gear_bonus = movement_mods.get('high_gear_bonus', 0)
-            if high_gear_bonus > 0:
+            if high_gear_bonus > 0 and effective_speed > 0:
                 hg_speed = base_speed + bonus_speed + high_gear_bonus - movement_spent
                 if hg_speed > 0:
                     high_gear_reachable = self.movement_system.get_reachable_hexes(
@@ -794,7 +791,7 @@ class ActionGenerator:
                             continue  # Skip self
                         if self._has_transport(other_state.unit):
                             # Check if transport is not already carrying someone
-                            if other_state.carried_unit_id is None:
+                            if other_state.carried_unit_id is None and can_carry(other_state.unit, unit):
                                 actions.append(BoardTransportAction(
                                     unit_id=unit.id,
                                     transport_id=other_state.unit.id,

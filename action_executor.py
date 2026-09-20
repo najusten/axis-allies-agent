@@ -17,7 +17,7 @@ from action import (
     ActionValidator, ActionValidation
 )
 from movement import MovementSystem
-from abilities import granted_abilities, AbilitySystem
+from abilities import granted_abilities, can_carry, AbilitySystem
 from dice import DiceSystem, UnitStatus, UnitCategory, get_unit_category
 from defensive_fire import DefensiveFireSystem, DefensiveFireResult
 from facing import (
@@ -2812,6 +2812,8 @@ class ActionExecutor:
         # Verify transport can carry
         if transport_state.carried_unit_id is not None:
             return ActionResult(False, "Transport is already carrying a unit")
+        if not can_carry(transport_state.unit, soldier_state.unit):
+            return ActionResult(False, f"{transport_state.unit.name} can't carry {soldier_state.unit.name}")
 
         # Verify soldier is not already being carried
         if soldier_state.carried_by_id is not None:

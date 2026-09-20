@@ -1165,3 +1165,40 @@ def granted_abilities(unit_state) -> list:
     if is_commander and unit_state.is_disrupted:
         return []
     return abilities
+
+
+def transport_capacity(unit) -> int:
+    """How many Soldiers a unit can carry (0 = not a transport). Large Transport carries two."""
+    abilities = [a.lower() for a in (getattr(unit, 'abilities', []) or [])]
+    if 'large transport' in abilities:
+        return 2
+    if any(a in ('transport', 'exposed transport', 'gun transport') for a in abilities):
+        return 1
+    return 0
+
+
+def can_carry(transport, soldier) -> bool:
+    """Rulebook (Transport): transports can't carry Soldiers with the subtypes
+    Artillery, Motorcycle or Cavalry. Light Artillery may be carried by any
+    transport; Gun Transport carries non-Large Artillery; Large Transport may
+    carry one Artillery unit. Dug In units can't be transported."""
+    if transport_capacity(transport) == 0:
+        return False
+    ut = (getattr(soldier, 'unit_type', '') or '')
+    if not ut.startswith('Soldier'):
+        return False
+    s_ab = [a.lower() for a in (getattr(soldier, 'abilities', []) or [])]
+    t_ab = [a.lower() for a in (getattr(transport, 'abilities', []) or [])]
+    if 'dug in' in s_ab:
+        return False
+    if 'Motorcycle' in ut or 'Cavalry' in ut:
+        return False
+    if 'Artillery' in ut:
+        if 'light artillery' in s_ab:
+            return True
+        if 'gun transport' in t_ab and 'large' not in s_ab:
+            return True
+        if 'large transport' in t_ab:
+            return True
+        return False
+    return True
