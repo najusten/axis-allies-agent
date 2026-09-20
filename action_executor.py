@@ -2947,6 +2947,7 @@ class ActionExecutor:
 
         # Place the Aircraft
         unit_state.is_aircraft_on_map = True
+        unit_state.aircraft_was_placed = True
         unit_state.position = (action.to_q, action.to_r)
         # Note: Aircraft don't occupy hexes like ground units - they fly over
 

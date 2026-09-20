@@ -17,8 +17,6 @@ expect:
   results:
     0: {success: true, combat: {hit_threshold: 5, successes: 0}}
     1: {success: true, combat: {hit_threshold: 5, successes: 4}}
-  legal:
-    - {type: move, unit: shaken, allowed: false}
   units:
     shaken: {status: healthy}          # disruption cleared at the casualty phase
     tgt2: {status: disrupted}

@@ -1,0 +1,18 @@
+name: turn-10-points-count-map-units-and-aircraft-placed-at-least-once
+source: "Advanced rulebook, How to Win: at the end of turn 10 count the point costs of the units on the battle map and any surviving Aircraft that were placed at least once"
+board: {width: 10, height: 8}
+units:
+  - {id: rifles, owner: player1, at: [2,2], stats: {unit_type: Soldier, defense: "4", per: [7,5,3], cost: 5}}
+  - {id: para, owner: player1, at: [0,0], is_deployed: false, stats: {unit_type: Soldier, defense: "4", per: [7,5,3], abilities: "Paratrooper", cost: 8}}
+  - {id: flown, owner: player1, at: [0,0], stats: {unit_type: Aircraft, defense: "4/4", speed: 20, per: [8,6,4], veh: [6,4,2], cost: 20}}
+  - {id: hangar, owner: player1, at: [0,0], stats: {unit_type: Aircraft, defense: "4/4", speed: 20, per: [8,6,4], veh: [6,4,2], cost: 20}}
+  - {id: enemy, owner: player2, at: [8,6], stats: {unit_type: Soldier, defense: "4", per: [5,3,1], cost: 7}}
+phase: flight
+active_player: player1
+actions:
+  - {type: place, unit: flown, to: [5,5]}
+  - {type: casualty}          # end of turn: the aircraft leaves the map but was placed
+expect:
+  points:
+    player1: 25      # rifles 5 + flown 20; the never-placed aircraft and the undeployed paratrooper don't count
+    player2: 7

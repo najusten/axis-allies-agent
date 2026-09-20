@@ -396,6 +396,8 @@ class Scenario:
             kind = spec.get('type')
             if kind == 'casualty':
                 res = ex.resolve_casualty_phase(gs)
+                for us in gs.units.values():        # end of turn: aircraft leave, per-turn flags reset
+                    us.reset_for_turn()
                 steps.append(StepResult(i, spec, None, None, [{'type': 'casualty', **res}]))
                 continue
             if kind == 'set_phase':
@@ -493,6 +495,11 @@ class Scenario:
             want = _resolve_aliases(want, self.aliases)
             if any(_subset(want, e) for e in all_events):
                 failures.append(f"unexpected event matching {want!r}")
+
+        for player, want in (exp.get('points') or {}).items():
+            got = gs.get_total_points(player)
+            if abs(got - float(want)) > 1e-9:
+                failures.append(f"points for {player}: expected {want}, got {got}")
 
         if 'dice_consumed' in exp and len(self.dice.log) != exp['dice_consumed']:
             failures.append(f"expected {exp['dice_consumed']} dice consumed, got {len(self.dice.log)}: {self.dice.log}")

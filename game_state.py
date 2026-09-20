@@ -61,7 +61,8 @@ class UnitState:
     carried_by_id: Optional[str] = None  # Soldier: ID of transport carrying this unit
     smoke_screen_used: bool = False  # Smoke Screen: once per game ability
     is_deployed: bool = True  # Paratrooper: False if not yet deployed on map
-    is_aircraft_on_map: bool = False  # Aircraft: True when placed during Flight phase
+    is_aircraft_on_map: bool = False  # Aircraft: True while on the map this turn
+    aircraft_was_placed: bool = False   # counts for the turn-10 points tally once placed
     shock_troop_used: bool = False  # Shock Troop: True after first attack this game
     armor_piercing_used: bool = False  # Armor-Piercing Rounds: once per game
     he_round_used: bool = False  # HE Round: once per game
@@ -644,11 +645,19 @@ class GameState:
         Get total point cost of surviving units for a player.
         Used for tiebreaker at turn 10.
         """
+        # Rulebook: "count the point costs of the units on the battle map and any
+        # surviving Aircraft that were placed at least once"
         total = 0.0
         for unit_state in self.get_units_by_owner(player):
-            if unit_state.is_alive:
-                cost = getattr(unit_state.unit, 'cost', 0) or 0
-                total += cost
+            if not unit_state.is_alive:
+                continue
+            if 'Aircraft' in (unit_state.unit.unit_type or ''):
+                if not (unit_state.is_aircraft_on_map or unit_state.aircraft_was_placed):
+                    continue
+            elif not unit_state.is_deployed:
+                continue          # paratroopers / heroes never brought on
+            cost = getattr(unit_state.unit, 'cost', 0) or 0
+            total += cost
         return total
 
     def is_game_over(self) -> bool:
