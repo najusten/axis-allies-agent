@@ -62,6 +62,8 @@ def check_invariants(gs: GameState) -> List[str]:
     for uid, us in gs.units.items():
         if not us.is_alive or not us.is_deployed:
             continue
+        if 'Aircraft' in (us.unit.unit_type or '') and not us.is_aircraft_on_map:
+            continue
         q, r = us.position
         if board.get_hex(q, r) is None and not us.carried_by_id:
             problems.append(f"{uid} off-board at {us.position}")

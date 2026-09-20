@@ -143,6 +143,8 @@ class UnitState:
         self.extra_hull_cannon_used = False  # Reset Extra Hull-Mounted Cannon
         # Note: rapid_fire_jammed is NOT reset here (sticky disruption)
         # Note: bombs_used is NOT reset (once per game)
+        if self.is_aircraft_on_map and 'Aircraft' in (self.unit.unit_type or ''):
+            self.position = (-99, -99)       # off the map until placed again
         self.is_aircraft_on_map = False  # Aircraft removed at end of turn
 
 

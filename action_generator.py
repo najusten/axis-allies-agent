@@ -2384,14 +2384,23 @@ class ActionGenerator:
         q, r = unit_state.position
 
         # Get reachable hexes at the relocate speed
+        owner = unit_state.owner
+        friendly_positions = {
+            us.position for us in game_state.get_units_by_owner(owner)
+            if us.is_alive and us.unit.id != unit.id
+        }
         reachable = self.movement_system.get_reachable_hexes(
-            game_state.board, q, r, unit, max_speed=relocate_speed
+            game_state.board, q, r, unit, max_speed=relocate_speed,
+            friendly_positions=friendly_positions
         )
 
         # Create move actions
+        unit_type = getattr(unit, 'unit_type', 'Soldier')
         for (dest_q, dest_r) in reachable:
             if (dest_q, dest_r) == (q, r):
                 continue  # Skip current position
+            if not game_state.can_stack_at(dest_q, dest_r, owner, unit_type, exclude_unit_id=unit.id):
+                continue
 
             move_action = MoveAction(
                 unit_id=unit.id,
