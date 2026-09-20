@@ -928,6 +928,12 @@ class ActionGenerator:
             unit = unit_state.unit
             q, r = unit_state.position
 
+            # Rulebook: "While a Soldier is boarded, it can't attack" - unless the
+            # transport is a Fighting Platform that hasn't moved this assault phase
+            if unit_state.carried_by_id:
+                if not self._can_fire_from_transport(game_state, unit_state):
+                    continue
+
             # Generate attack actions (uses can_unit_attack for Double Shot support)
             # In assault phase: can't attack if already moved (move OR attack)
             # Exception: units with Aggression/move-and-attack abilities
@@ -963,7 +969,7 @@ class ActionGenerator:
             # may move at full speed instead of attacking — even if it already
             # moved in the movement phase (rulebook: "may either fire at the
             # enemy or move again"). Units with Relocate use that speed.
-            if not unit_state.has_attacked and not unit_state.assault_moved:
+            if not unit_state.has_attacked and not unit_state.assault_moved and not unit_state.platform_fired:
                 relocate_speed = self._get_relocate_speed(unit)
                 aggression = self.movement_system.get_assault_move_range(unit)
                 if aggression > 0 and relocate_speed == 0:
@@ -1226,6 +1232,19 @@ class ActionGenerator:
                 actions.append(ability_action)
 
         return actions
+
+    @staticmethod
+    def _can_fire_from_transport(game_state: GameState, unit_state: UnitState) -> bool:
+        """Fighting Platform: a non-artillery Soldier aboard may attack in the assault
+        phase if the transport doesn't move that phase (and may make defensive fire)."""
+        transport = game_state.get_unit_state(unit_state.carried_by_id)
+        if transport is None or not transport.is_alive:
+            return False
+        if not any(a.lower() == 'fighting platform' for a in (transport.unit.abilities or [])):
+            return False
+        if 'artillery' in (unit_state.unit.unit_type or '').lower():
+            return False
+        return not transport.assault_moved
 
     def _get_dismount_actions(self, game_state: GameState, unit_state: UnitState) -> List[DismountTransportAction]:
         """Rulebook (Transport): a passenger dismounts into the transport's hex; if that

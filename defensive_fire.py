@@ -87,6 +87,12 @@ class DefensiveFireSystem:
         """Reset tracking for a new phase. Call at start of each movement phase."""
         game_state.defensive_fire_used.clear()
 
+    @staticmethod
+    def _aboard_fighting_platform(game_state, unit_state) -> bool:
+        transport = game_state.get_unit_state(unit_state.carried_by_id)
+        return bool(transport and transport.is_alive
+                    and any(a.lower() == 'fighting platform' for a in (transport.unit.abilities or [])))
+
     def check_antiair_defensive_fire(
         self,
         game_state: GameState,
@@ -273,7 +279,14 @@ class DefensiveFireSystem:
         enemy_units = game_state.get_units_by_owner(enemy_owner)
         
         for enemy_state in enemy_units:
-            if not enemy_state.is_alive:
+            if not enemy_state.is_alive or not enemy_state.is_deployed:
+                continue
+            if 'Aircraft' in (enemy_state.unit.unit_type or '') and not enemy_state.is_aircraft_on_map:
+                continue
+            # Boarded Soldiers can't attack - except aboard a Fighting Platform
+            if enemy_state.carried_by_id and not self._aboard_fighting_platform(game_state, enemy_state):
+                continue
+            if (enemy_state.unit.unit_type or '') == 'Obstacle':
                 continue
             
             enemy_unit = enemy_state.unit

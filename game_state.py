@@ -41,7 +41,8 @@ class UnitState:
     strike_and_fade_available: bool = False
     assault_moved: bool = False  # moved (instead of attacking) in this turn's assault phase
     aggression_moved: bool = False  # Aggression X: moved ≤ X in the assault phase and may still attack
-    hold_defensive_fire: bool = False  # player's standing order: don't fire defensively (rulebook: optional)  # Enabled after attack if unit has Strike and Fade
+    platform_fired: bool = False  # Fighting Platform: a passenger attacked this turn, so the transport may not move in the assault phase
+    hold_defensive_fire: bool = False  # player's standing order: don't fire defensively (rulebook: optional)
     heavy_armor_used: bool = False  # Heavy Armor: ignore first Damaged counter each game
     covering_fire_target: bool = False  # True if hit by Covering Fire this turn (can't defensive fire)
     all_guns_blazing_available: bool = False  # Enabled after attack if unit has All Guns Blazing
@@ -125,6 +126,7 @@ class UnitState:
         self.attacks_this_turn = 0
         self.assault_moved = False
         self.aggression_moved = False
+        self.platform_fired = False
         self.strike_and_fade_available = False
         self.all_guns_blazing_available = False
         self.strafe_available = False

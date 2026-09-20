@@ -1,0 +1,17 @@
+name: boarded-soldier-cannot-attack-or-defensive-fire-unless-on-a-fighting-platform
+source: "Advanced rulebook, Transport: while a Soldier is boarded it can't move and can't attack. Fighting Platform: a non-artillery Soldier carried by this unit can attack during your assault phase if this unit doesn't move during that phase; a Soldier carried by this unit can make defensive-fire attacks"
+board: {width: 10, height: 8}
+units:
+  - {id: truck, owner: player1, at: [3,3], facing: SE, stats: {unit_type: Vehicle, defense: "2/2", speed: 3, per: [0,0,0], veh: [0,0,0], abilities: "Transport"}}
+  - {id: rider, owner: player1, at: [3,3], in_transport: truck, stats: {unit_type: Soldier, defense: "4", speed: 1, per: [7,5,3]}}
+  - {id: ht, owner: player1, at: [3,5], facing: SE, stats: {unit_type: Vehicle Half-Track, defense: "3/2", speed: 3, per: [4,3,2], veh: [2,1,0], abilities: "Transport, Fighting Platform"}}
+  - {id: gunner, owner: player1, at: [3,5], in_transport: ht, stats: {unit_type: Soldier, defense: "4", speed: 1, per: [7,5,3]}}
+  - {id: e1, owner: player2, at: [5,3], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+  - {id: e2, owner: player2, at: [5,5], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: assault
+active_player: player1
+actions: []
+expect:
+  legal:
+    - {type: attack, unit: rider, allowed: false}
+    - {type: attack, unit: gunner, target: e2, allowed: true}

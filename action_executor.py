@@ -853,6 +853,15 @@ class ActionExecutor:
         attacker = attacker_state.unit
         target = target_state.unit
 
+        # Rulebook: a boarded Soldier can't attack (Fighting Platform excepted, if the
+        # transport doesn't move this assault phase)
+        if attacker_state.carried_by_id:
+            transport = game_state.get_unit_state(attacker_state.carried_by_id)
+            platform = bool(transport and any(a.lower() == 'fighting platform' for a in (transport.unit.abilities or [])))
+            if not platform or transport.assault_moved or 'artillery' in (attacker.unit_type or '').lower():
+                return ActionResult(False, f"{attacker.name} can't attack while boarded")
+            transport.platform_fired = True     # the platform must now stay put this assault phase
+
         # Undermanned: This unit can't attack while disrupted
         has_undermanned = any(
             a.lower() == 'undermanned' for a in (getattr(attacker, 'abilities', []) or [])
