@@ -1343,6 +1343,9 @@ class ActionGenerator:
             valid_positions = soldier_positions_by_nationality.get(hero_nationality, set())
 
             for pos in valid_positions:
+                if not game_state.can_stack_at(pos[0], pos[1], unit_state.owner, unit_state.unit.unit_type,
+                                               exclude_unit_id=unit_state.unit.id):
+                    continue    # the Soldier's hex is already full
                 actions.append(DeployAction(
                     unit_id=unit_state.unit.id,
                     to_q=pos[0],
