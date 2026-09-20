@@ -646,6 +646,8 @@ def scenario_from_dict(raw: dict, name: str = 'scenario') -> Scenario:
         alias = spec.get('id') or unit.name
         unit.id = alias if alias not in aliases else f"{alias}_{len(aliases)}"
         q, r = H(spec['at'])
+        if (q, r) != (-99, -99) and board.get_hex(q, r) is None:
+            raise ValueError(f"{name}: unit {spec.get('id') or unit.name!r} placed off the board at {spec['at']}")
         health = spec.get('health', unit.defense_front)
         us = UnitState(unit, (q, r), spec['owner'], health)
         if spec.get('facing') is not None:

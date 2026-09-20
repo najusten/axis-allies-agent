@@ -5,7 +5,7 @@ units:
   - {id: mortar, owner: player1, at: [2,4], stats: {unit_type: Soldier Artillery, defense: "4", speed: 0, per: [6,6,6], veh: [2,2,2], abilities: "Improved Indirect Fire, Indirect Fire", nation: US}}
   - {id: cdr, owner: player1, at: [5,2], stats: {unit_type: Soldier Commander, defense: "4", speed: 1, per: [5,3,1], abilities: "COMMANDER ABILITIES:2", nation: US}}
   - {id: tgt, owner: player2, at: [7,4], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
-  - {id: far, owner: player2, at: [10,6], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+  - {id: far, owner: player2, at: [10,-5], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
 phase: assault
 active_player: player1
 dice: [1,1,1,1,1,1]

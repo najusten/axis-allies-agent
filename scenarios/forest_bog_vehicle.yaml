@@ -5,7 +5,7 @@ units:
   - {id: tank, owner: player1, at: [4,4], facing: SE, stats: {unit_type: Vehicle, defense: "5/3", speed: 3, veh: [10,8,6], per: [8,6,4]}}
   - {id: tank2, owner: player1, at: [4,6], facing: SE, stats: {unit_type: Vehicle, defense: "5/3", speed: 3, veh: [10,8,6], per: [8,6,4]}}
   - {id: rifles, owner: player1, at: [4,5], stats: {unit_type: Soldier, defense: "4", speed: 2, per: [7,5,3]}}
-  - {id: enemy, owner: player2, at: [9,9], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+  - {id: enemy, owner: player2, at: [0,0], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
 phase: movement
 active_player: player1
 dice: [2, 5]          # tank fails (2 < 4), tank2 passes (5)

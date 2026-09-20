@@ -4,7 +4,7 @@ board: {width: 8, height: 6}
 units:
   - {id: gun, owner: player1, at: [2,3], stats: {unit_type: "Soldier Artillery", defense: "3", speed: 1, veh: [9,7,5], per: [4,3,2], abilities: "Large"}}
   - {id: tank, owner: player1, at: [3,3], facing: SE, stats: {unit_type: Vehicle, defense: "5/3", speed: 3, veh: [8,6,4], per: [6,4,2]}}
-  - {id: enemy, owner: player2, at: [7,5], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+  - {id: enemy, owner: player2, at: [6,-3], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
 phase: movement
 active_player: player1
 actions: []

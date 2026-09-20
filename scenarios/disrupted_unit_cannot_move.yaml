@@ -4,7 +4,7 @@ board: {width: 10, height: 8}
 units:
   - {id: shaken, owner: player1, at: [3,3], disrupted: true, stats: {unit_type: Soldier, defense: "4", speed: 2, per: [6,4,2]}}
   - {id: tank, owner: player1, at: [3,5], facing: SE, disrupted: true, stats: {unit_type: Vehicle Tank, defense: "5/4", speed: 3, per: [6,4,2], veh: [6,4,2]}}
-  - {id: enemy, owner: player2, at: [9,7], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+  - {id: enemy, owner: player2, at: [9,3], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
 phase: movement
 active_player: player1
 actions: []

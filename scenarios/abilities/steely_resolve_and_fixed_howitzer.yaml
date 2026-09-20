@@ -1,0 +1,24 @@
+name: steely-resolve-needs-defense-plus-two-for-two-hits-fixed-howitzer-only-fires-forward
+source: "Steely Resolve 2: an attack must beat this unit's defense by 2 or more to score two hits. Fixed Howitzer: this unit can attack only units in front of it"
+board: {width: 10, height: 8}
+units:
+  - {id: gun, owner: player1, at: [3,3], stats: {unit_type: Soldier, defense: "4", per: [8,6,4], veh: [8,6,4]}}
+  - {id: gun2, owner: player1, at: [3,4], stats: {unit_type: Soldier, defense: "4", per: [8,6,4], veh: [8,6,4]}}
+  - {id: how, owner: player1, at: [3,6], facing: SE, stats: {unit_type: Vehicle Assault Gun, defense: "4/3", speed: 2, per: [8,6,4], veh: [8,6,4], abilities: "Fixed Howitzer"}}
+  - {id: stout, owner: player2, at: [5,3], stats: {unit_type: Soldier, defense: "4", per: [5,3,1], abilities: "Steely Resolve 2"}}
+  - {id: stout2, owner: player2, at: [5,4], stats: {unit_type: Soldier, defense: "4", per: [5,3,1], abilities: "Steely Resolve 2"}}
+  - {id: behind, owner: player2, at: [1,6], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}     # directly behind the howitzer
+  - {id: ahead, owner: player2, at: [5,5], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: assault
+active_player: player1
+dice: [6,6,6,6,6,1, 6,6,6,6,6,6]     # 5 successes vs 4: normally 2 hits, with Steely Resolve only 1; 6 successes: 2 hits
+actions:
+  - {type: attack, unit: gun, target: stout}
+  - {type: attack, unit: gun2, target: stout2}
+expect:
+  results:
+    0: {success: true, combat: {successes: 5, hits: 1}}
+    1: {success: true, combat: {successes: 6, hits: 2}}
+  legal:
+    - {type: attack, unit: how, target: behind, allowed: false}
+    - {type: attack, unit: how, target: ahead, allowed: true}

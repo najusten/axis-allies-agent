@@ -202,7 +202,7 @@ class MovementSystem:
         is_vehicle = 'Vehicle' in (unit.unit_type or '')
         unit_abilities = getattr(unit, 'abilities', []) or []
         has_overrun = is_vehicle and any(a.lower() == 'overrun' for a in unit_abilities)
-        road_bonus = include_road_bonus and is_vehicle and not road_only
+        road_bonus = include_road_bonus and is_vehicle    # High Gear (road_only) moves still get the free first road hex
 
         reachable = {(start_q, start_r)}
         start_hex = board.get_hex(start_q, start_r)
@@ -334,7 +334,7 @@ class MovementSystem:
             if is_damaged:
                 max_speed = max(0, max_speed - 1)
         is_vehicle = 'Vehicle' in (unit.unit_type or '')
-        bonus = is_vehicle and not road_only
+        bonus = is_vehicle
         here = board.get_hex(*path[0])
         if here is None:
             return None

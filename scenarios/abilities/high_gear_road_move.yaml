@@ -1,0 +1,15 @@
+name: high-gear-bonus-only-when-the-whole-move-is-along-a-road
+source: "High Gear X: if this unit makes its entire move along a road, it gets +X speed"
+board: {width: 12, height: 8, terrain: {road: [[1,3],[2,3],[3,3],[4,3],[5,3],[6,3],[7,3],[8,3]]}}
+units:
+  - {id: car, owner: player1, at: [1,3], facing: SE, stats: {unit_type: Vehicle Armored Car, defense: "3/2", speed: 3, per: [6,4,2], veh: [4,2,1], abilities: "High Gear 2"}}
+  - {id: enemy, owner: player2, at: [11,-5], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: movement
+active_player: player1
+actions: []
+expect:
+  legal:
+    - {type: move, unit: car, to: [7,3], allowed: true}     # 6 road hexes: first free (road bonus) + speed 3 + High Gear 2
+    - {type: move, unit: car, to: [8,3], allowed: false}    # one too many
+    - {type: move, unit: car, to: [6,4], allowed: false}    # leaving the road: only speed 3 (+ free first road hex) -> (5,3) then off-road is 5 hexes: too far
+    - {type: move, unit: car, to: [4,4], allowed: true}     # road to (3,3)/(4,3) then one off-road hex: within 3 + bonus hex

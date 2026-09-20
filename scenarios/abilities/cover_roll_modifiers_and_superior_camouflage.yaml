@@ -1,0 +1,23 @@
+name: hard-to-spot-plus-one-large-silhouette-minus-one-superior-camouflage-blocks-medium-and-long-range
+source: "Hard to Spot: +1 on cover rolls. Large Silhouette: -1 on cover rolls. Superior Camouflage: while this unit has cover, enemy units can't attack it at medium or long range. Steady Firing: two extra dice vs Soldiers. Overlapping Fire: defensive fire against Soldiers"
+board: {width: 12, height: 8, terrain: {forest: [[5,3],[5,5],[8,2]]}}
+units:
+  - {id: g1, owner: player1, at: [3,3], stats: {unit_type: Soldier, defense: "4", per: [8,6,4], veh: [8,6,4], abilities: "Steady Firing"}}
+  - {id: g2, owner: player1, at: [3,5], stats: {unit_type: Soldier, defense: "4", per: [8,6,4], veh: [8,6,4]}}
+  - {id: g3, owner: player1, at: [3,4], stats: {unit_type: Soldier, defense: "4", per: [8,6,4], veh: [8,6,4]}}
+  - {id: hidden, owner: player2, at: [5,3], stats: {unit_type: Soldier, defense: "4", per: [5,3,1], abilities: "Hard to Spot"}}
+  - {id: big, owner: player2, at: [5,5], facing: NW, stats: {unit_type: Vehicle Tank, defense: "4/3", per: [5,3,1], veh: [5,3,1], abilities: "Large Silhouette"}}
+  - {id: sniper, owner: player2, at: [8,2], stats: {unit_type: Soldier, defense: "4", per: [5,3,1], abilities: "Superior Camouflage"}}
+phase: assault
+active_player: player1
+# g1 (Steady Firing) at medium range: 6 + 2 = 8 dice; hidden's cover roll 3 (+1) saves. g2 vs big: 6 dice, cover roll 5 (-1) fails for a Vehicle (needs 5, -1 -> 6)
+dice: [6,6,6,6,1,1,1,1, 3, 6,6,6,6,1,1, 5]
+actions:
+  - {type: attack, unit: g1, target: hidden}
+  - {type: attack, unit: g2, target: big}
+expect:
+  results:
+    0: {success: true, combat: {attack_dice: 8, cover_roll: 3, cover_success: true}}
+    1: {success: true, combat: {cover_roll: 5, cover_success: false}}
+  legal:
+    - {type: attack, unit: g3, target: sniper, allowed: false}    # 5 hexes, target in forest: Superior Camouflage

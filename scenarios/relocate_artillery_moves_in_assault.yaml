@@ -3,7 +3,7 @@ source: "Relocate X: this unit has speed X during the assault phase (speed 0 oth
 board: {width: 10, height: 8}
 units:
   - {id: gun, owner: player1, at: [3,3], stats: {unit_type: "Soldier Artillery", defense: "3", speed: 0, veh: [9,7,5], per: [4,3,2], abilities: "Relocate 2"}}
-  - {id: enemy, owner: player2, at: [9,7], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+  - {id: enemy, owner: player2, at: [9,3], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
 phase: movement
 active_player: player1
 actions:

@@ -2693,6 +2693,15 @@ class ActionGenerator:
             if atk_val <= 0:
                 continue
 
+            # Ability vetoes (Superior Camouflage in cover at medium/long range,
+            # Bombardment vs Aircraft, ...) - the executor would refuse these too
+            if self.ability_system is not None:
+                tgt_hex = game_state.board.get_hex(enemy_q, enemy_r)
+                mods = self.ability_system.get_attack_modifiers(
+                    unit, enemy, distance, tgt_hex.terrain if tgt_hex else 'open', False, enemy_state)
+                if not mods.get('can_attack', True):
+                    continue
+
             # Create attack action
             attack_action = AttackAction(
                 unit_id=unit.id,

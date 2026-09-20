@@ -10,7 +10,7 @@ units:
   - {id: amph, owner: player1, at: [2,3], facing: SE, stats: {unit_type: Vehicle, defense: "3/2", speed: 3, veh: [4,3,2], per: [6,4,2], abilities: "Amphibious"}}
   - {id: susp, owner: player1, at: [2,2], facing: SE, stats: {unit_type: Vehicle, defense: "4/3", speed: 2, veh: [6,4,2], per: [6,4,2], abilities: "Excellent Suspension"}}
   - {id: rob, owner: player1, at: [3,5], facing: SE, stats: {unit_type: Vehicle, defense: "4/3", speed: 2, veh: [6,4,2], per: [6,4,2], abilities: "Robust"}}
-  - {id: enemy, owner: player2, at: [11,7], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+  - {id: enemy, owner: player2, at: [11,-5], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
 phase: movement
 active_player: player1
 dice: [3]

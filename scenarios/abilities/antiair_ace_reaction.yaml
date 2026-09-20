@@ -3,7 +3,7 @@ source: "Antiair: if an enemy Aircraft is placed adjacent, this unit may make a 
 board: {width: 12, height: 8}
 units:
   - {id: flak, owner: player2, at: [5,4], stats: {unit_type: Vehicle, defense: "3/2", per: [6,4,2], veh: [4,2,1], abilities: "Antiair"}}
-  - {id: rifles, owner: player2, at: [9,7], stats: {unit_type: Soldier, defense: "4", per: [6,4,2]}}
+  - {id: rifles, owner: player2, at: [9,3], stats: {unit_type: Soldier, defense: "4", per: [6,4,2]}}
   - {id: plane, owner: player1, at: [0,0], stats: {unit_type: Aircraft, defense: "4/4", speed: 20, per: [8,6,4], veh: [6,4,2]}}
   - {id: ace, owner: player2, at: [2,3], is_aircraft_on_map: true, stats: {unit_type: Aircraft, defense: "4/4", per: [6,4,2], veh: [4,2,1], abilities: "Ace"}}
 phase: flight
