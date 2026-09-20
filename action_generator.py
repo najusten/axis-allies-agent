@@ -853,6 +853,9 @@ class ActionGenerator:
             # Skip if already on map
             if unit_state.is_aircraft_on_map:
                 continue
+            # Rulebook: Aircraft with face-up Disrupted counters can't be placed
+            if unit_state.is_disrupted:
+                continue
 
             # Aircraft can be placed in any hex on the map (terrain doesn't matter),
             # except one already holding an Aircraft (rulebook: one Aircraft per hex)

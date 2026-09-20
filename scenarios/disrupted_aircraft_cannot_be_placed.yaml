@@ -1,0 +1,17 @@
+name: disrupted-aircraft-stays-grounded-until-the-disruption-wears-off
+source: "Advanced rulebook, Flight Phases: Aircraft with face-up Disrupted counters can't be placed; casualty phase step 1 removes face-up Disrupted counters including those from disrupted Aircraft off the battle map"
+board: {width: 10, height: 8}
+units:
+  - {id: plane, owner: player1, at: [-99,-99], disrupted: true, stats: {unit_type: Aircraft, defense: "4/4", speed: 20, per: [8,6,4], veh: [6,4,2]}}
+  - {id: enemy, owner: player2, at: [9,7], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: flight
+active_player: player1
+actions:
+  - {type: place, unit: plane, to: [4,4]}      # grounded
+  - {type: casualty}                           # disruption wears off at the casualty phase
+  - {type: set_phase, phase: flight, active_player: player1}
+  - {type: place, unit: plane, to: [4,4]}
+expect:
+  results:
+    0: {success: false}
+    3: {success: true}

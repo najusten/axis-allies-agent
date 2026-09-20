@@ -1,0 +1,20 @@
+name: hits-from-different-attackers-add-together
+source: "Advanced rulebook: hits add together this way even if they come from more than one attacker (first counter Disrupted, second Destroyed for a Soldier / Damaged for a Vehicle)"
+board: {width: 10, height: 8}
+units:
+  - {id: a1, owner: player1, at: [3,3], stats: {unit_type: Soldier, defense: "4", per: [7,5,3], veh: [7,5,3]}}
+  - {id: a2, owner: player1, at: [3,4], stats: {unit_type: Soldier, defense: "4", per: [7,5,3], veh: [7,5,3]}}
+  - {id: rifles, owner: player2, at: [5,3], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+phase: assault
+active_player: player1
+dice: [6,6,6,6,1, 6,6,6,6,1]      # medium range: 5 dice each, exactly 4 successes = 1 hit each
+actions:
+  - {type: attack, unit: a1, target: rifles}
+  - {type: attack, unit: a2, target: rifles}
+  - {type: casualty}
+expect:
+  results:
+    0: {success: true, combat: {hits: 1}}
+    1: {success: true, combat: {hits: 1}}
+  units:
+    rifles: {status: destroyed}

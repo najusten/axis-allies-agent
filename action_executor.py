@@ -2952,6 +2952,8 @@ class ActionExecutor:
         if unit_state.is_aircraft_on_map:
             return ActionResult(False, "Aircraft is already on the map")
 
+        if unit_state.is_disrupted:
+            return ActionResult(False, "Disrupted Aircraft can't be placed until the disruption wears off")
         # Rulebook: only one Aircraft per hex
         if any('Aircraft' in (o.unit.unit_type or '') and o.is_aircraft_on_map and o.is_alive
                for o in game_state.get_units_at_position(action.to_q, action.to_r)):
