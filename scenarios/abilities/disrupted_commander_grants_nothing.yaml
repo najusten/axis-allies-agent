@@ -1,0 +1,17 @@
+name: disrupted-commander-abilities-do-not-function
+source: "Advanced rulebook: a Commander's commander abilities don't function when the Commander is disrupted or destroyed (initiative bonus, Tally-Ho! and the like)"
+board: {width: 10, height: 8}
+units:
+  - {id: lt, owner: player1, at: [2,3], disrupted: true, stats: {unit_type: "Soldier Commander", defense: "4", speed: 1, per: [6,4,2], abilities: "COMMANDER ABILITIES:2, Tally-Ho!"}}
+  - {id: rifles, owner: player1, at: [2,4], stats: {unit_type: Soldier, defense: "4", speed: 1, per: [7,5,3]}}
+  - {id: enemy, owner: player2, at: [9,6], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: movement
+active_player: player1
+dice: [3,3, 3,3]        # initiative: both roll 6, no +2 for the disrupted commander -> tie
+actions:
+  - {type: initiative}
+expect:
+  legal:
+    - {type: move, unit: rifles, to: [4,4], allowed: false}    # no Tally-Ho! bonus: speed 1 only
+  events:
+    - {type: initiative, player1_total: 6, player2_total: 6}

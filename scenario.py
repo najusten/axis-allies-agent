@@ -394,6 +394,15 @@ class Scenario:
         ex = self.systems.executor
         for i, spec in enumerate(self.actions):
             kind = spec.get('type')
+            if kind == 'initiative':
+                # both players roll; event carries the totals so expectations can check bonuses
+                p1 = self.systems.initiative.roll_initiative(gs, 'player1')
+                p2 = self.systems.initiative.roll_initiative(gs, 'player2')
+                steps.append(StepResult(i, spec, None, None, [{
+                    'type': 'initiative',
+                    'player1_total': p1.final_total, 'player2_total': p2.final_total,
+                    'player1_bonus': p1.commander_bonus, 'player2_bonus': p2.commander_bonus}]))
+                continue
             if kind == 'casualty':
                 res = ex.resolve_casualty_phase(gs)
                 for us in gs.units.values():        # end of turn: aircraft leave, per-turn flags reset

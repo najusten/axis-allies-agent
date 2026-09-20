@@ -23,6 +23,7 @@ from enum import Enum
 from game_state import GameState, UnitState
 from board import Board
 from dice import DiceSystem, UnitCategory
+from abilities import granted_abilities
 
 if TYPE_CHECKING:
     from units import Unit
@@ -313,7 +314,7 @@ class DefensiveFireSystem:
                 for friendly_state in friendly_units:
                     if not friendly_state.is_alive or friendly_state.unit.id == enemy_unit.id:
                         continue
-                    friendly_abilities = getattr(friendly_state.unit, 'abilities', []) or []
+                    friendly_abilities = granted_abilities(friendly_state)
                     if any(a.lower() == 'command awareness' for a in friendly_abilities):
                         friendly_pos = friendly_state.position
                         dist = self.board.hex_distance(
@@ -449,7 +450,7 @@ class DefensiveFireSystem:
                 continue
 
             # Check for Stalwart ability
-            friendly_abilities = getattr(friendly_state.unit, 'abilities', []) or []
+            friendly_abilities = granted_abilities(friendly_state)
             if any(a.lower() == 'stalwart' for a in friendly_abilities):
                 return True
 
@@ -522,7 +523,7 @@ class DefensiveFireSystem:
             if dist > 1:
                 continue
 
-            friendly_abilities = getattr(friendly_state.unit, 'abilities', []) or []
+            friendly_abilities = granted_abilities(friendly_state)
             for ability in friendly_abilities:
                 if ability.lower() in ['elan', 'fearless']:
                     return True

@@ -17,7 +17,7 @@ from action import (
     ActionValidator, ActionValidation
 )
 from movement import MovementSystem
-from abilities import AbilitySystem
+from abilities import granted_abilities, AbilitySystem
 from dice import DiceSystem, UnitStatus, UnitCategory, get_unit_category
 from defensive_fire import DefensiveFireSystem, DefensiveFireResult
 from facing import (
@@ -176,7 +176,7 @@ class ActionExecutor:
                 continue  # Skip self
 
             # Check if this unit is a Commander
-            friendly_abilities = getattr(friendly_state.unit, 'abilities', []) or []
+            friendly_abilities = granted_abilities(friendly_state)
             is_commander = any('commander abilities' in a.lower() for a in friendly_abilities)
             if not is_commander:
                 continue
@@ -258,7 +258,7 @@ class ActionExecutor:
                 continue  # Skip self
 
             # Check if this unit has Bravery Enforcement
-            friendly_abilities = getattr(friendly_state.unit, 'abilities', []) or []
+            friendly_abilities = granted_abilities(friendly_state)
             has_bravery_enforcement = any(
                 a.lower() == 'bravery enforcement' for a in friendly_abilities
             )
@@ -1506,7 +1506,7 @@ class ActionExecutor:
                     attacker_pos[0], attacker_pos[1], friendly_pos[0], friendly_pos[1]
                 )
                 if dist <= 2:
-                    friendly_abilities = getattr(friendly_state.unit, 'abilities', []) or []
+                    friendly_abilities = granted_abilities(friendly_state)
                     if any(a.lower() == 'command quick reactions' for a in friendly_abilities):
                         attacker_state.quick_reactions_available = True
                         result['notes'].append("Command Quick Reactions: Can change facing")
@@ -1733,7 +1733,7 @@ class ActionExecutor:
                     if dist_to_friendly > 1:
                         continue  # Not adjacent
 
-                    friendly_abilities = getattr(friendly_state.unit, 'abilities', []) or []
+                    friendly_abilities = granted_abilities(friendly_state)
 
                     # Tenacity: Adjacent Soldiers +1 die when attacking in same hex
                     if any(a.lower() == 'tenacity' for a in friendly_abilities):
@@ -1790,7 +1790,7 @@ class ActionExecutor:
                     if dist_to_friendly > 2:
                         continue  # Must be within 2 hexes
 
-                    friendly_abilities = getattr(friendly_state.unit, 'abilities', []) or []
+                    friendly_abilities = granted_abilities(friendly_state)
 
                     # Command Leadership: Vehicles within 2 hexes get Well Led (+1 attack die)
                     if not command_leadership_applied:
@@ -1882,7 +1882,7 @@ class ActionExecutor:
                 if dist_to_friendly > 1:
                     continue  # Not adjacent
 
-                friendly_abilities = getattr(friendly_state.unit, 'abilities', []) or []
+                friendly_abilities = granted_abilities(friendly_state)
 
                 # Terrain Expert: Adjacent Soldiers +1/+1 defense vs long range
                 if any(a.lower() == 'terrain expert' for a in friendly_abilities):
@@ -2111,7 +2111,7 @@ class ActionExecutor:
             for friendly_state in friendly_units:
                 if not friendly_state.is_alive:
                     continue
-                friendly_abilities = getattr(friendly_state.unit, 'abilities', []) or []
+                friendly_abilities = granted_abilities(friendly_state)
                 if any(a.lower() == 'plentiful ammo' for a in friendly_abilities):
                     has_plentiful_ammo_nearby = True
                     break
@@ -2402,7 +2402,7 @@ class ActionExecutor:
             for friendly_state in friendly_units:
                 if not friendly_state.is_alive or friendly_state.unit.id == attacker.id:
                     continue
-                friendly_abilities = getattr(friendly_state.unit, 'abilities', []) or []
+                friendly_abilities = granted_abilities(friendly_state)
                 if any(a.lower() == 'improved accuracy' for a in friendly_abilities):
                     friendly_pos = friendly_state.position
                     dist = game_state.board.hex_distance(

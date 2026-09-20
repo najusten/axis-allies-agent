@@ -1149,3 +1149,19 @@ if __name__ == "__main__":
     
     # Print unmatched abilities
     ability_system.print_unmatched_abilities()
+
+
+def granted_abilities(unit_state) -> list:
+    """Abilities a friendly unit currently projects onto others. Rulebook: "A
+    Commander's commander abilities don't function when the Commander is
+    disrupted or destroyed"; units off the map or aboard a transport grant nothing."""
+    if unit_state is None or not unit_state.is_alive or not getattr(unit_state, 'is_deployed', True) \
+            or getattr(unit_state, 'carried_by_id', None):
+        return []
+    unit = unit_state.unit
+    abilities = getattr(unit, 'abilities', []) or []
+    is_commander = ('commander' in (getattr(unit, 'unit_type', '') or '').lower()
+                    or any('commander abilities' in a.lower() for a in abilities))
+    if is_commander and unit_state.is_disrupted:
+        return []
+    return abilities

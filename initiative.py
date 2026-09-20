@@ -8,6 +8,7 @@ Handles the initiative phase at the start of each turn.
 - Winner chooses who goes first
 """
 
+from abilities import granted_abilities
 from typing import Tuple, Optional, Dict, List
 from dataclasses import dataclass
 
@@ -169,7 +170,8 @@ class InitiativeSystem:
                 continue
 
             unit = unit_state.unit
-            abilities = getattr(unit, 'abilities', []) or []
+            # a disrupted Commander's commander abilities (incl. the initiative bonus) don't function
+            abilities = granted_abilities(unit_state)
 
             # Handle both list and string formats
             if isinstance(abilities, str):

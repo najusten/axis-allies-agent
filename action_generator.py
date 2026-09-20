@@ -16,7 +16,7 @@ from action import (
 )
 from movement import MovementSystem
 from combat import CombatSystem
-from abilities import AbilitySystem
+from abilities import granted_abilities, AbilitySystem
 from facing import HexDirection, is_target_in_front_arc
 
 
@@ -617,7 +617,7 @@ class ActionGenerator:
                 for friendly_state in friendly_units:
                     if not friendly_state.is_alive or friendly_state.unit.id == unit.id:
                         continue
-                    friendly_abilities = getattr(friendly_state.unit, 'abilities', []) or []
+                    friendly_abilities = granted_abilities(friendly_state)
                     is_commander = any('commander abilities' in a.lower() for a in friendly_abilities)
                     if not is_commander:
                         continue
@@ -661,7 +661,7 @@ class ActionGenerator:
                 for friendly_state in friendly_units:
                     if not friendly_state.is_alive or friendly_state.unit.id == unit.id:
                         continue
-                    friendly_abilities = getattr(friendly_state.unit, 'abilities', []) or []
+                    friendly_abilities = granted_abilities(friendly_state)
                     has_tally_ho = any(a.lower() == 'tally-ho!' for a in friendly_abilities)
                     if has_tally_ho:
                         friendly_pos = friendly_state.position
@@ -678,7 +678,7 @@ class ActionGenerator:
                     for friendly_state in friendly_units:
                         if not friendly_state.is_alive:
                             continue
-                        friendly_abilities = getattr(friendly_state.unit, 'abilities', []) or []
+                        friendly_abilities = granted_abilities(friendly_state)
                         has_extra_fuel = any(a.lower() == 'extra fuel' for a in friendly_abilities)
                         if has_extra_fuel:
                             bonus_speed = 1
@@ -1123,7 +1123,7 @@ class ActionGenerator:
         for friendly_state in friendly_units:
             if not friendly_state.is_alive or friendly_state.unit.id == unit_state.unit.id:
                 continue
-            friendly_abilities = getattr(friendly_state.unit, 'abilities', []) or []
+            friendly_abilities = granted_abilities(friendly_state)
             if any(a.lower() == 'command demolition' for a in friendly_abilities):
                 friendly_pos = friendly_state.position
                 dist = game_state.board.hex_distance(
