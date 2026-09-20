@@ -215,9 +215,11 @@ class CasualtySystem:
         # Step 1: Clear face-up disrupted from previous turn
         # Exception: Unreliable, Rapid Fire jammed, Overheat jammed disruption doesn't clear
         # Green: Must roll 4+ to remove Disrupted counter
-        for unit_id in list(game_state.face_up_disrupted):
-            unit_state = game_state.get_unit_state(unit_id)
-            if unit_state and unit_state.is_disrupted:
+        # Every face-up Disrupted counter recovers here, whether it was flipped at
+        # the last casualty phase or placed face-up at once (defensive fire,
+        # Ace/Antiair reactions, scenario setup).
+        for unit_id, unit_state in list(game_state.units.items()):
+            if unit_state.is_alive and unit_state.is_disrupted:
                 # Check if disruption is sticky (from Unreliable, Rapid Fire, Overheat)
                 if getattr(unit_state, 'unreliable_disrupted', False):
                     continue  # Never clears

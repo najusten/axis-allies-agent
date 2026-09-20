@@ -1,0 +1,24 @@
+name: disrupted-unit-cannot-move-attacks-at-minus-one-and-recovers-at-casualty-phase
+source: "Advanced rulebook, Disrupted: -1 on each attack die, -1 defense, can't move, can't make defensive-fire attacks; recovers at the start of the next casualty phase. Damaged Vehicle: -1 attack die, -1 defense, -1 speed; disrupted+damaged still only -1"
+board: {width: 10, height: 8}
+units:
+  - {id: shaken, owner: player1, at: [3,3], disrupted: true, stats: {unit_type: Soldier, defense: "4", speed: 2, per: [6,4,2]}}
+  - {id: wreck, owner: player1, at: [3,5], facing: SE, disrupted: true, damaged: true, stats: {unit_type: Vehicle Tank, defense: "5/4", speed: 3, per: [6,4,2], veh: [6,4,2]}}
+  - {id: tgt, owner: player2, at: [4,3], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+  - {id: tgt2, owner: player2, at: [4,5], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: assault
+active_player: player1
+dice: [4,4,4,4,4,4, 5,5,5,5,4,4]
+actions:
+  - {type: attack, unit: shaken, target: tgt}     # six 4s: 0 successes with the -1 penalty (5+ needed)
+  - {type: attack, unit: wreck, target: tgt2}     # disrupted+damaged: still only -1 -> four 5s = 4 successes vs defense 4 = hit
+  - {type: casualty}
+expect:
+  results:
+    0: {success: true, combat: {hit_threshold: 5, successes: 0}}
+    1: {success: true, combat: {hit_threshold: 5, successes: 4}}
+  legal:
+    - {type: move, unit: shaken, allowed: false}
+  units:
+    shaken: {status: healthy}          # disruption cleared at the casualty phase
+    tgt2: {status: disrupted}
