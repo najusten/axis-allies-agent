@@ -1,0 +1,23 @@
+name: failed-movement-roll-does-not-provoke-defensive-fire-and-stream-into-forest-needs-two-rolls
+source: "Advanced rulebook: attempting to leave a hex and failing doesn't provoke defensive fire; a Vehicle crossing a stream into a forest hex has to succeed at two movement rolls, failure on either stops it in the hex it was leaving"
+board:
+  width: 10
+  height: 8
+  terrain: {forest: [[4,3]]}
+  edge_obstacles:
+    - {a: [3,3], b: [4,3], type: stream}
+units:
+  - {id: tank, owner: player1, at: [3,3], facing: SE, stats: {unit_type: Vehicle Tank, defense: "5/4", speed: 3, per: [6,4,2], veh: [6,4,2]}}
+  - {id: tank2, owner: player1, at: [3,5], facing: SE, stats: {unit_type: Vehicle Tank, defense: "5/4", speed: 3, per: [6,4,2], veh: [6,4,2]}}
+  - {id: gun, owner: player2, at: [4,2], stats: {unit_type: Soldier, defense: "4", per: [6,4,2], veh: [10,8,6]}}   # adjacent to both (3,3) and (4,3)
+  - {id: gun2, owner: player2, at: [4,4], stats: {unit_type: Soldier, defense: "4", per: [6,4,2], veh: [10,8,6]}}  # adjacent to (3,5)? no: only to (4,5)/(3,4)/(4,3)
+phase: movement
+active_player: player1
+dice: [5, 2]      # tank: stream roll 5 ok, forest roll 2 fails -> stays at (3,3); no defensive fire dice are rolled
+actions:
+  - {type: move, unit: tank, to: [4,3]}
+expect:
+  dice_consumed: 2
+  no_events: [{type: defensive_fire}]
+  units:
+    tank: {at: [3,3]}
