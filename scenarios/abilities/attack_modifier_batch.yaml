@@ -1,0 +1,30 @@
+name: entrenched-flanking-attack-ruthless-seasoned-crew-superior-frontal-armor
+source: "Entrenched: +1/+1 defense until this unit moves. Flanking Attack: one extra die vs a Vehicle's rear. Ruthless: +1 on each attack die vs disrupted/damaged units. Seasoned Crew: targets get -1 on cover rolls. Superior Frontal Armor 2: attacks on the front must beat the defense by 2 for two hits"
+board: {width: 12, height: 12, terrain: {forest: [[6,4]]}}
+units:
+  - {id: flank, owner: player1, at: [4,2], stats: {unit_type: Soldier, defense: "4", per: [5,3,1], veh: [6,4,2], abilities: "Flanking Attack"}}
+  - {id: ruth, owner: player1, at: [4,3], stats: {unit_type: Soldier, defense: "4", per: [6,4,2], veh: [6,4,2], abilities: "Ruthless"}}
+  - {id: crew, owner: player1, at: [4,4], stats: {unit_type: Vehicle Tank, defense: "5/4", speed: 3, per: [6,4,2], veh: [6,4,2], abilities: "Seasoned Crew"}}
+  - {id: gun, owner: player1, at: [4,5], stats: {unit_type: Soldier, defense: "4", per: [6,4,2], veh: [8,6,4]}}
+  - {id: tank, owner: player2, at: [6,2], facing: SE, stats: {unit_type: Vehicle Tank, defense: "5/3", per: [5,3,1], veh: [5,3,1]}}   # flank at (4,2) is behind it
+  - {id: shaken, owner: player2, at: [6,3], disrupted: true, stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+  - {id: hider, owner: player2, at: [6,4], stats: {unit_type: Soldier, defense: "4", per: [5,3,1], abilities: "Entrenched"}}
+  - {id: heavy, owner: player2, at: [6,5], facing: NW, stats: {unit_type: Vehicle Tank, defense: "4/3", per: [5,3,1], veh: [5,3,1], abilities: "Superior Frontal Armor 2"}}
+phase: assault
+active_player: player1
+# flank vs tank: medium range 4 dice + 1 (Flanking) = 5 dice vs rear 3
+# ruth vs shaken: 4 dice, 3s count with +1 (threshold 4 -> 3); shaken's defense 4-1 = 3
+# crew vs hider: 4 dice all 6 -> 4 successes vs defense 4+1 (Entrenched) = 5 -> miss, so no cover roll
+# gun vs heavy (front, Superior Frontal Armor 2): 6 dice, 5 successes vs def 4 -> only 1 hit
+dice: [6,6,6,1,1, 3,3,3,1, 6,6,6,6, 6,6,6,6,6,1]
+actions:
+  - {type: attack, unit: flank, target: tank}
+  - {type: attack, unit: ruth, target: shaken}
+  - {type: attack, unit: crew, target: hider}
+  - {type: attack, unit: gun, target: heavy}
+expect:
+  results:
+    0: {success: true, combat: {attack_dice: 5, defense: 3, hits: 1}}
+    1: {success: true, combat: {hit_threshold: 3, successes: 3, defense: 3, hits: 1}}
+    2: {success: true, combat: {defense: 5, hits: 0}}
+    3: {success: true, combat: {successes: 5, hits: 1}}

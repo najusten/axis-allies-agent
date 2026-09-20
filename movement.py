@@ -230,7 +230,7 @@ class MovementSystem:
                 step = self._step_cost(unit, movement_mods, is_vehicle, here, neighbor, prev_terrain, bonus,
                                        road_only=road_only,
                                        minimum_move=(minimum_movement and (q, r) == (start_q, start_r)
-                                                     and max_speed == 1))
+                                                     and max_speed == 1), board=board)
                 if step is None:
                     continue
                 cost, new_bonus = step
@@ -278,7 +278,7 @@ class MovementSystem:
 
     def _step_cost(self, unit, movement_mods: dict, is_vehicle: bool, here, neighbor,
                    prev_terrain: str, bonus: bool, road_only: bool = False,
-                   minimum_move: bool = False) -> Optional[Tuple[int, bool]]:
+                   minimum_move: bool = False, board: Board = None) -> Optional[Tuple[int, bool]]:
         """Movement points to enter `neighbor` from `here`, or None if the step is
         not allowed. Returns (cost, road_bonus_still_available)."""
         terrain = neighbor.terrain
@@ -302,6 +302,11 @@ class MovementSystem:
             return None
         if terrain in ('marsh', 'stream') and movement_mods.get('thin_wheels', False) and not neighbor.has_road:
             return None
+        if movement_mods.get('thin_wheels', False) and not along_road and here is not None and board is not None:
+            # streams are hex-side terrain: Thin Wheels can't cross one except along a road
+            edge = board.get_edge_obstacle(here.q, here.r, neighbor.q, neighbor.r)
+            if edge and edge in Board.EDGE_STREAM:
+                return None
 
         new_bonus = bonus
         if along_road:
@@ -348,7 +353,8 @@ class MovementSystem:
             if neighbor is None:
                 return None
             step = self._step_cost(unit, movement_mods, is_vehicle, here, neighbor, prev_terrain, bonus,
-                                   road_only=road_only, minimum_move=(minimum_movement and i == 0 and max_speed == 1))
+                                   road_only=road_only, minimum_move=(minimum_movement and i == 0 and max_speed == 1),
+                                   board=board)
             if step is None:
                 return None
             cost, bonus = step

@@ -1,0 +1,26 @@
+name: veteran-crew-moves-and-shoots-while-disrupted-command-dependent-needs-commander-thin-wheels-avoid-marsh
+source: "Veteran Crew: while disrupted this unit can still move and doesn't suffer -1 on attack dice (still -1 defense, no defensive fire). Command Dependent: in your movement phase this unit can't move unless it starts adjacent to a friendly Commander. Thin Wheels: can't cross streams or enter marshes except along a road"
+board:
+  width: 12
+  height: 8
+  terrain: {marsh: [[5,2]]}
+  edge_obstacles:
+    - {a: [4,4], b: [5,4], type: stream}
+units:
+  - {id: vet, owner: player1, at: [2,2], facing: SE, disrupted: true, stats: {unit_type: Vehicle Tank, defense: "5/4", speed: 2, per: [6,4,2], veh: [6,4,2], abilities: "Veteran Crew"}}
+  - {id: dep, owner: player1, at: [2,5], stats: {unit_type: Soldier, defense: "4", speed: 1, per: [6,4,2], abilities: "Command Dependent"}}
+  - {id: dep2, owner: player1, at: [2,6], stats: {unit_type: Soldier, defense: "4", speed: 1, per: [6,4,2], abilities: "Command Dependent"}}
+  - {id: cdr, owner: player1, at: [1,7], stats: {unit_type: "Soldier Commander", defense: "4", speed: 1, per: [5,3,1], abilities: "COMMANDER ABILITIES:1"}}
+  - {id: bike, owner: player1, at: [4,2], stats: {unit_type: "Soldier Motorcycle", defense: "4", speed: 3, per: [5,3,1], abilities: "Thin Wheels"}}
+  - {id: bike2, owner: player1, at: [4,4], stats: {unit_type: "Soldier Motorcycle", defense: "4", speed: 1, per: [5,3,1], abilities: "Thin Wheels"}}
+  - {id: enemy, owner: player2, at: [10,1], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: movement
+active_player: player1
+actions: []
+expect:
+  legal:
+    - {type: move, unit: vet, to: [3,2], allowed: true}       # disrupted but Veteran Crew
+    - {type: move, unit: dep, allowed: false}                 # (2,5) is not adjacent to the commander at (1,7)
+    - {type: move, unit: dep2, allowed: true}                 # (2,6) is adjacent to (1,7)
+    - {type: move, unit: bike, to: [5,2], allowed: false}     # marsh
+    - {type: move, unit: bike2, to: [5,4], allowed: false}    # stream
