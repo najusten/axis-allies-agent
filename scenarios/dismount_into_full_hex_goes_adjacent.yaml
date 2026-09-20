@@ -1,0 +1,17 @@
+name: dismount-into-a-full-hex-places-the-soldier-in-an-adjacent-hex-without-enemies
+source: "Advanced rulebook, Transport: if dismounting would break the stacking limit (or leave it in terrain it can't enter), place the unit in any adjacent legal hex with no enemies; if there is none it may not dismount"
+board: {width: 10, height: 8, terrain: {water: [[5,3],[5,4]]}}
+units:
+  - {id: truck, owner: player1, at: [4,4], facing: SE, stats: {unit_type: Vehicle, defense: "2/2", speed: 3, per: [0,0,0], veh: [0,0,0], abilities: "Transport"}}
+  - {id: rider, owner: player1, at: [4,4], in_transport: truck, stats: {unit_type: Soldier, defense: "4", speed: 1, per: [7,5,3]}}
+  - {id: rifles, owner: player1, at: [4,4], stats: {unit_type: Soldier, defense: "4", speed: 1, per: [7,5,3]}}   # hex already holds truck + rifles
+  - {id: enemy, owner: player2, at: [3,4], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: movement
+active_player: player1
+actions: []
+expect:
+  legal:
+    - {type: dismount, unit: rider, to: [4,4], allowed: false}    # would be a third unit
+    - {type: dismount, unit: rider, to: [3,4], allowed: false}    # enemy there
+    - {type: dismount, unit: rider, to: [5,3], allowed: false}    # water
+    - {type: dismount, unit: rider, to: [4,3], allowed: true}

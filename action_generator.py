@@ -783,15 +783,7 @@ class ActionGenerator:
             if 'Soldier' in (unit.unit_type or '') and not unit_state.has_moved:
                 # Check if being carried - can dismount
                 if unit_state.carried_by_id:
-                    transport_state = game_state.get_unit_state(unit_state.carried_by_id)
-                    if transport_state:
-                        # Can dismount to same hex as transport
-                        actions.append(DismountTransportAction(
-                            unit_id=unit.id,
-                            transport_id=unit_state.carried_by_id,
-                            to_q=transport_state.position[0],
-                            to_r=transport_state.position[1]
-                        ))
+                    actions.extend(self._get_dismount_actions(game_state, unit_state))
                 else:
                     # Not being carried - can board a transport in same hex
                     units_in_hex = game_state.get_units_at_position(q, r)
@@ -833,14 +825,7 @@ class ActionGenerator:
             )
             if has_dismount:
                 continue
-            transport_state = game_state.get_unit_state(unit_state.carried_by_id)
-            if transport_state:
-                actions.append(DismountTransportAction(
-                    unit_id=unit.id,
-                    transport_id=unit_state.carried_by_id,
-                    to_q=transport_state.position[0],
-                    to_r=transport_state.position[1]
-                ))
+            actions.extend(self._get_dismount_actions(game_state, unit_state))
 
         # Generate ability actions available during movement phase (e.g., Smoke Screen)
         for unit_state in player_units:
@@ -1238,6 +1223,39 @@ class ActionGenerator:
                 actions.append(ability_action)
 
         return actions
+
+    def _get_dismount_actions(self, game_state: GameState, unit_state: UnitState) -> List[DismountTransportAction]:
+        """Rulebook (Transport): a passenger dismounts into the transport's hex; if that
+        would break the stacking limit or put it in terrain it can't enter, it may be
+        placed in any adjacent legal hex with no enemies; if there is none it can't dismount."""
+        transport_state = game_state.get_unit_state(unit_state.carried_by_id)
+        if not transport_state or not transport_state.is_alive:
+            return []
+        unit = unit_state.unit
+        owner = unit_state.owner
+        tq, tr = transport_state.position
+        board = game_state.board
+
+        def legal_hex(q, r):
+            h = board.get_hex(q, r)
+            if h is None or self.movement_system.BASE_TERRAIN_COSTS.get(h.terrain, 1) >= 99:
+                return False
+            return game_state.can_stack_at(q, r, owner, unit.unit_type, exclude_unit_id=unit.id)
+
+        def mk(q, r):
+            return DismountTransportAction(unit_id=unit.id, transport_id=unit_state.carried_by_id, to_q=q, to_r=r)
+
+        if legal_hex(tq, tr):
+            return [mk(tq, tr)]
+        enemy = "player2" if owner == "player1" else "player1"
+        out = []
+        for n in board.get_neighbors(tq, tr):
+            if not legal_hex(n.q, n.r):
+                continue
+            if any(o.owner == enemy for o in game_state.get_units_at_position(n.q, n.r)):
+                continue
+            out.append(mk(n.q, n.r))
+        return out
 
     def _get_paratrooper_deploy_actions(self, game_state: GameState,
                                         player_units: List[UnitState]) -> List[DeployAction]:

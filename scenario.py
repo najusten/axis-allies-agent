@@ -589,8 +589,11 @@ def _action_matches(action: Action, spec: dict, aliases: Dict[str, str]) -> bool
         return isinstance(action, MoveAndAttackAction)
     if kind == 'board':
         return isinstance(action, BoardTransportAction)
-    if kind == 'dismount':
-        return isinstance(action, DismountTransportAction)
+    if kind in ('dismount', 'deploy', 'place'):
+        cls = {'dismount': DismountTransportAction, 'deploy': DeployAction, 'place': PlaceAircraftAction}[kind]
+        if not isinstance(action, cls):
+            return False
+        return 'to' not in spec or [action.to_q, action.to_r] == list(spec['to'])
     return type(action).__name__.lower().startswith(str(kind).lower())
 
 

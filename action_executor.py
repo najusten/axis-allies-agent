@@ -2833,6 +2833,12 @@ class ActionExecutor:
         # Verify soldier is being carried by this transport
         if soldier_state.carried_by_id != action.transport_id:
             return ActionResult(False, "Soldier is not in this transport")
+        dest = (action.to_q, action.to_r)
+        if game_state.board.hex_distance(*dest, *transport_state.position) > 1:
+            return ActionResult(False, "Can only dismount into or next to the transport's hex")
+        if not game_state.can_stack_at(action.to_q, action.to_r, soldier_state.owner, soldier_state.unit.unit_type,
+                                       exclude_unit_id=soldier_state.unit.id):
+            return ActionResult(False, "Dismounting there would exceed the stacking limit")
 
         # Dismount
         soldier_state.carried_by_id = None
