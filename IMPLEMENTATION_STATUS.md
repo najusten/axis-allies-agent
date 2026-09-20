@@ -123,8 +123,8 @@ initiative_system = InitiativeSystem(ability_system, movement_system)
 - ✅ New Game dialog: mode, AI type, seed, or load a scenario file
 - ✅ Select unit → highlighted hexes (move/attack/board/dismount), ability panel with per-target buttons, facing picker, undo/redo (blocked after any dice roll), zoom (fit/±/ctrl-wheel) and drag-pan, stat cards with ability descriptions, event log, coords toggle
 - ✅ Rectangular board (even-q offset), landscape default 18×12
-- ✅ AI choice in New Game: Heuristic (default), Lookahead, Aggressive, Greedy, Random
-- ❌ Path-aware movement (choose route), aircraft placement UI, deployment phase UI
+- ✅ AI choice in New Game: Heuristic (default), Monte Carlo, Lookahead, Aggressive, Greedy, Random
+- ✅ Deployment phase UI (coin flip, order choice, zone shading, facing prompt), aircraft placement and airstrikes, route preview + shift-click waypoints, per-shot defensive-fire and Antiair-reaction dialogs, target chooser in stacked hexes, Suggest (AI assist), per-unit undo, End Phase confirmation, column,row coordinates
 
 ---
 
