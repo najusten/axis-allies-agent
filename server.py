@@ -35,7 +35,7 @@ from game_runner import AggressiveRandomAgent, GreedyAgent, RandomAgent
 from game_setup import load_all_units, GameSetup, GameSetupConfig
 from board import Board
 from game_state import GameState, GamePhase, UnitState
-from scenario import build_action, build_systems, find_legal_action, load_scenario, ABILITY_CSV
+from scenario import build_action, build_systems, find_legal_action, load_scenario, ABILITY_CSV, SPECIAL_FLAGS
 from turn_controller import (_unit_name, TurnController, format_event, VANGUARD_PHASE, INITIATIVE_PHASE,
                              DEPLOYMENT_PHASE, DEPLOY_ORDER_PHASE)
 
@@ -60,6 +60,12 @@ PHASE_HINTS = {
     INITIATIVE_PHASE: 'You won the initiative roll: choose whether to go first or second this turn.',
     DEPLOYMENT_PHASE: 'Deploy your army: select a unit in the sidebar, then click a cyan hex within five hexes of your edge. All units must be placed.',
     DEPLOY_ORDER_PHASE: 'You won the coin flip: deploy first, or second (after seeing the opponent\'s setup)?',
+}
+SPECIAL_LABELS = {
+    'rocket_salvo': 'Rocket Salvo', 'rockets_8': 'Rockets 8', 'top_mounted_rockets': 'Top-Mounted Rockets',
+    'bombs': 'Bombs', 'remote_control': 'Remote Control', 'additional_hull_cannon': 'Hull-Mounted Cannon',
+    'extra_hull_cannon': 'Extra Hull Cannon', 'armor_piercing': 'Armor-Piercing Rounds', 'headshot': 'Headshot',
+    'he_round': 'HE Round', 'speed_boost': 'Speed Boost',
 }
 DICE_EVENT_TYPES = {'attack', 'cover_save', 'movement_roll', 'defensive_fire', 'initiative', 'casualty'}
 
@@ -343,7 +349,7 @@ class GameSession:
                 continue
             pending = self.systems.executor.casualty_system.get_pending_hits_summary(gs, uid)
             out[uid] = {
-                'moves': [], 'aggression': [], 'attacks': [], 'board': [], 'dismount': [], 'abilities': [], 'place': [], 'deploy': [],
+                'moves': [], 'aggression': [], 'attacks': [], 'special_attacks': [], 'board': [], 'dismount': [], 'abilities': [], 'place': [], 'deploy': [],
                 'pending_hits': pending.get('total', 0),
             }
         if not self.is_human_turn() or self.pending_facing:
@@ -371,11 +377,15 @@ class GameSession:
                 else:
                     entry['moves'].append([action.to_q, action.to_r])
             elif isinstance(action, AttackAction):
-                if getattr(action, 'improvised_attack', None) or any(
-                        getattr(action, f, False) for f in ('is_rocket_salvo', 'is_rockets_8', 'is_top_mounted_rockets',
-                                                           'is_bombs', 'is_remote_control', 'is_additional_hull_cannon',
-                                                           'is_extra_hull_cannon')):
-                    continue   # special attack variants: not exposed in the UI yet
+                if getattr(action, 'improvised_attack', None):
+                    continue
+                special = next((f for f in SPECIAL_FLAGS if getattr(action, f, False)), None)
+                if special:
+                    # once-per-game / explicit attack options: buttons in the ability panel
+                    entry['special_attacks'].append({
+                        'special': special[3:], 'label': SPECIAL_LABELS.get(special[3:], special[3:].replace('_', ' ').title()),
+                        'q': action.target_q, 'r': action.target_r, 'target_id': action.target_id})
+                    continue
                 entry['attacks'].append({'q': action.target_q, 'r': action.target_r,
                                          'target_id': action.target_id, 'distance': action.distance,
                                          'indirect': bool(getattr(action, 'indirect_fire', False))})

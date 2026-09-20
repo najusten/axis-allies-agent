@@ -305,6 +305,10 @@ class App {
   }
 
   useAbility(a) {
+    if (a.special) {
+      this.send({ type: 'attack', unit_id: this.selected, target_id: a.target_id, target_q: a.target[0], target_r: a.target[1], special: a.special });
+      return;
+    }
     const data = { type: 'use_ability', unit_id: this.selected, ability_name: a.ability, target_id: a.target_id };
     if (a.target) { data.target_q = a.target[0]; data.target_r = a.target[1]; }
     if (a.parameters) data.parameters = a.parameters;

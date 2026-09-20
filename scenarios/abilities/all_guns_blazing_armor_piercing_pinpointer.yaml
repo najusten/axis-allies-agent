@@ -1,0 +1,28 @@
+name: all-guns-blazing-extra-attack-armor-piercing-third-hit-pinpointer-cover-penalty
+source: "All Guns Blazing: after this unit attacks in your assault phase it can make one extra attack against a Soldier. Armor-Piercing Rounds: once per game, if you score two hits against a Vehicle with this attack, score an additional hit. Pinpointer: units attacked by friendly Soldiers adjacent to this unit get -1 on cover rolls"
+board: {width: 12, height: 10, terrain: {forest: [[7,5]]}}
+units:
+  - {id: stuart, owner: player1, at: [4,3], facing: SE, stats: {unit_type: Vehicle Tank, defense: "4/3", speed: 5, per: [8,6,4], veh: [6,4,2], abilities: "All Guns Blazing"}}
+  - {id: ap, owner: player1, at: [4,4], stats: {unit_type: Soldier, defense: "4", per: [5,3,1], veh: [8,6,4], abilities: "Armor-Piercing Rounds"}}
+  - {id: spot, owner: player1, at: [4,5], stats: {unit_type: Soldier, defense: "4", per: [5,3,1], abilities: "Pinpointer"}}
+  - {id: rifle, owner: player1, at: [5,5], stats: {unit_type: Soldier, defense: "4", per: [6,4,2]}}     # adjacent to the Pinpointer
+  - {id: e1, owner: player2, at: [6,3], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+  - {id: e2, owner: player2, at: [6,2], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+  - {id: tank, owner: player2, at: [6,4], facing: NW, stats: {unit_type: Vehicle Tank, defense: "4/3", per: [5,3,1], veh: [5,3,1]}}
+  - {id: hider, owner: player2, at: [7,5], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: assault
+active_player: player1
+# stuart vs e1 (medium, 6 dice) then All Guns Blazing vs e2 (extra attack). ap vs tank: 6 dice, 5 successes vs 4 = 2 hits +1 = 3 (destroyed).
+# rifle vs hider (medium 4 dice, 4 successes = 1 hit); cover roll 4 would save a Soldier but the Pinpointer's -1 makes it fail
+dice: [6,6,6,6,1,1, 6,6,6,6,1,1, 6,6,6,6,6,1, 6,6,6,6, 4]
+actions:
+  - {type: attack, unit: stuart, target: e1}
+  - {type: attack, unit: stuart, target: e2, special: all_guns_blazing}
+  - {type: attack, unit: ap, target: tank, special: armor_piercing}
+  - {type: attack, unit: rifle, target: hider}
+expect:
+  results:
+    0: {success: true}
+    1: {success: true}
+    2: {success: true, combat: {hits: 3}}
+    3: {success: true, combat: {cover_roll: 4, cover_success: false}}

@@ -132,11 +132,17 @@ export class UI {
   renderAbilityPanel(state, unitId) {
     const panel = $('ability-panel');
     const ua = unitId && state.unit_actions[unitId];
-    if (!ua || !ua.abilities.length || !state.session.is_human_turn) { panel.hidden = true; return; }
+    const specials = (ua && ua.special_attacks) || [];
+    if (!ua || (!ua.abilities.length && !specials.length) || !state.session.is_human_turn) { panel.hidden = true; return; }
     const groups = new Map();
     for (const a of ua.abilities) {
       if (!groups.has(a.ability)) groups.set(a.ability, []);
       groups.get(a.ability).push(a);
+    }
+    // special attack options (once-per-game rounds, rockets, bombs...) look like abilities with a target
+    for (const sa of specials) {
+      if (!groups.has(sa.label)) groups.set(sa.label, []);
+      groups.get(sa.label).push({ ability: sa.label, target_id: sa.target_id, target: [sa.q, sa.r], special: sa.special });
     }
     panel.innerHTML = '<span class="ab-title">Abilities:</span>';
     for (const [name, variants] of groups) {

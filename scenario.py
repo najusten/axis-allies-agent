@@ -251,9 +251,15 @@ def build_action(game_state: GameState, data: dict,
     return None
 
 
+# Attack variants a player must ask for explicitly (special: <name>): once-per-game
+# or otherwise costly options the UI exposes as separate choices.
 SPECIAL_FLAGS = ('is_rocket_salvo', 'is_rockets_8', 'is_top_mounted_rockets', 'is_bombs',
                  'is_remote_control', 'is_additional_hull_cannon', 'is_extra_hull_cannon',
-                 'is_strike_and_fade', 'is_relocate')
+                 'is_armor_piercing', 'is_headshot', 'is_he_round', 'is_speed_boost')
+# Variants a plain attack request may fall back to when no ordinary attack on that
+# target exists (extra attacks granted by an ability: the player just clicks the target).
+IMPLICIT_FLAGS = ('is_all_guns_blazing', 'is_extra_mg', 'is_firepower', 'is_rapid_fire',
+                  'is_strafe', 'is_exposed_transport_attack', 'is_banzai_charge', 'is_angriff')
 
 
 def find_legal_action(legal: List[Action], data: dict,
@@ -277,6 +283,7 @@ def find_legal_action(legal: List[Action], data: dict,
             return int(data['to_q']), int(data['to_r'])
         return None
 
+    fallback = None
     for a in legal:
         if getattr(a, 'unit_id', None) != unit_id:
             continue
@@ -296,12 +303,16 @@ def find_legal_action(legal: List[Action], data: dict,
             if not target_id and data.get('target_q') is not None and \
                     (a.target_q, a.target_r) != (int(data['target_q']), int(data['target_r'])):
                 continue
-            flags = [f for f in SPECIAL_FLAGS if getattr(a, f, False) and f not in ('is_strike_and_fade', 'is_relocate')]
+            flags = [f for f in SPECIAL_FLAGS + IMPLICIT_FLAGS if getattr(a, f, False)]
             if special:
                 if f"is_{special}" not in flags:
                     continue
-            elif flags or getattr(a, 'improvised_attack', None):
+                return a
+            if getattr(a, 'improvised_attack', None) or any(f in SPECIAL_FLAGS for f in flags):
                 continue    # plain attack requested; skip special variants
+            if flags:
+                fallback = fallback or a     # ability-granted extra attack: usable if nothing plainer exists
+                continue
             return a
         elif kind == 'place' and isinstance(a, PlaceAircraftAction):
             if (a.to_q, a.to_r) == dest():
@@ -342,7 +353,7 @@ def find_legal_action(legal: List[Action], data: dict,
             if params and (a.parameters or {}) != params:
                 continue
             return a
-    return None
+    return fallback
 
 
 def _unit_at(game_state: GameState, pos: Tuple[int, int], prefer_enemy_of: str = None) -> Optional[str]:
