@@ -2200,6 +2200,8 @@ class ActionExecutor:
             if hits >= 2:
                 hits += 1
                 result['notes'].append("Armor-Piercing Rounds: +1 hit (scored 2 hits vs Vehicle)")
+            else:
+                result['notes'].append("Armor-Piercing Rounds used (no second hit, no bonus)")
             attacker_state.armor_piercing_used = True
 
         result['hits'] = hits
