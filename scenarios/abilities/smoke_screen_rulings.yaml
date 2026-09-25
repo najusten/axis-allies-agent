@@ -1,0 +1,16 @@
+name: smoke-blocks-aircraft-too-but-never-blocks-an-attack-inside-one-hex
+source: "Official Q&A: 'A Smoke Screen does not prevent attacks at range 0'; 'smoke is not terrain, it's a special ability. So yes, smoke affects aircraft the same as everything else'; 'If an Aircraft is placed in a hex with smoke, what units can attack it? Only units in the same hex as the smoke'"
+board: {width: 12, height: 10}
+smoke: [[5,4]]
+units:
+  - {id: plane, owner: player1, at: [5,4], stats: {unit_type: Aircraft, defense: "4/4", speed: 20, per: [8,6,4], veh: [6,4,2], abilities: "Aircraft"}, is_aircraft_on_map: true}
+  - {id: gunner, owner: player2, at: [5,4], stats: {unit_type: Soldier, defense: "4", per: [8,6,4], veh: [4,2,1]}}
+  - {id: far, owner: player2, at: [8,4], stats: {unit_type: Soldier, defense: "4", per: [8,6,4], veh: [4,2,1]}}
+  - {id: ground, owner: player1, at: [2,4], stats: {unit_type: Soldier, defense: "4", per: [8,6,4]}}
+phase: assault
+active_player: player2
+actions: []
+expect:
+  legal:
+    - {type: attack, unit: gunner, target: plane, allowed: true}    # same hex as the smoke: range 0
+    - {type: attack, unit: far, target: plane, allowed: false}      # smoke blocks line of sight to the Aircraft

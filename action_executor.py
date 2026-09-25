@@ -1572,26 +1572,27 @@ class ActionExecutor:
                 counter_types = []
                 result['notes'].append("Cover: already has a face-down Disrupted counter")
             else:
+                hits_to_record = min(3, result.get('effective_hits', result['hits']))
+                # Heavy Armor: "Ignore the first Damaged counter this unit receives
+                # each game." Official Q&A: with three hits the discarded Damaged
+                # counter makes the third hit the second one, so the tank ends up
+                # damaged, not destroyed ("Is it at all possible to destroy a unit
+                # with the Heavy Armor SA in one attack? No.")
+                pend_now = game_state.pending_hits.get(action.target_id)
+                already = pend_now.get_face_down_count() if pend_now else 0
+                if (any(a.lower() == 'heavy armor' for a in (getattr(target, 'abilities', []) or []))
+                        and not target_state.heavy_armor_used
+                        and 'Vehicle' in (target.unit_type or '')
+                        and already + hits_to_record >= 2):
+                    hits_to_record -= 1
+                    target_state.heavy_armor_used = True
+                    result['notes'].append("Heavy Armor: ignored the Damaged counter")
                 counter_types = self.casualty_system.record_hits(
                     game_state,
                     action.target_id,
                     target.unit_type,
-                    min(3, result.get('effective_hits', result['hits']))
-                )
-                # Heavy Armor: ignore the first Damaged counter this unit receives each
-                # game (Q&A: with 3 hits it still takes the Destroyed counter)
-                if (any(a.lower() == 'heavy armor' for a in (getattr(target, 'abilities', []) or []))
-                        and not target_state.heavy_armor_used):
-                    from casualty import HitCounterType
-                    pend = game_state.pending_hits.get(action.target_id)
-                    if pend and HitCounterType.DAMAGED in counter_types:
-                        for c in reversed(pend.counters):
-                            if c.counter_type == HitCounterType.DAMAGED and not c.face_up:
-                                pend.counters.remove(c)
-                                break
-                        counter_types = [ct for ct in counter_types if ct != HitCounterType.DAMAGED]
-                        target_state.heavy_armor_used = True
-                        result['notes'].append("Heavy Armor: ignored the Damaged counter")
+                    hits_to_record
+                ) if hits_to_record > 0 else []
 
             # Check if unit will be destroyed (for message purposes)
             will_destroy = self.casualty_system.unit_has_pending_destroyed(game_state, action.target_id)

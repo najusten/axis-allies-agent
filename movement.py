@@ -712,10 +712,20 @@ class MovementSystem:
         """
         smoke_screens = smoke_screens or set()
         # Rulebook (glossary, line of sight): "Line of sight always exists between
-        # Aircraft and other units."
+        # Aircraft and other units." Official Q&A: smoke is a special ability, not
+        # terrain, so a smoke screen blocks an Aircraft's line of sight like anyone
+        # else's — and an attack inside a single hex (range 0) is never blocked.
+        if (q1, r1) == (q2, r2):
+            return True, []
         if 'Aircraft' in (getattr(unit, 'unit_type', '') or '') or \
                 'Aircraft' in (getattr(target_unit, 'unit_type', '') or ''):
-            return True, []
+            if not smoke_screens:
+                return True, []
+            smoke_hit = any((h.q, h.r) in smoke_screens
+                            for h in self._get_line_hexes(board, q1, r1, q2, r2))
+            if not smoke_hit:
+                return True, []
+            return False, []
         # LOS depends only on terrain, smoke and the viewer's abilities, and the
         # same pairs are asked for thousands of times per turn (AI scoring,
         # lookahead on cloned boards): memoise on the board's terrain signature.
