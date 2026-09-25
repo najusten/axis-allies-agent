@@ -1,0 +1,33 @@
+name: barbed-wire-tank-obstacle-minefield-and-pillbox
+source: "Barbed Wire: a Soldier must make a successful movement roll to cross this Obstacle. Tank Obstacle: a Vehicle must make a successful movement roll to enter its hex. Minefield: whenever a unit ends its move or leaves the hex, roll a die; on a 3 or less it is disrupted. Pillbox: this Obstacle can hold one Soldier; a Soldier in it has cover and +1 on cover rolls"
+board:
+  width: 14
+  height: 14
+  edge_obstacles:
+    - {a: [3,2], b: [4,2], type: barbed wire}
+units:
+  - {id: wirewalker, owner: player1, at: [3,2], stats: {unit_type: Soldier, defense: "4", speed: 2, per: [6,4,2]}}
+  - {id: tank, owner: player1, at: [3,4], facing: SE, stats: {unit_type: Vehicle Tank, defense: "5/4", speed: 3, per: [6,4,2], veh: [6,4,2]}}
+  - {id: block, owner: player2, at: [4,4], name: "Tank Obstacle"}
+  - {id: sapper, owner: player1, at: [3,6], stats: {unit_type: Soldier, defense: "4", speed: 2, per: [6,4,2]}}
+  - {id: mines, owner: player2, at: [4,6], name: "Fortification"}
+  - {id: guard, owner: player2, at: [7,8], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+  - {id: box, owner: player2, at: [7,8], name: "Pillbox"}
+  - {id: gun, owner: player1, at: [5,8], stats: {unit_type: Soldier, defense: "4", per: [8,6,4], veh: [8,6,4]}}
+phase: movement
+active_player: player1
+# wire roll 3 fails; tank obstacle roll 5 passes; minefield roll 2 disrupts the sapper on entry
+dice: [3, 5, 2]
+actions:
+  - {type: move, unit: wirewalker, to: [4,2]}
+  - {type: move, unit: tank, to: [4,4]}
+  - {type: move, unit: sapper, to: [4,6]}
+  - {type: set_phase, phase: assault, active_player: player1}
+  - {type: attack, unit: gun, target: guard}       # Soldier in a Pillbox: cover roll at 4+ with +1 -> 3+
+expect:
+  units:
+    wirewalker: {at: [3,2]}
+    tank: {at: [4,4]}
+    sapper: {status: disrupted}
+  results:
+    4: {success: true, combat: {cover_rolled: true}}

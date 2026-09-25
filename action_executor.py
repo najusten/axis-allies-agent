@@ -1914,6 +1914,12 @@ class ActionExecutor:
             has_cover = True
             result['notes'].append("Low Silhouette: Gets cover roll in clear terrain")
 
+        # Cover granted by an ability rather than by the terrain (a Soldier in a
+        # Pillbox, Entrenched positions, ...)
+        if defense_mods.get('provides_cover', False) and not has_cover:
+            has_cover = True
+            result['notes'].append("Cover from a friendly Obstacle (Pillbox)")
+
         if ignore_cover:
             has_cover = False
             result['notes'].append("Attacker ignores cover")
