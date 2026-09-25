@@ -1,0 +1,17 @@
+name: an-exposed-transports-passenger-can-be-attacked-but-not-by-defensive-fire
+source: "Exposed Transport: the Soldier it carries can be attacked while boarded. Official Q&A: 'Defensive fire is only used against moving units. When a Vehicle triggers Defensive Fire, it's the vehicle that's moving, not the passengers. So the answer is no' — you can't defensive-fire the passenger"
+board: {width: 12, height: 10}
+units:
+  - {id: t34, owner: player1, at: [3,4], facing: SE, stats: {unit_type: Vehicle Tank, defense: "5/4", speed: 3, per: [6,4,2], veh: [6,4,2], abilities: "Exposed Transport"}}
+  - {id: rider, owner: player1, at: [3,4], in_transport: t34, stats: {unit_type: Soldier, defense: "4", speed: 1, per: [7,5,3]}}
+  - {id: truck, owner: player1, at: [3,7], facing: SE, stats: {unit_type: Vehicle, defense: "2/2", speed: 3, per: [0,0,0], veh: [0,0,0], abilities: "Transport"}}
+  - {id: rider2, owner: player1, at: [3,7], in_transport: truck, stats: {unit_type: Soldier, defense: "4", speed: 1, per: [7,5,3]}}
+  - {id: gun, owner: player2, at: [5,4], stats: {unit_type: Soldier, defense: "4", per: [8,6,4], veh: [8,6,4]}}
+  - {id: gun2, owner: player2, at: [5,7], stats: {unit_type: Soldier, defense: "4", per: [8,6,4], veh: [8,6,4]}}
+phase: assault
+active_player: player2
+actions: []
+expect:
+  legal:
+    - {type: attack, unit: gun, target: rider, allowed: true}      # exposed passenger
+    - {type: attack, unit: gun2, target: rider2, allowed: false}   # an ordinary transport hides its passenger
