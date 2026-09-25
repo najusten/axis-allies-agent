@@ -152,6 +152,7 @@ class UnitState:
         # Note: bombs_used is NOT reset (once per game)
         if self.is_aircraft_on_map and 'Aircraft' in (self.unit.unit_type or ''):
             self.position = (-99, -99)       # off the map until placed again
+            self.aircraft_was_placed = True  # it flew this turn: counts in the points tally
         self.is_aircraft_on_map = False  # Aircraft removed at end of turn
 
 
