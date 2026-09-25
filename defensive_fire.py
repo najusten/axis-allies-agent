@@ -734,6 +734,23 @@ class DefensiveFireSystem:
             movement_stopped = True        # disrupted units can't move
             target_disrupted = True        # face-up Disrupted counter, even if already disrupted
 
+        # Official Q&A: "if a Flamethrower rolls 3 sixes while conducting a
+        # Defensive Fire attack, it would destroy the unit instead of just
+        # disrupting it" (short range only; Aircraft and Obstacles are immune).
+        has_flamethrower = any(a.lower() in ('flamethrower', 'hull-mounted flamethrower')
+                               for a in defender_abilities)
+        if has_flamethrower and (target.unit_type or '') not in ('Aircraft', 'Obstacle'):
+            short_range = game_state.board.hex_distance(
+                opportunity.defender_pos[0], opportunity.defender_pos[1],
+                attack_in_hex[0], attack_in_hex[1]) <= 1
+            sixes = sum(1 for r in attack_result.rolls if r == 6)
+            if attack_result_2 is not None:
+                sixes = max(sixes, sum(1 for r in attack_result_2.rolls if r == 6))
+            if short_range and sixes >= 3:
+                target_destroyed = True
+                target_disrupted = False
+                movement_stopped = True
+
         # Use first attack's cover roll for reporting (simplification)
         cover_success = cover_success_1
         

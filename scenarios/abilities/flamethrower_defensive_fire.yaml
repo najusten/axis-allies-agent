@@ -1,0 +1,19 @@
+name: a-flamethrower-rolling-three-sixes-in-defensive-fire-destroys-the-target
+source: "Official Q&A: 'Normally no, but if a Flamethrower rolls 3 sixes while conducting a Defensive Fire attack, it would destroy the unit instead of just disrupting it'"
+board: {width: 12, height: 12}
+units:
+  - {id: flame, owner: player2, at: [4,4], stats: {unit_type: Soldier, defense: "4", per: [10,0,0], veh: [8,0,0], abilities: "Flamethrower"}}
+  - {id: flame2, owner: player2, at: [4,6], stats: {unit_type: Soldier, defense: "4", per: [10,0,0], veh: [8,0,0], abilities: "Flamethrower"}}
+  - {id: rifles, owner: player1, at: [3,4], stats: {unit_type: Soldier, defense: "4", speed: 2, per: [7,5,3]}}
+  - {id: rifles2, owner: player1, at: [3,6], stats: {unit_type: Soldier, defense: "4", speed: 2, per: [7,5,3]}}
+phase: movement
+active_player: player1
+# first: three 6s and a 4th success -> destroyed. second: only two 6s -> the usual disruption
+dice: [6,6,6,6,1,1,1,1,1,1, 6,6,4,4,1,1,1,1,1,1]
+actions:
+  - {type: move, unit: rifles, to: [4,3]}
+  - {type: move, unit: rifles2, to: [4,5]}
+expect:
+  units:
+    rifles: {status: destroyed}
+    rifles2: {status: disrupted}

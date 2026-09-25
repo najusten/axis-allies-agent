@@ -723,6 +723,15 @@ class ActionExecutor:
                 message += f"\n    ⚔ {df_result.message}"
             return ActionResult(success, message, defensive_fire_results=df_results, events=move_events)
 
+        # A defensive-fire attack can destroy the mover outright (a Flamethrower
+        # rolling three 6s): there is nothing left to move.
+        if game_state.get_unit_state(action.unit_id) is None or not unit_state.is_alive:
+            msg = f"{unit.name} destroyed by defensive fire"
+            for df_result in df_results:
+                msg += f"\n    ⚔ {df_result.message}"
+            return ActionResult(True, msg, unit_destroyed=action.unit_id,
+                                defensive_fire_results=df_results, events=move_events)
+
         # Execute the move (to final hex - may be destination or where stopped)
         if movement_stopped:
             success = game_state.move_unit(action.unit_id, final_hex[0], final_hex[1])
