@@ -281,7 +281,10 @@ class DefensiveFireSystem:
         for enemy_state in enemy_units:
             if not enemy_state.is_alive or not enemy_state.is_deployed:
                 continue
-            if 'Aircraft' in (enemy_state.unit.unit_type or '') and not enemy_state.is_aircraft_on_map:
+            # Rulebook: "An Aircraft can't make defensive-fire attacks against
+            # Soldiers and Vehicles that move between hexes adjacent to the
+            # Aircraft." (Antiair/Ace reactions to a placed Aircraft are separate.)
+            if 'Aircraft' in (enemy_state.unit.unit_type or ''):
                 continue
             # Boarded Soldiers can't attack - except aboard a Fighting Platform
             if enemy_state.carried_by_id and not self._aboard_fighting_platform(game_state, enemy_state):

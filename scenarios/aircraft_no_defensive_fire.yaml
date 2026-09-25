@@ -1,0 +1,19 @@
+name: an-aircraft-cannot-make-defensive-fire-against-ground-movement
+source: "Advanced rulebook, Defensive-Fire Attacks: an Aircraft can't make defensive-fire attacks against Soldiers and Vehicles that move between hexes adjacent to the Aircraft"
+board: {width: 12, height: 8}
+units:
+  - {id: plane, owner: player2, at: [4,4], stats: {unit_type: Aircraft, defense: "4/4", speed: 20, per: [10,8,6], veh: [10,8,6], abilities: "Aircraft"}, is_aircraft_on_map: true}
+  - {id: mg, owner: player2, at: [7,4], stats: {unit_type: Soldier, defense: "4", per: [10,8,6]}}
+  - {id: rifles, owner: player1, at: [3,4], stats: {unit_type: Soldier, defense: "4", speed: 2, per: [7,5,3]}}
+  - {id: rifles2, owner: player1, at: [6,4], stats: {unit_type: Soldier, defense: "4", speed: 2, per: [7,5,3]}}
+phase: movement
+active_player: player1
+dice: [6,6,6,6,1,1,1,1,1,1]     # only the MG team's defensive fire should roll
+actions:
+  - {type: move, unit: rifles, to: [4,3]}     # around the aircraft: no defensive fire
+  - {type: move, unit: rifles2, to: [7,3]}    # around the MG team: defensive fire
+expect:
+  dice_consumed: 10
+  units:
+    rifles: {at: [4,3], status: healthy}
+    rifles2: {status: disrupted}

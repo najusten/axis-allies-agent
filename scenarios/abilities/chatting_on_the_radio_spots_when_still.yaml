@@ -1,0 +1,18 @@
+name: chatting-on-the-radio-spots-when-it-has-not-moved-in-the-assault-phase
+source: "Recon: while this unit has line of sight to an enemy unit, add +1 to your initiative rolls. Camouflaged: until this unit attacks or moves, enemy units can't attack it at medium or long range. Chatting on the Radio: this unit only counts as a Spotter if it doesn't move in the assault phase"
+board: {width: 14, height: 14, terrain: {forest: [[6,2],[6,3],[6,4],[6,5],[6,6]]}}
+units:
+  - {id: recon, owner: player1, at: [3,3], stats: {unit_type: Soldier, defense: "4", speed: 2, per: [6,4,2], abilities: "Recon"}}
+  - {id: gun, owner: player1, at: [3,5], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+  - {id: mortar, owner: player1, at: [2,6], stats: {unit_type: "Soldier Artillery", defense: "3", speed: 0, per: [6,6,6], abilities: "Indirect Fire, Extended Range 16"}}
+  - {id: radio, owner: player1, at: [7,7], stats: {unit_type: Soldier, defense: "4", speed: 2, per: [6,4,2], abilities: "Spotter, Chatting on the Radio"}}
+  - {id: enemy, owner: player2, at: [5,3], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+  - {id: camo, owner: player2, at: [5,5], stats: {unit_type: Soldier, defense: "4", per: [5,3,1], abilities: "Camouflaged"}}
+  - {id: hidden, owner: player2, at: [8,6], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: assault
+active_player: player1
+actions: []
+expect:
+  legal:
+    - {type: attack, unit: gun, target: camo, allowed: false}       # Camouflaged, at medium range
+    - {type: attack, unit: mortar, target: hidden, allowed: true}   # no LOS, but the spotter stayed put this assault phase
