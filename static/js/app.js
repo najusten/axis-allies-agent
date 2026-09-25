@@ -37,11 +37,23 @@ class App {
     $('btn-suggest').onclick = () => this.suggest();
     $('chk-coords').onchange = (e) => this.renderer.setCoords(e.target.checked);
     $('chk-los').onchange = () => this.updateLos();
-    $('chk-fast').onchange = (e) => { this.renderer.setFast(e.target.checked); localStorage.setItem('aa_fast', e.target.checked ? '1' : ''); };
-    if (localStorage.getItem('aa_fast')) { $('chk-fast').checked = true; this.renderer.setFast(true); }
-    document.addEventListener('click', () => this.renderer.skipAnimation(), true);
+    // Pace of opponent playback: fast (testing) ... step (pause after each enemy action)
+    const savedPace = (() => { try { return localStorage.getItem('aa_pace'); } catch (e) { return null; } })();
+    if (savedPace) $('sel-pace').value = savedPace;
+    this.renderer.setPace($('sel-pace').value);
+    $('sel-pace').onchange = (e) => {
+      this.renderer.setPace(e.target.value);
+      try { localStorage.setItem('aa_pace', e.target.value); } catch (err) { /* private mode */ }
+    };
+    $('btn-legend').onclick = () => this.ui.toggleLegend();
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('#move-caption') || e.target.closest('#board-tools')) return;
+      this.renderer.skipAnimation();
+    }, true);
+    $('btn-next-move').onclick = () => this.renderer.nextMove();
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') this.select(null);
+      if ((e.key === ' ' || e.key === 'Enter') && this.renderer.waitingForNext) { e.preventDefault(); this.renderer.nextMove(); return; }
       if (e.key === 'e' && !e.metaKey && !e.ctrlKey && document.activeElement.tagName !== 'INPUT') this.endPhase();
     });
   }
@@ -68,7 +80,9 @@ class App {
     if (events && events.length) {
       this.renderer.setHighlights([]);
       $('ability-panel').hidden = true;
-      await this.renderer.playEvents(events);
+      // captions and step-pauses are for the moves of players you don't control
+      const humans = new Set(state.session.human_players || []);
+      await this.renderer.playEvents(events, { narrate: (player) => !humans.has(player) });
     }
     // Hot-seat: hide the board between two different humans.
     const s = state.session;

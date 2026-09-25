@@ -102,7 +102,11 @@ class GameSession:
                 cfg = GameSetupConfig(points_per_side=points, historical=historical,
                                       year_range=(1939, max_year) if max_year else None,
                                       map_options=self.map_options)
-                game_state = GameSetup(cfg).create_game(p1_names=p1_units or None, p2_names=p2_units or None)
+                setup = GameSetup(cfg)
+                game_state = setup.create_game(p1_names=p1_units or None, p2_names=p2_units or None)
+                self.setup_info['map']['theater'] = getattr(setup, 'theater', self.map_options.theater)
+                if getattr(setup, 'matchup', None):
+                    self.setup_info['matchup'] = {'allies': setup.matchup[0], 'axis': setup.matchup[1]}
             else:
                 game_state = self._create_showcase_game()
             self.scenario_name = None
@@ -206,9 +210,11 @@ class GameSession:
         """New-game map settings -> mapgen.MapOptions. theater 'random' picks one;
         each feature is True/False, or absent to let the theater decide."""
         from mapgen import MapOptions, THEATER_STYLES
-        theater = data.get('theater') or 'western_europe'
-        if theater == 'random' or theater not in THEATER_STYLES:
+        theater = data.get('theater') or 'auto'
+        if theater == 'random':
             theater = random.choice(sorted(THEATER_STYLES))
+        elif theater not in THEATER_STYLES:
+            theater = 'auto'      # match the armies (GameSetup decides after drawing them)
         opts = MapOptions(theater=theater, density=data.get('density') or 'normal')
         for feat in ('streams', 'marshes', 'hedges', 'forests', 'hills', 'villages'):
             if feat in data and data[feat] is not None:

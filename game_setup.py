@@ -506,8 +506,10 @@ class GameSetupConfig:
     max_units_per_side: int = 10
 
     # Board setup
-    board_width: int = 18
-    board_height: int = 12
+    # Odd dimensions give the map a true centre hex: the objective is exactly as
+    # far from each player's edge (on an 18-wide map it sat one hex nearer player 2)
+    board_width: int = 17
+    board_height: int = 13
 
     # Objective
     objective_position: Tuple[int, int] = None  # None = where the map generator puts it (centre)
@@ -528,6 +530,24 @@ HISTORICAL_GROUPS = {
         {'China'},
         {'Poland'},
     ],
+}
+
+
+# Match-ups that actually happened, and the battlefields they were fought on.
+# Each entry: (allied group, axis group, [(theater, earliest year, latest year), ...]).
+HISTORICAL_MATCHUPS = [
+    ('western', 'europe', [('western_europe', 1939, 1945), ('north_africa', 1940, 1943),
+                           ('italy', 1943, 1945), ('urban', 1940, 1945)]),
+    ('soviet', 'europe', [('eastern_front', 1941, 1945), ('urban', 1942, 1945)]),
+    ('polish', 'europe', [('eastern_front', 1939, 1939), ('western_europe', 1939, 1939)]),
+    ('western', 'japan', [('pacific', 1941, 1945)]),
+    ('chinese', 'japan', [('pacific', 1939, 1945), ('urban', 1939, 1945)]),
+    ('soviet', 'japan', [('eastern_front', 1939, 1945)]),
+]
+_GROUP_OF = {
+    'western': HISTORICAL_GROUPS['allies'][0], 'soviet': HISTORICAL_GROUPS['allies'][1],
+    'chinese': HISTORICAL_GROUPS['allies'][2], 'polish': HISTORICAL_GROUPS['allies'][3],
+    'europe': HISTORICAL_GROUPS['axis'][0], 'japan': HISTORICAL_GROUPS['axis'][1],
 }
 
 
@@ -563,9 +583,17 @@ class GameSetup:
             else:  # broad mode, p2 = axis by default
                 nations = AXIS_NATIONS
 
+        # Historical limits with a match-up already chosen (see choose_matchup):
+        # each side comes from its group of that match-up
+        if config.historical and getattr(self, 'matchup', None) and \
+                not (config.nations_p1 if side == 'player1' else config.nations_p2):
+            allied, axis = self.matchup[0], self.matchup[1]
+            group = _GROUP_OF[allied if side == 'player1' else axis]
+            if group & nations:
+                nations = group & nations
         # Historical limits: restrict to one group of nations that fought together.
         # Groups are picked at random, weighted by how many units they offer.
-        if config.historical and not (config.nations_p1 if side == 'player1' else config.nations_p2):
+        elif config.historical and not (config.nations_p1 if side == 'player1' else config.nations_p2):
             groups = HISTORICAL_GROUPS['allies' if side == 'player1' else 'axis']
             candidates = [g & nations for g in groups if g & nations]
             if candidates:
@@ -577,6 +605,9 @@ class GameSetup:
         year_range = config.year_range
         if year_range is None and config.mode == 'theater' and config.theater:
             year_range = THEATERS[config.theater].year_range
+        last = getattr(self, 'matchup_last_year', None)
+        if config.historical and last:
+            year_range = ((year_range or (1939, 1945))[0], min((year_range or (1939, 1945))[1], last))
 
         units = self.unit_filter.filter(
             nations=nations,
@@ -586,6 +617,34 @@ class GameSetup:
         if config.exclude_aircraft:
             units = [u for u in units if 'Aircraft' not in (u.unit_type or '')]
         return units
+
+    def choose_matchup(self):
+        """Historical mode: pick a pair of armies that really fought each other,
+        and a battlefield where they did (within the year limit), weighted by how
+        many units each match-up offers. Sets self.matchup = (allied group, axis
+        group, theater)."""
+        lo, hi = self.config.year_range or (1939, 1945)
+        pool = self.unit_filter.filter(year_range=self.config.year_range, require_combat=True)
+        options, weights = [], []
+        for allied, axis, fields in HISTORICAL_MATCHUPS:
+            a = sum(1 for u in pool if u.nation in _GROUP_OF[allied])
+            x = sum(1 for u in pool if u.nation in _GROUP_OF[axis])
+            if a < 4 or x < 4:
+                continue
+            theaters = [(t, y0, y1) for t, y0, y1 in fields if y0 <= hi and y1 >= lo]
+            if not theaters:
+                continue
+            options.append((allied, axis, theaters))
+            weights.append(min(a, x))
+        if not options:
+            self.matchup = None
+            return None
+        allied, axis, theaters = random.choices(options, weights=weights, k=1)[0]
+        theater, y0, y1 = random.choice(theaters)
+        self.matchup = (allied, axis, theater)
+        # units that entered service after that campaign ended weren't there
+        self.matchup_last_year = min(hi, y1)
+        return self.matchup
 
     def build_armies(self,
                      build_method: str = 'balanced') -> Tuple[Army, Army]:
@@ -603,6 +662,8 @@ class GameSetup:
             max_units=self.config.max_units_per_side,
             require_infantry=True
         )
+        if self.config.historical and not (self.config.nations_p1 or self.config.nations_p2):
+            self.choose_matchup()
 
         # Build player 1 army
         p1_units = self.get_available_units('player1')
@@ -629,8 +690,13 @@ class GameSetup:
         streams/marshes/hedgerows (see MapOptions). The objective chosen by the
         generator is kept in self.objective (axial).
         """
-        from mapgen import MapOptions, generate_map
+        from mapgen import MapOptions, generate_map, THEATER_STYLES
         opts = self.config.map_options or MapOptions()
+        if opts.theater in ('auto', None, '') or opts.theater not in THEATER_STYLES:
+            # "match the armies": the historical match-up's battlefield, else any
+            matchup = getattr(self, 'matchup', None)
+            opts.theater = matchup[2] if matchup else random.choice(sorted(THEATER_STYLES))
+        self.theater = opts.theater
         if opts.density == 'normal' and terrain_density != 0.15:
             opts.density = 'sparse' if terrain_density < 0.12 else 'dense' if terrain_density > 0.2 else 'normal'
         rng = random.Random(random.random()) if opts.seed is None else None

@@ -191,3 +191,24 @@ button { font: inherit; }
   #tb-hint { display: none; }
 }
 .unit-name { font-size: 7.5px; font-weight: 600; fill: #111; paint-order: stroke; stroke: rgba(255,255,255,.85); stroke-width: 2px; pointer-events: none; }
+
+/* opponent move caption (pace: normal / slow / step) */
+#move-caption { position: absolute; top: 44px; left: 50%; transform: translateX(-50%); z-index: 6;
+  display: flex; align-items: center; gap: 10px; max-width: min(720px, 92%);
+  background: rgba(17, 24, 39, .94); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 12px; font-size: 13px; box-shadow: 0 6px 20px rgba(0,0,0,.35); }
+#move-caption .who { font-weight: 700; white-space: nowrap; }
+#move-caption .who.p1 { color: #93c5fd; } #move-caption .who.p2 { color: #fca5a5; }
+#move-caption .what { color: #e5e7eb; flex: 1; min-width: 260px; }
+.unit.acting { filter: drop-shadow(0 0 7px #facc15) drop-shadow(0 0 3px #facc15); }
+#board-tools select { background: var(--panel, #1f2937); color: inherit; border: 1px solid var(--line); border-radius: 4px; font-size: 12px; }
+
+/* legend */
+#legend { position: absolute; left: 10px; bottom: 10px; z-index: 5; max-height: 70%; overflow: auto;
+  background: rgba(17, 24, 39, .95); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
+  width: 330px; font-size: 12px; }
+#legend h4 { margin: 8px 0 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+#legend .row { display: grid; grid-template-columns: 44px 1fr; gap: 8px; align-items: center; margin: 3px 0; }
+#legend .row b { color: #f3f4f6; }
+#legend .row span { color: #cbd5e1; }
+#legend svg { width: 44px; height: 38px; }

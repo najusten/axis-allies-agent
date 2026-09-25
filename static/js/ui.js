@@ -1,6 +1,7 @@
 // DOM panels around the board: top bar, sidebar lists, unit card, log,
 // ability panel, modals (new game, hot-seat handoff, game over), toasts.
-import { fmtHex, offsetifyText } from './hex.js';
+import { fmtHex, offsetifyText, polygonPoints, axialToPixel, SIZE } from './hex.js';
+import { el, terrainSymbol, TERRAIN_COLORS, EDGE_STYLES, ROAD_STYLE } from './renderer.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -300,6 +301,86 @@ export class UI {
     });
   }
 
+  // Legend: every terrain, hex side and marker the board can show, drawn with the
+  // renderer's own styles, and what it does under the rules (rulebook terrain chart).
+  toggleLegend() {
+    const box = document.getElementById('legend');
+    if (!box.hidden) { box.hidden = true; return; }
+    if (!box.dataset.built) { this._buildLegend(box); box.dataset.built = '1'; }
+    box.hidden = false;
+  }
+
+  _buildLegend(box) {
+    const mini = (draw) => {
+      const svg = el('svg', { viewBox: '-46 -40 92 80' });
+      svg.appendChild(el('polygon', { points: polygonPoints(0, 0), fill: TERRAIN_COLORS.open, stroke: '#6b7280', 'stroke-width': 1.5 }));
+      draw(svg);
+      return svg;
+    };
+    const hexOf = (terrain) => mini(svg => {
+      svg.firstChild.setAttribute('fill', TERRAIN_COLORS[terrain]);
+      svg.appendChild(terrainSymbol(terrain, 0, 0, 7));
+    });
+    const side = (style, extra) => mini(svg => {
+      // the right-hand hex side of the mini hex
+      const x = SIZE, y1 = -SIZE * 0.866, y2 = SIZE * 0.866;
+      const x1 = SIZE * 0.5, x2 = SIZE * 0.5;
+      if (style.halo) svg.appendChild(el('line', { x1, y1, x2, y2, stroke: style.halo, 'stroke-width': style.width + 5, 'stroke-linecap': 'round' }));
+      svg.appendChild(el('line', { x1, y1, x2, y2, stroke: style.stroke, 'stroke-width': style.width,
+        'stroke-dasharray': style.dash || '', 'stroke-linecap': 'round' }));
+      if (extra) extra(svg, x1, x);
+    });
+    const road = (bridge) => mini(svg => {
+      for (const [c, w] of [[ROAD_STYLE.edge, ROAD_STYLE.edgeWidth], [ROAD_STYLE.fill, ROAD_STYLE.width]]) {
+        svg.appendChild(el('path', { d: 'M-46,14 Q0,-14 46,6', fill: 'none', stroke: c, 'stroke-width': w, 'stroke-linecap': 'round' }));
+      }
+      if (bridge) {
+        svg.appendChild(el('line', { x1: 8, y1: -40, x2: 8, y2: 40, stroke: EDGE_STYLES.stream.halo, 'stroke-width': 14 }));
+        svg.appendChild(el('line', { x1: 8, y1: -40, x2: 8, y2: 40, stroke: EDGE_STYLES.stream.stroke, 'stroke-width': 9 }));
+        svg.appendChild(el('line', { x1: -6, y1: -2, x2: 22, y2: -6, stroke: '#3b2a17', 'stroke-width': 16 }));
+        svg.appendChild(el('line', { x1: -6, y1: -2, x2: 22, y2: -6, stroke: ROAD_STYLE.fill, 'stroke-width': 11 }));
+      }
+    });
+    const marker = (draw) => mini(draw);
+    const rows = [
+      ['Terrain (whole hex)', [
+        [hexOf('open'), 'Clear', 'No effect on movement, cover or line of sight.'],
+        [hexOf('forest'), 'Forest', 'Vehicles: counts as 2 hexes and needs a 4+ roll to enter. Cover (Soldiers 4+, Vehicles 5+). Blocks line of sight.'],
+        [hexOf('hill'), 'Hill', 'Vehicles: counts as 2 hexes. Cover (4+ / 5+). Blocks line of sight.'],
+        [hexOf('town'), 'Town / village', 'Normal movement. Cover (4+ / 5+). Blocks line of sight.'],
+        [hexOf('building'), 'Buildings', 'As a town: cover (4+ / 5+), blocks line of sight.'],
+        [hexOf('marsh'), 'Marsh', 'Vehicles can\'t enter (except along a road). Soldiers: normal movement, cover 4+. Doesn\'t block line of sight.'],
+        [hexOf('water'), 'Water / pond', 'Impassable (Amphibious and water craft excepted).'],
+      ]],
+      ['Hex sides', [
+        [side(EDGE_STYLES.stream), 'Stream', 'Roll 4+ to cross (any unit), unless along a road. No cover, doesn\'t block line of sight. Gaps are fords.'],
+        [road(true), 'Bridge', 'A road crossing a stream: no roll.'],
+        [side(EDGE_STYLES.hedge), 'Hedgerow', 'Roll 5+ to cross (Brushcutters 3+), unless along a road. Blocks line of sight; gives cover when the line of sight crosses it.'],
+        [side(EDGE_STYLES['barbed wire']), 'Barbed wire', 'Soldiers roll 4+ to cross.'],
+      ]],
+      ['Roads', [
+        [road(false), 'Road', 'Moving from one road hex to the next along the road: 1 hex whatever the terrain, no movement rolls; each phase the first road hex is free for Vehicles. Cover and line of sight follow the terrain the road runs through.'],
+      ]],
+      ['Markers', [
+        [marker(svg => svg.appendChild(el('text', { x: 0, y: 12, 'text-anchor': 'middle', 'font-size': 38, fill: '#f59e0b' }, null)) && (svg.lastChild.textContent = '★')),
+          'Objective', 'From the end of turn 7, the only side with units in or next to this hex wins.'],
+        [marker(svg => { svg.firstChild.setAttribute('fill', 'rgba(59,130,246,.35)'); }), 'Deployment zone', 'Where the side deploying now may place units (tinted during deployment).'],
+        [marker(svg => svg.appendChild(el('circle', { cx: 0, cy: 0, r: 24, fill: 'rgba(200,200,200,.8)' }))), 'Smoke', 'Blocks line of sight into, out of and through the hex until the end of the turn.'],
+      ]],
+    ];
+    box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center"><b>Legend</b><button class="btn sm" id="legend-close">×</button></div>';
+    for (const [title, items] of rows) {
+      const h = document.createElement('h4'); h.textContent = title; box.appendChild(h);
+      for (const [svg, name, text] of items) {
+        const row = document.createElement('div'); row.className = 'row';
+        row.appendChild(svg);
+        const d = document.createElement('div'); d.innerHTML = `<b>${esc(name)}</b><br><span>${esc(text)}</span>`;
+        row.appendChild(d); box.appendChild(row);
+      }
+    }
+    box.querySelector('#legend-close').onclick = () => { box.hidden = true; };
+  }
+
   showGameOver(result) {
     const box = this._modal(`<h2>${esc(result.winner)} wins</h2>
       <p>by ${esc(result.reason)} on turn ${result.turns}</p>
@@ -339,6 +420,7 @@ export class UI {
         ${[1939,1940,1941,1942,1943,1944,1945].map(y => `<option value="${y}">${y}</option>`).join('')}</select></div>
       <div class="row"><label>Historical</label><label style="width:auto"><input type="checkbox" id="ng-hist"> enforce historical army limits (rulebook p.27)</label></div>
       <div class="row"><label>Battlefield</label><select id="ng-theater">
+        <option value="auto">Match the armies</option>
         ${theaters.map(t => `<option value="${esc(t.id)}" title="${esc(t.description)}">${esc(t.label)}</option>`).join('')}
         <option value="random">Random theater</option></select></div>
       <div class="row"><label></label><span id="ng-theater-desc" style="color:var(--muted);font-size:12px"></span></div>
@@ -357,7 +439,10 @@ export class UI {
     // Each theater comes with its own default features; the boxes can override them
     const applyTheater = () => {
       const t = theaters.find(x => x.id === box.querySelector('#ng-theater').value);
-      box.querySelector('#ng-theater-desc').textContent = t ? t.description : 'A theater is picked at random (with its own features).';
+      const v = box.querySelector('#ng-theater').value;
+      box.querySelector('#ng-theater-desc').textContent = t ? t.description
+        : v === 'auto' ? 'With historical armies: a battlefield where those two armies actually fought (Pacific for Japan vs the US, the Eastern Front for the Soviets...). Otherwise a random theater, each with its own features.'
+        : 'A theater is picked at random (with its own features).';
       box.querySelectorAll('[data-feat]').forEach(cb => {
         cb.checked = t ? !!t.defaults[cb.dataset.feat] : true;
         cb.disabled = !t;
@@ -383,7 +468,7 @@ export class UI {
         map: (() => {
           const theater = box.querySelector('#ng-theater').value;
           const m = { theater, density: box.querySelector('#ng-density').value };
-          if (theater !== 'random') box.querySelectorAll('[data-feat]').forEach(cb => { m[cb.dataset.feat] = cb.checked; });
+          if (theater !== 'random' && theater !== 'auto') box.querySelectorAll('[data-feat]').forEach(cb => { m[cb.dataset.feat] = cb.checked; });
           return m;
         })(),
       };

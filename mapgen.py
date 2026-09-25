@@ -102,6 +102,7 @@ class MapGenerator:
     def __init__(self, width: int, height: int, options: Optional[MapOptions] = None,
                  rng: Optional[random.Random] = None):
         self.W, self.H = width, height
+        self.centre: Cell = (width // 2, height // 2)
         self.opt = options or MapOptions()
         self.style = THEATER_STYLES.get(self.opt.theater, THEATER_STYLES['western_europe'])
         self.rng = rng or random.Random(self.opt.seed)
@@ -113,10 +114,16 @@ class MapGenerator:
     # -- symmetry ---------------------------------------------------------
 
     def mirror(self, c: Cell) -> Cell:
+        """The matching cell on the other player's half. Odd widths: a true hex
+        point reflection through the centre hex (the objective maps to itself).
+        Even widths: a 180-degree rotation of the offset grid. Both keep hex
+        adjacency, so a copied road or stream stays continuous."""
         col, row = c
         if self.W % 2 == 0:
-            return (self.W - 1 - col, self.H - 1 - row)     # 180-degree rotation
-        return (self.W - 1 - col, row)                      # left-right reflection
+            return (self.W - 1 - col, self.H - 1 - row)
+        cq, cr = self.ax(self.centre)
+        q, r = self.ax(c)
+        return self.cell(2 * cq - q, 2 * cr - r)
 
     def ax(self, c: Cell) -> Tuple[int, int]:
         return Board.offset_to_axial(*c)
@@ -131,16 +138,31 @@ class MapGenerator:
         return [self.cell(n.q, n.r) for n in self.board.get_neighbors(*self.ax(c))]
 
     def left_half(self, c: Cell) -> bool:
-        """The half a feature is generated on (its mirror image is the other)."""
-        return c[0] < self.W // 2 if self.W % 2 == 0 else c[0] < self.W // 2
+        """The half a feature is generated on (its mirror image is the other).
+        With a centre column, its upper part counts as the generating half."""
+        if self.W % 2 == 0:
+            return c[0] < self.W // 2
+        cc, cr = self.centre
+        return c[0] < cc or (c[0] == cc and c[1] < cr)
 
     def terrain(self, c: Cell) -> str:
         return self.board.get_hex(*self.ax(c)).terrain
 
     def set_pair(self, c: Cell, terrain: str):
-        for x in (c, self.mirror(c)):
-            if self.in_bounds(x):
+        pair = (c, self.mirror(c))
+        if all(self.in_bounds(x) for x in pair):      # both or neither: keep the halves even
+            for x in pair:
                 self.board.set_terrain(*self.ax(x), terrain)
+
+    def on_edge(self, c: Cell) -> bool:
+        return c[0] in (0, self.W - 1) or c[1] in (0, self.H - 1)
+
+    def edge_start(self, cells) -> Optional[Cell]:
+        """A map-edge cell whose mirror image is also on the map edge, so both
+        copies of a road run off the map."""
+        good = [c for c in cells if self.in_bounds(c) and self.on_edge(c)
+                and self.in_bounds(self.mirror(c)) and self.on_edge(self.mirror(c))]
+        return self.rng.choice(good) if good else None
 
     def enabled(self, flag: Optional[bool], theater_value: float) -> bool:
         if flag is False:
@@ -170,7 +192,7 @@ class MapGenerator:
         self.board = Board(W, H)
         self.reserved: Set[Cell] = set()          # village cells: keep clusters off them
         self.villages: List[List[Cell]] = []
-        self.objective = (W // 2, H // 2)
+        self.objective = self.centre
         n = W * H
 
         # Deployment columns stay mostly clear so both sides can set up
@@ -247,7 +269,8 @@ class MapGenerator:
 
     def _grow(self, seed: Cell, size: int, kind: str) -> List[Cell]:
         """Random blob of `size` open cells around seed (avoids villages and the
-        first two columns of each deployment zone)."""
+        first two columns of each deployment zone, and cells whose mirror image
+        is off the map)."""
         if not self.in_bounds(seed):
             return []
         cells, frontier = [], [seed]
@@ -256,7 +279,8 @@ class MapGenerator:
             c = frontier.pop(self.rng.randrange(len(frontier)))
             if (not self.in_bounds(c) or c in self.reserved or self.terrain(c) != 'open'
                     or self._deploy_depth(c) < 2 or c == self.objective
-                    or self.left_half(c) != self.left_half(seed)):   # stay on the seed's half
+                    or self.left_half(c) != self.left_half(seed)    # stay on the seed's half
+                    or not self.in_bounds(self.mirror(c))):
                 continue
             cells.append(c)
             for nb in self.neighbors(c):
@@ -270,11 +294,13 @@ class MapGenerator:
         for nb in self.rng.sample(self.neighbors(centre), len(self.neighbors(centre))):
             if len(cells) >= size:
                 break
-            cells.append(nb)
-        groups = [cells] if central else [cells, [self.mirror(c) for c in cells]]
-        if central and self.mirror(centre) != centre:
-            # a central village straddles the centre: give it both halves
+            if self.in_bounds(nb) and self.in_bounds(self.mirror(nb)):
+                cells.append(nb)
+        if central:
+            # the objective's village straddles the centre: it is its own mirror image
             groups = [sorted(set(cells) | {self.mirror(c) for c in cells})]
+        else:
+            groups = [cells, [self.mirror(c) for c in cells]]
         for g in groups:
             g = [c for c in g if self.in_bounds(c)]
             for c in g:
@@ -344,8 +370,8 @@ class MapGenerator:
                     path.append(came[path[-1]])
                 return path[::-1]
             for nb in self.neighbors(c):
-                if not self.in_bounds(nb):
-                    continue
+                if not self.in_bounds(nb) or not self.in_bounds(self.mirror(nb)):
+                    continue          # a road whose mirror image would leave the map
                 g = cost[c] + self._step_cost(c, nb, jitter)
                 if g >= 1e8:
                     continue
@@ -374,14 +400,15 @@ class MapGenerator:
         if self.villages:
             centre_set = set(self.villages[0])
         # main road: west edge -> centre, mirrored to the east edge
-        start = (0, max(1, min(H - 2, H // 2 + self.rng.randint(-2, 2))))
-        main = self._astar(start, centre_set, jitter)
+        start = self.edge_start([(0, row) for row in range(max(1, H // 2 - 2), min(H - 1, H // 2 + 3))])
+        main = self._astar(start, centre_set, jitter) if start else None
         self._lay(main)
         # a cross road: north edge -> centre, mirrored south
         if self.rng.random() < self.style.cross_road:
-            col = max(3, min(W - 4, W // 2 + self.rng.randint(-3, 1)))
-            north = self._astar((col, 0), self._road_cells() or centre_set, jitter)
-            self._lay(north)
+            start = self.edge_start([(c, 0) for c in range(3, W - 3)])
+            if start:
+                north = self._astar(start, self._road_cells() or centre_set, jitter)
+                self._lay(north)
         # side villages connect to the network
         for v in self.villages[1:]:
             if not self.left_half(v[0]):
@@ -497,10 +524,10 @@ class MapGenerator:
         cover = [0, 0]
         for (q, r), h in b.hexes.items():
             c = self.cell(q, r)
-            if self.W % 2 == 1 and c[0] == self.W // 2:
-                continue                        # the centre column belongs to both sides
+            if c == self.centre:
+                continue
             if Board.gives_cover(h.terrain, 'Soldier'):
-                cover[0 if c[0] < self.W / 2 else 1] += 1
+                cover[0 if self.left_half(c) else 1] += 1
         if abs(cover[0] - cover[1]) > max(2, (cover[0] + cover[1]) // 10):
             problems.append(f"cover imbalance {cover}")
         roads = self._road_cells()

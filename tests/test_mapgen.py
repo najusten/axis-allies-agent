@@ -8,6 +8,7 @@ from board import Board
 from mapgen import MapOptions, THEATER_STYLES, generate_map
 
 SEEDS = range(12)
+SIZE = (17, 13)          # the default: odd, so there is a true centre hex
 
 
 def _road_graph(board):
@@ -22,7 +23,7 @@ def _road_graph(board):
 @pytest.mark.parametrize('theater', sorted(THEATER_STYLES))
 def test_roads_are_one_network_and_only_end_at_the_edge_or_a_village(theater):
     for seed in SEEDS:
-        board, objective, _ = generate_map(18, 12, MapOptions(theater=theater, seed=seed))
+        board, objective, _ = generate_map(*SIZE, MapOptions(theater=theater, seed=seed))
         graph = _road_graph(board)
         assert graph, f"{theater}/{seed}: no roads"
         # one connected network
@@ -53,20 +54,30 @@ def test_roads_are_one_network_and_only_end_at_the_edge_or_a_village(theater):
 @pytest.mark.parametrize('theater', sorted(THEATER_STYLES))
 def test_both_halves_are_balanced(theater):
     for seed in SEEDS:
-        board, objective, report = generate_map(18, 12, MapOptions(theater=theater, seed=seed))
+        board, objective, report = generate_map(*SIZE, MapOptions(theater=theater, seed=seed))
         left, right = report['cover_per_side']
         assert abs(left - right) <= 2, f"{theater}/{seed}: cover {left} vs {right}"
         assert not report.get('warnings'), report.get('warnings')
 
 
-def test_objective_is_in_the_middle():
-    board, objective, _ = generate_map(18, 12, MapOptions(seed=1))
-    assert Board.axial_to_offset(*objective) == (9, 6)
+def test_objective_is_in_the_middle_and_equally_far_from_both_edges():
+    board, objective, _ = generate_map(17, 13, MapOptions(seed=1))
+    col, row = Board.axial_to_offset(*objective)
+    assert (col, row) == (8, 6)
+    assert col == board.width - 1 - col
+
+
+@pytest.mark.parametrize('size', [(18, 12), (19, 11), (15, 11)])
+def test_other_board_sizes_still_make_connected_balanced_maps(size):
+    for seed in range(6):
+        board, objective, report = generate_map(*size, MapOptions(theater='western_europe', seed=seed))
+        assert abs(report['cover_per_side'][0] - report['cover_per_side'][1]) <= 2
+        assert board.road_edges
 
 
 def test_feature_switches_are_honoured():
     for seed in SEEDS:
-        board, _, _ = generate_map(18, 12, MapOptions(theater='western_europe', seed=seed, streams=False,
+        board, _, _ = generate_map(*SIZE, MapOptions(theater='western_europe', seed=seed, streams=False,
                                                       marshes=False, hedges=False, forests=False, hills=False))
         kinds = {h.terrain for h in board.hexes.values()}
         assert not kinds & {'marsh', 'forest', 'hill'}
@@ -75,7 +86,7 @@ def test_feature_switches_are_honoured():
 
 def test_streams_can_be_forced_on_and_are_bridged_where_roads_cross():
     for seed in SEEDS:
-        board, _, _ = generate_map(18, 12, MapOptions(theater='north_africa', seed=seed, streams=True))
+        board, _, _ = generate_map(*SIZE, MapOptions(theater='north_africa', seed=seed, streams=True))
         streams = [k for k, v in board.edge_obstacles.items() if v == 'stream']
         assert streams, "a desert map with streams switched on has a stream"
         # every road link across the stream is a bridge (no roll), by definition

@@ -7,13 +7,66 @@
 //   showLos(a, b) / hideLos()
 //   playEvents(events) -> Promise (animates dice, moves, deaths)
 //   setCoords(bool), setFast(bool)
-import { SIZE, HEX_H, axialToPixel, polygonPoints, viewBox, DIRS, DIR_NAMES, dirAngleDeg, fmtHex } from './hex.js';
+import { SIZE, HEX_H, axialToPixel, polygonPoints, viewBox, DIRS, DIR_NAMES, dirAngleDeg, fmtHex, offsetifyText } from './hex.js';
 
 const NS = 'http://www.w3.org/2000/svg';
-const TERRAIN_COLORS = {
-  open: '#e8e4c9', forest: '#2f8f3a', building: '#8a8a8a', water: '#4a7fe1', road: '#a0522d',
-  hill: '#9fbf8f', marsh: '#5a6b2f', town: '#cd853f', ruins: '#6f6f6f', stream: '#7fb2e5', impassable: '#222',
+export const el = (tag, attrs = {}, cls = null) => {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) if (v !== undefined && v !== null) e.setAttribute(k, v);
+  if (cls) e.setAttribute('class', cls);
+  return e;
 };
+export const TERRAIN_COLORS = {
+  open: '#e8e4c9', forest: '#3f8f45', building: '#a39d93', water: '#4a7fe1', road: '#e8e4c9',
+  hill: '#c9b98a', marsh: '#9fb7a4', town: '#d9a066', ruins: '#8f8a82', stream: '#7fb2e5', impassable: '#222',
+};
+export const EDGE_STYLES = {
+  stream: { stroke: '#2f6fd6', width: 9, halo: '#cfe2ff' },
+  hedge: { stroke: '#1f5d2a', width: 7, dash: '2 5', halo: '#8fbf7f' },
+  hedgerow: { stroke: '#1f5d2a', width: 7, dash: '2 5', halo: '#8fbf7f' },
+  'barbed wire': { stroke: '#7a4a12', width: 4, dash: '3 3' },
+  destroyed_bridge: { stroke: '#2f6fd6', width: 9, dash: '2 4', halo: '#cfe2ff' },
+};
+export const ROAD_STYLE = { edge: '#6b4a24', fill: '#d8b37a', edgeWidth: 12, width: 8 };
+
+// Small terrain symbols drawn on top of a hex's colour so terrain reads at a
+// glance (and without relying on colour alone): trees, contour lines, reeds,
+// roofs, waves. Deterministic per hex so the map doesn't shimmer on redraw.
+export function terrainSymbol(terrain, x, y, seed = 0) {
+  const g = el('g', { 'pointer-events': 'none' }, `sym sym-${terrain}`);
+  const rnd = (i) => { const v = Math.sin((seed + 1) * 12.9898 + i * 78.233) * 43758.5453; return v - Math.floor(v); };
+  if (terrain === 'forest') {
+    for (const [dx, dy, r] of [[-12, -6, 9], [10, -9, 8], [0, 9, 10], [14, 8, 6], [-15, 10, 6]]) {
+      const jx = (rnd(dx) - 0.5) * 4, jy = (rnd(dy) - 0.5) * 4;
+      g.appendChild(el('circle', { cx: x + dx + jx, cy: y + dy + jy, r, fill: '#2d6e33', stroke: '#1f4f24', 'stroke-width': 1.2 }));
+    }
+  } else if (terrain === 'hill') {
+    for (const [rx, ry] of [[26, 14], [17, 9], [8, 4.5]]) {
+      g.appendChild(el('ellipse', { cx: x, cy: y + 3, rx, ry, fill: 'none', stroke: '#8a7443', 'stroke-width': 1.6 }));
+    }
+  } else if (terrain === 'marsh') {
+    for (const [dx, dy] of [[-14, -8], [8, -12], [-4, 6], [14, 6], [-16, 12]]) {
+      const bx = x + dx, by = y + dy;
+      g.appendChild(el('path', { d: `M${bx - 5},${by} Q${bx - 3},${by - 9} ${bx - 1},${by - 12} M${bx},${by} L${bx},${by - 13} M${bx + 5},${by} Q${bx + 3},${by - 9} ${bx + 1},${by - 12}`,
+        fill: 'none', stroke: '#3e6b4e', 'stroke-width': 1.4, 'stroke-linecap': 'round' }));
+      g.appendChild(el('line', { x1: bx - 7, y1: by + 2, x2: bx + 7, y2: by + 2, stroke: '#4c86a8', 'stroke-width': 1.4 }));
+    }
+  } else if (terrain === 'town' || terrain === 'building' || terrain === 'ruins') {
+    const spots = terrain === 'town' ? [[-13, -9], [7, -12], [-6, 6], [12, 5]] : [[0, 0]];
+    spots.forEach(([dx, dy], i) => {
+      const w = terrain === 'town' ? 12 : 18, h = terrain === 'town' ? 9 : 13;
+      const bx = x + dx - w / 2, by = y + dy - h / 2;
+      g.appendChild(el('rect', { x: bx, y: by, width: w, height: h, fill: terrain === 'ruins' ? '#77716a' : '#f3ecdc', stroke: '#5b4630', 'stroke-width': 1.2 }));
+      g.appendChild(el('path', { d: `M${bx - 1},${by} L${bx + w / 2},${by - h * 0.55} L${bx + w + 1},${by} Z`,
+        fill: terrain === 'ruins' ? '#5d5852' : '#a8452c', stroke: '#5b4630', 'stroke-width': 1 }));
+    });
+  } else if (terrain === 'water') {
+    for (const dy of [-8, 2, 12]) {
+      g.appendChild(el('path', { d: `M${x - 16},${y + dy} q4,-4 8,0 t8,0 t8,0 t8,0`, fill: 'none', stroke: '#dbe9ff', 'stroke-width': 1.5 }));
+    }
+  }
+  return g;
+}
 const COVER = new Set(['forest', 'building', 'hill', 'town', 'ruins', 'marsh']);
 const PLAYER = {
   player1: { fill: '#3b82f6', light: '#bfdbfe' },
@@ -23,12 +76,7 @@ const STACK_OFFSETS = [[[0, 0]], [[-10, 0], [10, 0]], [[-12, -7], [12, -7], [0, 
 
 let _skip = false;   // set by a click during playEvents: fast-forward the rest
 const sleep = (ms) => new Promise(res => setTimeout(res, _skip ? Math.min(ms, 30) : ms));
-const el = (tag, attrs = {}, cls = null) => {
-  const e = document.createElementNS(NS, tag);
-  for (const [k, v] of Object.entries(attrs)) if (v !== undefined && v !== null) e.setAttribute(k, v);
-  if (cls) e.setAttribute('class', cls);
-  return e;
-};
+
 const txt = (x, y, s, cls, attrs = {}) => { const t = el('text', { x, y, ...attrs }, cls); t.textContent = s; return t; };
 
 // "M4A1 Sherman" -> "Sherman", "MG 42 Machine Gun Team" -> "MG 42": a label that fits under a token
@@ -62,7 +110,29 @@ export class BoardRenderer {
     this.svg.addEventListener('mousemove', (e) => this._onHover(e));
   }
 
-  setFast(v) { this.fast = v; for (const g of this.unitEls.values()) g.classList.toggle('fast', v); }
+  setFast(v) { this.setPace(v ? 'fast' : 'normal'); }
+
+  // fast 0.3x (testing) | normal | slow 2x | step: slow, and wait for Next after each enemy action
+  setPace(p) {
+    this.pace = p;
+    this.fast = p === 'fast';
+    for (const g of this.unitEls.values()) g.classList.toggle('fast', this.fast);
+  }
+
+  nextMove() {
+    if (this._next) { const r = this._next; this._next = null; this.waitingForNext = false; r(); }
+  }
+
+  _caption(ev, show) {
+    const box = document.getElementById('move-caption');
+    if (!box) return;
+    if (!show) { box.hidden = true; return; }
+    box.querySelector('.who').textContent = `${ev.player === 'player1' ? 'Player 1' : 'Player 2'}${ev.unit_name ? ' · ' + ev.unit_name : ''}`;
+    box.querySelector('.who').className = `who ${ev.player === 'player1' ? 'p1' : 'p2'}`;
+    box.querySelector('.what').textContent = offsetifyText(String(ev.message || '').split('\n')[0]);
+    box.querySelector('#btn-next-move').hidden = this.pace !== 'step';
+    box.hidden = false;
+  }
   setZoom(z) {
     this.zoom = z;
     if (!this.vb) return;
@@ -100,28 +170,93 @@ export class BoardRenderer {
     this.setZoom(this.zoom || 1);
     this.layers.terrain.innerHTML = '';
     this.layers.labels.innerHTML = '';
+    const symbols = [];
     for (const h of board.hexes) {
       const p = el('polygon', { points: polygonPoints(h.q, h.r), 'data-q': h.q, 'data-r': h.r });
       // a road is drawn as a road, over whatever ground it crosses; 'road' terrain
       // (hand-made scenarios) is plain ground with a road on it
       this._styleHex(p, h.terrain === 'road' ? 'open' : h.terrain);
       this.layers.terrain.appendChild(p);
+      const c0 = axialToPixel(h.q, h.r);
+      symbols.push(terrainSymbol(h.terrain, c0.x, c0.y, h.q * 31 + h.r * 17));
       const { x, y } = axialToPixel(h.q, h.r);
       this.layers.labels.appendChild(txt(x, y + 30, fmtHex(h.q, h.r), 'hex-label', { 'text-anchor': 'middle' }));
     }
-    // Roads: one segment per road link between two hex centres, drawn as a
-    // continuous line with an outline so it reads over any terrain colour
-    const links = board.roads || [];
-    const roadG = el('g', { 'pointer-events': 'none' }, 'roads');
-    for (const pass of [{ w: 11, c: '#5b3a1a', o: 0.55 }, { w: 7, c: '#c8a06a', o: 1 }]) {
-      for (const [[q1, r1], [q2, r2]] of links) {
-        const a = axialToPixel(q1, r1), b = axialToPixel(q2, r2);
-        roadG.appendChild(el('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: pass.c,
-          'stroke-width': pass.w, 'stroke-linecap': 'round', opacity: pass.o }));
-      }
-    }
+    const symG = el('g', { 'pointer-events': 'none' }, 'terrain-symbols');
+    symbols.forEach(sy => symG.appendChild(sy));
+    this.layers.terrain.appendChild(symG);
+    const roadG = this._drawRoads(board);
     this.layers.terrain.appendChild(roadG);
     this.layers.labels.style.display = this.showCoords ? '' : 'none';
+  }
+
+  // Roads as smooth lines: the link graph is split into chains between junctions
+  // and dead ends, each drawn as one path with rounded bends (quadratic curves
+  // through the midpoints of its links); a road that reaches the map edge runs on
+  // off the map instead of stopping at the last hex centre.
+  _drawRoads(board) {
+    const links = board.roads || [];
+    const g = el('g', { 'pointer-events': 'none' }, 'roads');
+    if (!links.length) return g;
+    const key = (h) => `${h[0]},${h[1]}`;
+    const adj = new Map();
+    const add = (a, b) => { if (!adj.has(key(a))) adj.set(key(a), { h: a, n: [] }); adj.get(key(a)).n.push(b); };
+    for (const [a, b] of links) { add(a, b); add(b, a); }
+    const cols = board.width, rows = board.height;
+    const off = (h) => [h[0], h[1] + (h[0] - (h[0] & 1)) / 2];
+    const onEdge = (h) => { const [c, r] = off(h); return c === 0 || c === cols - 1 || r === 0 || r === rows - 1; };
+    const outward = (h) => {           // unit vector leaving the map from an edge hex
+      const [c, r] = off(h);
+      if (c === 0) return [-1, 0];
+      if (c === cols - 1) return [1, 0];
+      if (r === 0) return [0, -1];
+      return [0, 1];
+    };
+    const used = new Set();
+    const edgeKey = (a, b) => [key(a), key(b)].sort().join('|');
+    const chains = [];
+    const nodes = [...adj.values()];
+    const isStop = (n) => n.n.length !== 2;
+    const walk = (start, next) => {
+      const chain = [start.h];
+      let prev = start, cur = adj.get(key(next));
+      used.add(edgeKey(start.h, next));
+      chain.push(cur.h);
+      while (!isStop(cur)) {
+        const nxt = cur.n.find(x => !used.has(edgeKey(cur.h, x)));
+        if (!nxt) break;
+        used.add(edgeKey(cur.h, nxt));
+        prev = cur; cur = adj.get(key(nxt));
+        chain.push(cur.h);
+      }
+      return chain;
+    };
+    for (const n of nodes.filter(isStop)) for (const nb of n.n) if (!used.has(edgeKey(n.h, nb))) chains.push(walk(n, nb));
+    for (const n of nodes) for (const nb of n.n) if (!used.has(edgeKey(n.h, nb))) chains.push(walk(n, nb));   // loops
+    const P = (h) => axialToPixel(h[0], h[1]);
+    const pathFor = (chain) => {
+      const pts = chain.map(P);
+      // run off the map at dead ends on the edge
+      const ext = (h, p) => { const [dx, dy] = outward(h); return { x: p.x + dx * SIZE * 1.6, y: p.y + dy * SIZE * 1.6 }; };
+      const endHex = (i) => adj.get(key(chain[i])).n.length === 1 && onEdge(chain[i]);
+      if (endHex(0)) pts.unshift(ext(chain[0], pts[0]));
+      if (endHex(chain.length - 1)) pts.push(ext(chain[chain.length - 1], pts[pts.length - 1]));
+      let d = `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
+      for (let i = 1; i < pts.length - 1; i++) {
+        const m = { x: (pts[i].x + pts[i + 1].x) / 2, y: (pts[i].y + pts[i + 1].y) / 2 };
+        d += ` Q${pts[i].x.toFixed(1)},${pts[i].y.toFixed(1)} ${m.x.toFixed(1)},${m.y.toFixed(1)}`;
+      }
+      const last = pts[pts.length - 1];
+      d += ` L${last.x.toFixed(1)},${last.y.toFixed(1)}`;
+      return d;
+    };
+    const ds = chains.map(pathFor);
+    for (const [stroke, w] of [[ROAD_STYLE.edge, ROAD_STYLE.edgeWidth], [ROAD_STYLE.fill, ROAD_STYLE.width]]) {
+      for (const d of ds) g.appendChild(el('path', { d, fill: 'none', stroke, 'stroke-width': w,
+        'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
+    }
+    // a village is where roads meet: a small square under the junction
+    return g;
   }
 
   _styleHex(p, terrain) {
@@ -138,22 +273,22 @@ export class BoardRenderer {
       const a = axialToPixel(eo.a[0], eo.a[1]), b = axialToPixel(eo.b[0], eo.b[1]);
       const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
       const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy);
-      const px = -dy / len * SIZE * 0.45, py = dx / len * SIZE * 0.45;
-      const style = {
-        'barbed wire': { stroke: '#f59e0b', width: 4, dash: '3 3' },
-        'destroyed_bridge': { stroke: '#4a7fe1', width: 5, dash: '2 4' },
-        'stream': { stroke: '#4a7fe1', width: 5, dash: '' },
-        'hedge': { stroke: '#166534', width: 5, dash: '' },
-        'hedgerow': { stroke: '#166534', width: 5, dash: '' },
-      }[eo.type] || { stroke: '#8b5cf6', width: 4, dash: '' };
+      const px = -dy / len * SIZE * 0.5, py = dx / len * SIZE * 0.5;   // the whole shared hex side
+      const style = EDGE_STYLES[eo.type] || { stroke: '#8b5cf6', width: 4 };
+      if (style.halo) {
+        g.appendChild(el('line', { x1: mx - px, y1: my - py, x2: mx + px, y2: my + py,
+          stroke: style.halo, 'stroke-width': style.width + 5, 'stroke-linecap': 'round', opacity: 0.9 }));
+      }
       const line = el('line', { x1: mx - px, y1: my - py, x2: mx + px, y2: my + py,
-        stroke: style.stroke, 'stroke-width': style.width, 'stroke-dasharray': style.dash, 'stroke-linecap': 'round' });
+        stroke: style.stroke, 'stroke-width': style.width, 'stroke-dasharray': style.dash || '', 'stroke-linecap': 'round' });
       const t = el('title'); t.textContent = eo.type; line.appendChild(t);
       g.appendChild(line);
       // a road crossing a stream is a bridge
       if (eo.type === 'stream' && eo.bridge) {
-        g.appendChild(el('line', { x1: a.x + dx * .3, y1: a.y + dy * .3, x2: a.x + dx * .7, y2: a.y + dy * .7,
-          stroke: '#7a4a1f', 'stroke-width': 7, 'stroke-linecap': 'butt' }));
+        // a bridge deck carrying the road across, with dark parapets
+        const b1 = { x: a.x + dx * .32, y: a.y + dy * .32 }, b2 = { x: a.x + dx * .68, y: a.y + dy * .68 };
+        g.appendChild(el('line', { x1: b1.x, y1: b1.y, x2: b2.x, y2: b2.y, stroke: '#3b2a17', 'stroke-width': 16, 'stroke-linecap': 'butt' }));
+        g.appendChild(el('line', { x1: b1.x, y1: b1.y, x2: b2.x, y2: b2.y, stroke: ROAD_STYLE.fill, 'stroke-width': 11, 'stroke-linecap': 'butt' }));
       }
     }
     // smoke
@@ -464,17 +599,38 @@ export class BoardRenderer {
   }
 
   // ---------------------------------------------------------- animation
-  async playEvents(events) {
-    const speed = this.fast ? 0.3 : 1;
+  async playEvents(events, opts = {}) {
+    const pace = this.pace || 'normal';
+    const speed = { fast: 0.3, normal: 1, slow: 2, step: 1.6 }[pace] || 1;
+    const narrate = opts.narrate || (() => false);
     _skip = false;
     this.animating = true;
     for (const ev of events) {
       if (ev.type === 'action') {
+        // narrate the opponent's moves in play (not the setup placements)
+        const told = pace !== 'fast' && narrate(ev.player) && ev.success !== false
+          && ev.action_type !== 'DeployAction';
+        if (told) {
+          this._caption(ev, true);
+          const g = this.unitEls.get(ev.unit);
+          if (g) g.classList.add('acting');
+        }
         const subs = ev.events && ev.events.length ? ev.events : null;
         if (subs) {
           for (const s of subs) await this._playSub(s, ev, speed);
         } else if (ev.action_type === 'MoveAction' && ev.success && ev.from && ev.to) {
           await this._animateMove(ev.unit, [ev.from, ev.to], speed);
+        }
+        if (told) {
+          if (pace === 'step' && !_skip) {
+            this.waitingForNext = true;
+            await new Promise(res => { this._next = res; });
+          } else {
+            await sleep(pace === 'slow' ? 1400 : 500);
+          }
+          const g = this.unitEls.get(ev.unit);
+          if (g) g.classList.remove('acting');
+          this._caption(ev, false);
         }
       } else if (ev.type === 'initiative') {
         await this._banner(`Turn ${ev.turn} — Initiative`, `${ev.rolls.player1.text}\n${ev.rolls.player2.text}\n→ ${ev.winner} wins initiative`, 1400 * speed);
@@ -498,7 +654,11 @@ export class BoardRenderer {
     _skip = false;
   }
 
-  skipAnimation() { if (this.animating) _skip = true; }
+  skipAnimation() {
+    if (!this.animating) return;
+    _skip = true;
+    this.nextMove();      // a click also releases a step-through pause (and skips the rest)
+  }
 
   async _playSub(s, parent, speed) {
     if (s.type === 'move') {
