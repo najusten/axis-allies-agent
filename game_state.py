@@ -64,6 +64,7 @@ class UnitState:
     is_deployed: bool = True  # Paratrooper: False if not yet deployed on map
     is_aircraft_on_map: bool = False  # Aircraft: True while on the map this turn
     aircraft_was_placed: bool = False   # counts for the turn-10 points tally once placed
+    aircraft_grounded_next_turn: bool = False  # Aircraft disrupted by defensive fire: the disruption survives this turn's casualty phase
     shock_troop_used: bool = False  # Shock Troop: True after first attack this game
     armor_piercing_used: bool = False  # Armor-Piercing Rounds: once per game
     he_round_used: bool = False  # HE Round: once per game

@@ -698,8 +698,11 @@ class ActionExecutor:
                 stop_reason += f" — retraced to ({final_hex[0]},{final_hex[1]}) (stacking)"
 
         if stop_reason is not None:
-            # A failed terrain roll consumes the unit's movement
+            # Official Q&A: "Failing a movement roll ends that vehicle's movement
+            # for the phase" — in the assault phase that is its assault move.
             unit_state.has_moved = True
+            if game_state.current_phase == GamePhase.ASSAULT:
+                unit_state.assault_moved = True
             if final_hex == from_hex:
                 message = f"{unit.name} {stop_reason} — stuck at ({from_hex[0]},{from_hex[1]})"
                 success = True

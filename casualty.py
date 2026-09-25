@@ -219,6 +219,9 @@ class CasualtySystem:
         # the last casualty phase or placed face-up at once (defensive fire,
         # Ace/Antiair reactions, scenario setup).
         for unit_id, unit_state in list(game_state.units.items()):
+            if unit_state.aircraft_grounded_next_turn:
+                unit_state.aircraft_grounded_next_turn = False   # cleared at the next casualty phase
+                continue
             if unit_state.is_alive and unit_state.is_disrupted:
                 # Check if disruption is sticky (from Unreliable, Rapid Fire, Overheat)
                 if getattr(unit_state, 'unreliable_disrupted', False):

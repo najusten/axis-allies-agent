@@ -835,6 +835,11 @@ class DefensiveFireSystem:
                 target_state.is_damaged = True
             elif result.target_disrupted:
                 target_state.is_disrupted = True
+                if 'Aircraft' in (target_state.unit.unit_type or ''):
+                    # Official Q&A: an Aircraft disrupted by defensive fire keeps that
+                    # disruption past this turn's casualty phase, so it can't be placed
+                    # in the next turn's flight phase.
+                    target_state.aircraft_grounded_next_turn = True
 
         # Return the hex where unit stopped
         # If movement was stopped, they stop in the attack hex

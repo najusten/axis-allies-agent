@@ -1,0 +1,22 @@
+name: a-failed-movement-roll-ends-that-units-movement-for-the-phase
+source: "Official Q&A: 'A vehicle starts its movement phase right next to a forest (or stream). It tries to cross, but fails the movement roll. Can I still move that vehicle? A: Failing a movement roll ends that vehicle's movement for the phase.' A later phase is a fresh start"
+board: {width: 12, height: 10, terrain: {forest: [[4,3]]}}
+units:
+  - {id: tank, owner: player1, at: [3,3], facing: SE, stats: {unit_type: Vehicle Tank, defense: "5/4", speed: 4, per: [6,4,2], veh: [6,4,2]}}
+  - {id: enemy, owner: player2, at: [10,3], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: movement
+active_player: player1
+dice: [2, 2]
+actions:
+  - {type: move, unit: tank, to: [4,3]}      # forest roll 2: fails, movement over for the phase
+  - {type: move, unit: tank, to: [3,2]}      # can't try somewhere else this phase
+  - {type: set_phase, phase: assault, active_player: player1}
+  - {type: move, unit: tank, to: [4,3]}      # a new phase: it may try again (roll 2 fails again)
+expect:
+  results:
+    0: {success: true}
+    1: {success: false}
+    3: {success: true}
+  units:
+    tank: {at: [3,3]}
+  dice_consumed: 2

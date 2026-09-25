@@ -1,0 +1,22 @@
+name: an-aircraft-disrupted-by-defensive-fire-misses-the-next-flight-phase
+source: "Official Q&A, Disruption of Aircraft: an Aircraft disrupted by defensive fire (a face-up counter) keeps it past this turn's casualty phase — 'the following turn, it can't be placed on the board' — and the marker is removed at that turn's casualty phase"
+board: {width: 12, height: 8}
+units:
+  - {id: flak, owner: player2, at: [5,3], stats: {unit_type: Vehicle, defense: "3/2", per: [10,8,6], veh: [4,2,1], abilities: "Antiair"}}
+  - {id: plane, owner: player1, at: [-99,-99], stats: {unit_type: Aircraft, defense: "4/4", speed: 20, per: [8,6,4], veh: [6,4,2], abilities: "Aircraft"}}
+phase: flight
+active_player: player1
+dice: [6,6,6,6,1,1,1,1,1,1]
+actions:
+  - {type: place, unit: plane, to: [4,3]}      # Antiair reaction disrupts it
+  - {type: casualty}                            # end of this turn: the disruption stays
+  - {type: set_phase, phase: flight, active_player: player1}
+  - {type: place, unit: plane, to: [4,3]}      # grounded this turn
+  - {type: casualty}                            # now the marker comes off
+  - {type: set_phase, phase: flight, active_player: player1}
+  - {type: place, unit: plane, to: [4,3]}      # flying again (and disrupted again by the flak)
+expect:
+  results:
+    0: {success: true}
+    3: {success: false}
+    6: {success: true}
