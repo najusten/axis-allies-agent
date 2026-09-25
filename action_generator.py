@@ -2608,10 +2608,11 @@ class ActionGenerator:
             enemy = enemy_state.unit
             enemy_q, enemy_r = enemy_state.position
 
-            # Antiair check - can only attack Aircraft if has Antiair ability
-            # Bombardment check - units with Bombardment can't attack Aircraft
+            # Rulebook: any unit may attack an Aircraft, using its anti-Soldier
+            # values at -1 per die; Antiair/Ace only remove that penalty.
+            # Bombardment and Top-Mounted Rockets can't attack Aircraft at all.
             if 'Aircraft' in (enemy.unit_type or ''):
-                if not has_antiair or has_bombardment:
+                if has_bombardment or self._has_top_mounted_rockets(unit):
                     continue
 
             # Calculate distance
@@ -2673,10 +2674,10 @@ class ActionGenerator:
                 if not self._can_multiturreted_attack_arc(unit_state, is_front):
                     continue  # This arc already used
 
-            # Check line of sight
+            # Check line of sight (always exists to or from an Aircraft)
             has_los, _ = self.movement_system.has_line_of_sight(
                 game_state.board, unit, q, r, enemy_q, enemy_r,
-                smoke_screens=game_state.smoke_screens
+                smoke_screens=game_state.smoke_screens, target_unit=enemy
             )
 
             # Indirect Fire: "If a friendly Spotter is within eight hexes of an enemy

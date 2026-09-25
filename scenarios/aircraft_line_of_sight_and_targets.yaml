@@ -1,0 +1,18 @@
+name: any-unit-may-shoot-at-aircraft-and-line-of-sight-to-aircraft-is-never-blocked
+source: "Advanced rulebook glossary: when attacking an Aircraft, units use their anti-Soldier attack values but get -1 on each attack die (units with Antiair don't); line of sight always exists between Aircraft and other units"
+board: {width: 14, height: 10, terrain: {forest: [[4,3],[5,3]]}}
+units:
+  - {id: rifles, owner: player1, at: [2,3], stats: {unit_type: Soldier, defense: "4", per: [8,6,4], veh: [4,2,1]}}
+  - {id: flak, owner: player1, at: [2,4], stats: {unit_type: Vehicle, defense: "3/2", per: [8,6,4], veh: [4,2,1], abilities: "Antiair"}}
+  - {id: plane, owner: player2, at: [7,3], stats: {unit_type: Aircraft, defense: "4/4", speed: 20, per: [5,3,1], veh: [5,3,1], abilities: "Aircraft"}, is_aircraft_on_map: true}
+phase: assault
+active_player: player1
+# rifles at long range vs Aircraft: 4 dice needing 5+ (-1); flak: needs 4+
+dice: [5,5,4,4, 4,4,4,1,1,1]
+actions:
+  - {type: attack, unit: rifles, target: plane}
+  - {type: attack, unit: flak, target: plane}
+expect:
+  results:
+    0: {success: true, combat: {hit_threshold: 5, successes: 2}}
+    1: {success: true, combat: {hit_threshold: 4, successes: 3}}

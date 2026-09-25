@@ -697,7 +697,7 @@ class MovementSystem:
     
     def has_line_of_sight(self, board: Board, unit,
                          q1: int, r1: int, q2: int, r2: int,
-                         smoke_screens: set = None) -> Tuple[bool, List[Hex]]:
+                         smoke_screens: set = None, target_unit=None) -> Tuple[bool, List[Hex]]:
         """
         Check if there's line of sight between two hexes, considering unit abilities.
 
@@ -711,6 +711,11 @@ class MovementSystem:
         Returns (has_los, blocking_hexes)
         """
         smoke_screens = smoke_screens or set()
+        # Rulebook (glossary, line of sight): "Line of sight always exists between
+        # Aircraft and other units."
+        if 'Aircraft' in (getattr(unit, 'unit_type', '') or '') or \
+                'Aircraft' in (getattr(target_unit, 'unit_type', '') or ''):
+            return True, []
         # LOS depends only on terrain, smoke and the viewer's abilities, and the
         # same pairs are asked for thousands of times per turn (AI scoring,
         # lookahead on cloned boards): memoise on the board's terrain signature.

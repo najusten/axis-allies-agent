@@ -1,0 +1,27 @@
+name: agility-aircraft-ranges-concealed-and-experienced-recon
+source: "Agility: this unit's short range against aircraft is 0-2 hexes and its medium range 3-5. Concealed: while this unit has cover, enemy units can't attack it at long range. Experienced Recon: this unit can attack units with Camouflaged or Superior Camouflage at medium range"
+board: {width: 14, height: 10, terrain: {forest: [[6,2],[6,4],[6,6]]}}
+units:
+  - {id: agile, owner: player1, at: [2,2], stats: {unit_type: Aircraft, defense: "4/4", speed: 20, per: [9,5,1], veh: [9,5,1], abilities: "Aircraft, Agility"}, is_aircraft_on_map: true}
+  - {id: plain, owner: player1, at: [2,3], stats: {unit_type: Aircraft, defense: "4/4", speed: 20, per: [9,5,1], veh: [9,5,1], abilities: "Aircraft"}, is_aircraft_on_map: true}
+  - {id: recon, owner: player1, at: [3,4], stats: {unit_type: Soldier, defense: "4", per: [7,5,3], abilities: "Experienced Recon"}}
+  - {id: plainsol, owner: player1, at: [3,5], stats: {unit_type: Soldier, defense: "4", per: [7,5,3]}}
+  - {id: sniper, owner: player2, at: [6,4], stats: {unit_type: Soldier, defense: "4", per: [5,3,1], abilities: "Superior Camouflage"}}
+  - {id: hidden, owner: player2, at: [6,6], stats: {unit_type: Soldier, defense: "4", per: [5,3,1], abilities: "Concealed"}}
+  - {id: plane_target, owner: player2, at: [4,2], stats: {unit_type: Aircraft, defense: "4/4", speed: 20, per: [5,3,1], veh: [5,3,1], abilities: "Aircraft"}, is_aircraft_on_map: true}
+phase: airstrike
+active_player: player1
+# distance from (2,2) to (4,2) is 2 hexes: Agility makes that short range (9 dice), normally medium (5 dice)
+dice: [6,6,6,6,6,6,6,1,1, 6,6,6,6,1]
+actions:
+  - {type: attack, unit: agile, target: plane_target}
+  - {type: attack, unit: plain, target: plane_target}
+  - {type: set_phase, phase: assault, active_player: player1}
+expect:
+  results:
+    0: {success: true, combat: {attack_dice: 9}}
+    1: {success: true, combat: {attack_dice: 5}}
+  legal:
+    - {type: attack, unit: recon, target: sniper, allowed: true}       # Experienced Recon at medium range
+    - {type: attack, unit: plainsol, target: sniper, allowed: false}   # ordinary unit can't
+    - {type: attack, unit: plainsol, target: hidden, allowed: true}    # Concealed only blocks long range
