@@ -1253,7 +1253,7 @@ class ActionGenerator:
             edge_obstacle = game_state.board.get_edge_obstacle(q, r, adj_q, adj_r)
             here, there = game_state.board.get_hex(q, r), game_state.board.get_hex(adj_q, adj_r)
             is_bridge = (edge_obstacle in Board.EDGE_STREAM and here is not None and there is not None
-                         and here.has_road and there.has_road)
+                         and game_state.board.road_between(q, r, adj_q, adj_r))
             if is_bridge:
                 ability_action = UseAbilityAction(
                     unit_id=unit.id,

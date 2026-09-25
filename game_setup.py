@@ -510,7 +510,10 @@ class GameSetupConfig:
     board_height: int = 12
 
     # Objective
-    objective_position: Tuple[int, int] = None  # None = center of board
+    objective_position: Tuple[int, int] = None  # None = where the map generator puts it (centre)
+
+    # Battle map: theater style and feature switches (mapgen.MapOptions)
+    map_options: object = None
 
 
 # Rulebook p.27 "Historical Army Limits" (Commonwealth forces grouped with the UK)
@@ -621,152 +624,20 @@ class GameSetup:
 
     def create_board(self, terrain_density: float = 0.15) -> Board:
         """
-        Create a game board with terrain.
-
-        Layout is designed in offset (col, row) space so roads run across
-        the map and towns are compact; everything is converted to axial
-        before touching the board.
+        Build the battle map with mapgen.MapGenerator: theater-flavoured terrain,
+        balanced between the two halves, a continuous road network, optional
+        streams/marshes/hedgerows (see MapOptions). The objective chosen by the
+        generator is kept in self.objective (axial).
         """
-        W, H = self.config.board_width, self.config.board_height
-        board = Board(W, H)
-        A = Board.offset_to_axial
-
-        def in_bounds(col, row):
-            return 0 <= col < W and 0 <= row < H
-
-        # Natural terrain clusters (no towns — those are placed deliberately)
-        terrain_types = ['forest', 'forest', 'hill', 'building']
-        num_terrain_hexes = int(W * H * terrain_density)
-
-        clusters = num_terrain_hexes // 4
-        for _ in range(clusters):
-            col = random.randint(3, W - 4)
-            row = random.randint(2, H - 3)
-            terrain = random.choice(terrain_types)
-            q, r = A(col, row)
-            board.set_terrain(q, r, terrain)
-            for nb in board.get_neighbors(q, r):
-                if random.random() < 0.5:
-                    board.set_terrain(nb.q, nb.r, terrain)
-
-        # Place 1-2 small towns (2-3 hexes each)
-        num_towns = random.choice([1, 2])
-        town_cells = set()   # (col, row)
-        town_hexes = set()   # axial
-        for _ in range(num_towns):
-            for _attempt in range(10):
-                tc = random.randint(4, W - 5)
-                tr = random.randint(3, H - 4)
-                if any(abs(tc - oc) <= 3 and abs(tr - orow) <= 3 for oc, orow in town_cells):
-                    continue
-                q, r = A(tc, tr)
-                board.set_terrain(q, r, 'town')
-                town_cells.add((tc, tr))
-                town_hexes.add((q, r))
-                nbs = board.get_neighbors(q, r)
-                for nb in random.sample(nbs, min(2, len(nbs))):
-                    board.set_terrain(nb.q, nb.r, 'town')
-                    town_hexes.add((nb.q, nb.r))
-                    town_cells.add(Board.axial_to_offset(nb.q, nb.r))
-                break
-
-        # A road across the map (left edge to right edge), bending toward a town
-        road_row = H // 2 + random.randint(-2, 2)
-        if town_cells:
-            nearest = min(town_cells, key=lambda c: abs(c[0] - W // 2))
-            target_row = nearest[1]
-        else:
-            target_row = road_row
-        for col in range(W):
-            q, r = A(col, road_row)
-            h = board.get_hex(q, r)
-            if h is not None:
-                # the road runs through whatever is there; plain ground becomes a
-                # road hex, a town/forest/hill keeps its terrain and gains a road
-                if h.terrain == 'open':
-                    board.set_terrain(q, r, 'road')
-                else:
-                    board.set_road(q, r)
-            if road_row < target_row and col < W * 2 // 3:
-                if random.random() < 0.4:
-                    road_row += 1
-            elif road_row > target_row and col < W * 2 // 3:
-                if random.random() < 0.4:
-                    road_row -= 1
-            road_row = max(1, min(H - 2, road_row))
-
-        # A stream: a line of hex sides between two columns near the CENTRE of
-        # the map so both sides must cross it equally, bridged wherever the road
-        # crosses it and with a couple of fords (gaps) so it never walls off a side.
-        if random.random() < 0.7:
-            col = random.choice([W // 2 - 1, W // 2])
-            edges = []
-            for row in range(H):
-                q, r = A(col, row)
-                for nb in board.get_neighbors(q, r):
-                    if Board.axial_to_offset(nb.q, nb.r)[0] == col + 1:
-                        edges.append((q, r, nb.q, nb.r))
-            fords = set(random.sample(range(len(edges)), min(len(edges), random.choice([2, 3]))))
-            for i, (q, r, nq, nr) in enumerate(edges):
-                if i in fords:
-                    continue
-                board.add_edge_obstacle(q, r, nq, nr, 'stream')
-
-        # Hedges: field boundaries around towns
-        for (q, r) in list(town_hexes):
-            nbs = [nb for nb in board.get_neighbors(q, r) if nb.terrain not in ('town', 'road')]
-            for nb in random.sample(nbs, min(len(nbs), random.choice([1, 2]))):
-                if not board.get_edge_obstacle(q, r, nb.q, nb.r):
-                    board.add_edge_obstacle(q, r, nb.q, nb.r, 'hedge')
-
-        # Balance cover terrain across both sides of the board
-        self._balance_cover(board)
-
+        from mapgen import MapOptions, generate_map
+        opts = self.config.map_options or MapOptions()
+        if opts.density == 'normal' and terrain_density != 0.15:
+            opts.density = 'sparse' if terrain_density < 0.12 else 'dense' if terrain_density > 0.2 else 'normal'
+        rng = random.Random(random.random()) if opts.seed is None else None
+        board, objective, report = generate_map(self.config.board_width, self.config.board_height, opts, rng)
+        self.objective = objective
+        self.map_report = report
         return board
-
-    def _balance_cover(self, board: Board):
-        """Ensure roughly equal cover hexes on both sides of the board."""
-        cover_types = {'forest', 'building', 'hill', 'town', 'ruins'}
-        mid_q = self.config.board_width // 2
-
-        # Count cover on each side
-        left_cover = []
-        right_cover = []
-        for (q, r), hex_obj in board.hexes.items():
-            if hex_obj.terrain in cover_types:
-                if q < mid_q:
-                    left_cover.append((q, r))
-                else:
-                    right_cover.append((q, r))
-
-        # If imbalance > 1, add cover to the weaker side until it's within 1
-        diff = len(left_cover) - len(right_cover)
-        if abs(diff) <= 1:
-            return
-
-        # Determine which side needs more cover
-        if diff > 0:
-            # Right side needs more
-            add_side_range = range(mid_q, self.config.board_width)
-        else:
-            # Left side needs more
-            add_side_range = range(0, mid_q)
-
-        needed = abs(diff) - 1   # close the gap to at most 1 hex
-        added = 0
-        candidates = []
-        for col in add_side_range:
-            for q, r in board.column(col):
-                if board.get_hex(q, r).terrain == 'open':
-                    candidates.append((q, r))
-
-        random.shuffle(candidates)
-        cover_options = ['forest', 'forest', 'hill', 'building']
-        for q, r in candidates:
-            if added >= needed:
-                break
-            board.set_terrain(q, r, random.choice(cover_options))
-            added += 1
 
     def _has_ability(self, unit: Unit, ability_name: str) -> bool:
         """Check if a unit has a specific ability (case-insensitive)."""
@@ -939,7 +810,9 @@ class GameSetup:
         if self.config.objective_position:
             obj_pos = self.config.objective_position
         else:
-            obj_pos = (self.config.board_width // 2, self.config.board_height // 2)
+            # (the old default used (width//2, height//2) as *axial* coordinates,
+            # which is near the bottom edge of the rectangular map)
+            obj_pos = getattr(self, 'objective', None) or board.center()
 
         # Create game state
         game_state = GameState(board, p1_units, p2_units, objective_position=obj_pos)

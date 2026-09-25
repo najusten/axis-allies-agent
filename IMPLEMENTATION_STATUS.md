@@ -123,6 +123,8 @@ initiative_system = InitiativeSystem(ability_system, movement_system)
 - ✅ New Game dialog: mode, AI type, seed, or load a scenario file
 - ✅ Select unit → highlighted hexes (move/attack/board/dismount), ability panel with per-target buttons, facing picker, undo/redo (blocked after any dice roll), zoom (fit/±/ctrl-wheel) and drag-pan, stat cards with ability descriptions, event log, coords toggle
 - ✅ Rectangular board (even-q offset), landscape default 18×12
+- ✅ Battle maps (`mapgen.py`): six theater styles — Western Europe (bocage, villages, stream), Eastern Front (steppe, big forests, marsh), North Africa (open desert, ridges, oasis village), Italy (hills, stone villages), Pacific (jungle, swamp, track), Town fight — with a density setting and per-feature switches (streams, marshes, hedgerows, forests, hills, villages) in the New Game dialog. Every map is balanced by symmetry (features generated on one half and copied through the centre, so both players get the same cover, roads and obstacles), keeps the deployment edges clear, is checked for a vehicle route from each side to the objective, and puts the objective in the middle (the old default put it near the bottom edge).
+- ✅ Roads are links between adjacent hexes (rulebook: "moving along a road" = between two hexes connected by a road), laid by A* between map edges, villages and the objective, so they are one continuous network that only ends at a map edge or in a village; a road keeps the terrain it runs through; bridges are where a road link crosses a stream. The renderer draws each link as a continuous road line.
 - ✅ AI choice in New Game: Heuristic (default), Monte Carlo, Lookahead, Aggressive, Greedy, Random
 - ✅ Deployment phase UI (coin flip, order choice, zone shading, facing prompt), aircraft placement and airstrikes, route preview + shift-click waypoints, per-shot defensive-fire and Antiair-reaction dialogs, target chooser in stacked hexes, Suggest (AI assist), per-unit undo, End Phase confirmation, column,row coordinates
 
@@ -134,7 +136,6 @@ The official **Advanced Rulebook** is in `document.pdf` (local only, gitignored)
 Two official **Q&A compilations** (Sgt Fury / tsessler.weebly.com, current to 2012, gathering WotC's own answers plus the 2009/2010 errata) were worked through on 2026-09-25: `Game Mechanics Q&A` (61 pp.) and `Special Abilities Q&A` (56 pp.), plus aamcardbase.com. Rulings implemented from them are marked "official Q&A" in the scenarios' `source:` lines. Deliberate divergences:
 - **Stacking** stays at the Advanced Rulebook's 2 units per army per hex (1 vehicle). The 1/27/2009 update raised it to 3 with an over-stacking penalty; adopting it would change army/map balance, so it is a decision for the user, not a bug.
 - Expanded-rules-only systems (Enfilading Fire, Grazing Fire, Overwatch, Aircraft facing, Deadly Defensive Fire) are not implemented.
-- Roads are modelled per hex, not per hex side, so "a road into a marsh" and "leaving only by a road hex side" are approximated.
 - Blast is not applied to defensive-fire attacks (9/10/2010 errata says it should be).
 
 ## Known issues / open rules questions

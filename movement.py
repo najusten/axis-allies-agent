@@ -220,12 +220,11 @@ class MovementSystem:
         while queue:
             q, r, movement, prev_terrain, bonus, rolls = queue.popleft()
             here = board.get_hex(q, r)
-            here_road = bool(here and here.has_road)
 
             for neighbor in board.get_neighbors(q, r):
                 nq, nr = neighbor.q, neighbor.r
                 terrain = neighbor.terrain
-                along_road = here_road and neighbor.has_road
+                along_road = board.road_between(q, r, nq, nr)
 
                 step = self._step_cost(unit, movement_mods, is_vehicle, here, neighbor, prev_terrain, bonus,
                                        road_only=road_only,
@@ -282,7 +281,9 @@ class MovementSystem:
         """Movement points to enter `neighbor` from `here`, or None if the step is
         not allowed. Returns (cost, road_bonus_still_available)."""
         terrain = neighbor.terrain
-        along_road = bool(here and here.has_road) and neighbor.has_road
+        along_road = (board.road_between(here.q, here.r, neighbor.q, neighbor.r)
+                      if board is not None and here is not None
+                      else bool(here and here.has_road) and neighbor.has_road)
 
         # Water / impassable / marsh for vehicles
         if movement_mods.get('water_craft', False):
@@ -298,9 +299,9 @@ class MovementSystem:
             return None
         if road_only and not along_road:
             return None
-        if terrain == 'hill' and movement_mods.get('poor_suspension', False) and not neighbor.has_road:
+        if terrain == 'hill' and movement_mods.get('poor_suspension', False) and not along_road:
             return None
-        if terrain in ('marsh', 'stream') and movement_mods.get('thin_wheels', False) and not neighbor.has_road:
+        if terrain in ('marsh', 'stream') and movement_mods.get('thin_wheels', False) and not along_road:
             return None
         if movement_mods.get('thin_wheels', False) and not along_road and here is not None and board is not None:
             # streams are hex-side terrain: Thin Wheels can't cross one except along a road
@@ -419,7 +420,7 @@ class MovementSystem:
                 nq, nr = neighbor.q, neighbor.r
 
                 # Road bonus only applies when staying on roads
-                if not neighbor.has_road:
+                if not board.road_between(q, r, nq, nr):
                     continue
 
                 # Skip occupied hexes (except obstacles and friendly units)

@@ -313,6 +313,10 @@ export class UI {
   async showNewGame() {
     let scenarios = [];
     try { scenarios = await this.h.listScenarios(); } catch (e) { /* ignore */ }
+    let theaters = [];
+    try { theaters = await fetch('/api/theaters').then(r => r.json()); } catch (e) { /* ignore */ }
+    const FEATURES = [['streams', 'streams'], ['marshes', 'marshes'], ['hedges', 'hedgerows'],
+                      ['forests', 'forests'], ['hills', 'hills'], ['villages', 'villages']];
     const box = this._modal(`<h2>New game</h2>
       <div class="row"><label>Mode</label><select id="ng-mode">
         <option value="vs_ai">Human vs AI</option>
@@ -334,6 +338,14 @@ export class UI {
       <div class="row"><label>Max year</label><select id="ng-year"><option value="">any</option>
         ${[1939,1940,1941,1942,1943,1944,1945].map(y => `<option value="${y}">${y}</option>`).join('')}</select></div>
       <div class="row"><label>Historical</label><label style="width:auto"><input type="checkbox" id="ng-hist"> enforce historical army limits (rulebook p.27)</label></div>
+      <div class="row"><label>Battlefield</label><select id="ng-theater">
+        ${theaters.map(t => `<option value="${esc(t.id)}" title="${esc(t.description)}">${esc(t.label)}</option>`).join('')}
+        <option value="random">Random theater</option></select></div>
+      <div class="row"><label></label><span id="ng-theater-desc" style="color:var(--muted);font-size:12px"></span></div>
+      <div class="row"><label>Terrain</label><select id="ng-density">
+        <option value="sparse">sparse</option><option value="normal" selected>normal</option><option value="dense">dense</option></select></div>
+      <div class="row"><label>Features</label><span style="display:flex;flex-wrap:wrap;gap:4px 12px">
+        ${FEATURES.map(([k, l]) => `<label class="chk" style="margin:0;width:auto"><input type="checkbox" data-feat="${k}" checked> ${l}</label>`).join('')}</span></div>
       <div class="row"><label>Seed</label><input id="ng-seed" placeholder="random" inputmode="numeric"></div>
       <div class="row"><label>Situation</label><select id="ng-scenario"><option value="">Full game (armies as above)</option>
         ${scenarios.map(s => `<option value="${esc(s.file)}" title="${esc(s.description)}">${esc(s.name)}</option>`).join('')}</select></div>
@@ -342,6 +354,17 @@ export class UI {
     box.className = 'modal-box';
     box.querySelector('#ng-cancel').onclick = () => this.closeModal();
     box.querySelector('#ng-armies').onchange = (e) => { box.querySelector('#ng-custom').hidden = e.target.value !== 'custom'; };
+    // Each theater comes with its own default features; the boxes can override them
+    const applyTheater = () => {
+      const t = theaters.find(x => x.id === box.querySelector('#ng-theater').value);
+      box.querySelector('#ng-theater-desc').textContent = t ? t.description : 'A theater is picked at random (with its own features).';
+      box.querySelectorAll('[data-feat]').forEach(cb => {
+        cb.checked = t ? !!t.defaults[cb.dataset.feat] : true;
+        cb.disabled = !t;
+      });
+    };
+    box.querySelector('#ng-theater').onchange = applyTheater;
+    applyTheater();
     box.querySelector('#ng-scenario').onchange = (e) => {
       const sc = scenarios.find(s => s.file === e.target.value);
       const d = box.querySelector('#ng-scen-desc');
@@ -357,6 +380,12 @@ export class UI {
         points: parseInt(box.querySelector('#ng-points').value, 10) || 100,
         max_year: box.querySelector('#ng-year').value,
         historical: box.querySelector('#ng-hist').checked,
+        map: (() => {
+          const theater = box.querySelector('#ng-theater').value;
+          const m = { theater, density: box.querySelector('#ng-density').value };
+          if (theater !== 'random') box.querySelectorAll('[data-feat]').forEach(cb => { m[cb.dataset.feat] = cb.checked; });
+          return m;
+        })(),
       };
       this.closeModal();
       if (opts.armies === 'custom') {

@@ -554,8 +554,10 @@ class ActionExecutor:
             hex_obj = game_state.board.get_hex(*step_to)
             if hex_obj is None:
                 return True, None
-            # Vehicle bog check: 4+ to enter forest (Brushcutters ignore; roads never forest)
-            if hex_obj.terrain == 'forest' and is_vehicle and not hex_obj.has_road \
+            # Moving along a road: no movement rolls, even into a forest or over a stream
+            road_step = game_state.board.road_between(step_from[0], step_from[1], step_to[0], step_to[1])
+            # Vehicle bog check: 4+ to enter forest (Brushcutters ignore)
+            if hex_obj.terrain == 'forest' and is_vehicle and not road_step \
                     and not movement_mods.get('ignore_forest_terrain', False):
                 roll, ok = movement_roll('forest')
                 if not ok:
@@ -563,7 +565,7 @@ class ActionExecutor:
                 nonlocal movement_roll_note
                 movement_roll_note += f" [forest entry roll: {roll}, needed {4 - roll_bonus}+ ✓]"
             # Weak Suspension: roll to enter a hill (except along a road)
-            if hex_obj.terrain == 'hill' and not hex_obj.has_road \
+            if hex_obj.terrain == 'hill' and not road_step \
                     and any(a.lower() == 'weak suspension' for a in unit_abilities):
                 roll, ok = movement_roll('hill')
                 if not ok:
@@ -579,8 +581,7 @@ class ActionExecutor:
                     lower = edge_obstacle.lower()
                     name = None
                     modifier = 0
-                    from_obj = game_state.board.get_hex(*step_from)
-                    along_road = bool(from_obj and from_obj.has_road and hex_obj.has_road)
+                    along_road = road_step
                     if lower == 'barbed wire' and 'Soldier' in (unit.unit_type or ''):
                         name = 'Barbed Wire'
                     elif lower == 'destroyed_bridge':

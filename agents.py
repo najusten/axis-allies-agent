@@ -302,7 +302,7 @@ class HeuristicAgent:
         vehicle = is_vehicle(us.unit)
         for step_from, step_to in zip(path, path[1:]):
             h_from, h_to = board.get_hex(*step_from), board.get_hex(*step_to)
-            along_road = bool(h_from and h_from.has_road and h_to and h_to.has_road)
+            along_road = board.road_between(step_from[0], step_from[1], step_to[0], step_to[1])
             # 50% to fail each roll; failing wastes the rest of the move
             if vehicle and h_to and h_to.terrain == 'forest' and not along_road:
                 risk += 0.5 * self.W_BOG

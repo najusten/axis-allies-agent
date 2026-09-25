@@ -75,6 +75,10 @@ class Board:
 
         # Edge obstacles (Barbed Wire, etc.) - maps frozenset((q1,r1), (q2,r2)) -> obstacle_type
         self.edge_obstacles = {}
+        # Road connections between adjacent hexes. Rulebook: a unit is "moving
+        # along a road" if it moves between two adjacent hexes that are connected
+        # by a road — so a road is a set of links, not a property of one hex.
+        self.road_edges = set()
 
         # Initialize all hexes as open terrain
         for col in range(width):
@@ -121,10 +125,10 @@ class Board:
                        **({'road': True} if h.road else {})} for h in self.hexes.values()],
             'edge_obstacles': [
                 {'a': list(sorted(key)[0]), 'b': list(sorted(key)[1]), 'type': kind,
-                 'bridge': bool(kind == 'stream' and all(
-                     self.hexes.get(h) is not None and self.hexes[h].has_road for h in key))}
+                 'bridge': bool(kind == 'stream' and self.road_between(*sorted(key)[0], *sorted(key)[1]))}
                 for key, kind in self.edge_obstacles.items()
             ],
+            'roads': [[list(p) for p in sorted(e)] for e in self.all_road_links()],
         }
 
     def clone(self) -> 'Board':
@@ -139,6 +143,7 @@ class Board:
             copy.road = h.road
             new.hexes[key] = copy
         new.edge_obstacles = dict(self.edge_obstacles)
+        new.road_edges = set(getattr(self, 'road_edges', set()))
         new._sig = getattr(self, '_sig', None)
         return new
 
@@ -149,7 +154,8 @@ class Board:
         if sig is None:
             sig = hash((self.width, self.height,
                         tuple(sorted((k, h.terrain, h.road) for k, h in self.hexes.items())),
-                        tuple(sorted(self.edge_obstacles.items()))))
+                        tuple(sorted(self.edge_obstacles.items())),
+                        tuple(sorted(tuple(sorted(e)) for e in getattr(self, 'road_edges', ())))))
             self._sig = sig
         return sig
 
@@ -161,6 +167,51 @@ class Board:
             self.hexes[(q, r)].terrain = terrain
             self._sig = None
     
+    def add_road(self, path):
+        """Lay a road along a path of adjacent hexes (each hex keeps its terrain)."""
+        for a, b in zip(path, path[1:]):
+            if a == b or self.hex_distance(a[0], a[1], b[0], b[1]) != 1:
+                raise ValueError(f"road step {a}->{b} is not between adjacent hexes")
+            self.road_edges.add(frozenset((tuple(a), tuple(b))))
+            for q, r in (a, b):
+                if (q, r) in self.hexes:
+                    self.hexes[(q, r)].road = True
+        self._sig = None
+
+    def road_between(self, q1, r1, q2, r2) -> bool:
+        """True if moving from one hex to the adjacent other is moving along a
+        road. Maps built with add_road() use the explicit links; hexes marked
+        only with set_road()/'road' terrain (hand-written scenarios) connect to
+        any adjacent road hex."""
+        a, b = (q1, r1), (q2, r2)
+        if frozenset((a, b)) in self.road_edges:
+            return True
+        ha, hb = self.hexes.get(a), self.hexes.get(b)
+        if ha is None or hb is None or not (ha.has_road and hb.has_road):
+            return False
+        linked = self._linked_road_hexes()
+        return a not in linked or b not in linked
+
+    def _linked_road_hexes(self) -> set:
+        cache = getattr(self, '_linked_cache', None)
+        if cache is None or cache[0] != len(self.road_edges):
+            cache = (len(self.road_edges), {h for e in self.road_edges for h in e})
+            self._linked_cache = cache
+        return cache[1]
+
+    def all_road_links(self) -> set:
+        """Every road connection (explicit links plus implicit ones between
+        adjacent hand-marked road hexes) — what the renderer draws."""
+        links = set(self.road_edges)
+        linked = self._linked_road_hexes()
+        for (q, r), h in self.hexes.items():
+            if not h.has_road or (q, r) in linked:
+                continue
+            for nb in self.get_neighbors(q, r):
+                if nb.has_road:
+                    links.add(frozenset(((q, r), (nb.q, nb.r))))
+        return links
+
     def set_road(self, q, r, on: bool = True):
         """Lay (or lift) a road through a hex without changing its base terrain."""
         h = self.hexes.get((q, r))

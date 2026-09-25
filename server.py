@@ -82,12 +82,14 @@ class GameSession:
                  scenario: Optional[str] = None, armies: str = 'random',
                  max_year: Optional[int] = None, historical: bool = False,
                  p1_units: Optional[list] = None, p2_units: Optional[list] = None,
-                 deploy: bool = True):
+                 deploy: bool = True, map_opts: Optional[dict] = None):
         self.mode = mode
         self.ai_type = ai_type
         self.seed = seed if seed is not None else random.randrange(1, 10 ** 6)
         self.setup_info = {'armies': armies, 'points': points, 'max_year': max_year, 'historical': historical}
         random.seed(self.seed)
+        self.map_options = self._map_options(map_opts or {})
+        self.setup_info['map'] = {'theater': self.map_options.theater, 'density': self.map_options.density}
 
         if scenario:
             sc = load_scenario(os.path.join(SCENARIO_DIR, scenario))
@@ -98,7 +100,8 @@ class GameSession:
             self.systems = build_systems(seed=self.seed)
             if armies in ('random', 'custom'):
                 cfg = GameSetupConfig(points_per_side=points, historical=historical,
-                                      year_range=(1939, max_year) if max_year else None)
+                                      year_range=(1939, max_year) if max_year else None,
+                                      map_options=self.map_options)
                 game_state = GameSetup(cfg).create_game(p1_names=p1_units or None, p2_names=p2_units or None)
             else:
                 game_state = self._create_showcase_game()
@@ -171,8 +174,8 @@ class GameSession:
         def pick(names):
             return [deepcopy(unit_map[n]) for n in names if n in unit_map]
 
-        setup = GameSetup(GameSetupConfig(points_per_side=100))
-        board = setup.create_board(terrain_density=0.15)
+        setup = GameSetup(GameSetupConfig(points_per_side=100, map_options=self.map_options))
+        board = setup.create_board()
 
         def zone(cols):
             hexes = [(q, r) for col in cols for q, r in board.column(col)
@@ -196,7 +199,21 @@ class GameSession:
                     us.facing = facing
                 states[owner].append(us)
         return GameState(board, states['player1'], states['player2'],
-                         objective_position=board.center())
+                         objective_position=getattr(setup, 'objective', None) or board.center())
+
+    @staticmethod
+    def _map_options(data: dict):
+        """New-game map settings -> mapgen.MapOptions. theater 'random' picks one;
+        each feature is True/False, or absent to let the theater decide."""
+        from mapgen import MapOptions, THEATER_STYLES
+        theater = data.get('theater') or 'western_europe'
+        if theater == 'random' or theater not in THEATER_STYLES:
+            theater = random.choice(sorted(THEATER_STYLES))
+        opts = MapOptions(theater=theater, density=data.get('density') or 'normal')
+        for feat in ('streams', 'marshes', 'hedges', 'forests', 'hills', 'villages'):
+            if feat in data and data[feat] is not None:
+                setattr(opts, feat, bool(data[feat]))
+        return opts
 
     # -- views ------------------------------------------------------------
 
@@ -694,6 +711,7 @@ def api_new_game():
                 deploy=bool(data.get('deploy', True)),
                 max_year=int(data['max_year']) if data.get('max_year') not in (None, '') else None,
                 historical=bool(data.get('historical', False)),
+                map_opts=data.get('map') or None,
             )
         except Exception as e:
             import traceback
@@ -701,6 +719,18 @@ def api_new_game():
             return jsonify({'error': f'Could not start game: {e}'}), 400
         return jsonify({'success': True, 'state': _session.state_payload(),
                         'events': _session.controller.events})
+
+
+@app.route('/api/theaters')
+def api_theaters():
+    """Map styles for the New Game dialog, with each one's default features."""
+    from mapgen import THEATER_STYLES
+    return jsonify([{
+        'id': key, 'label': st.label, 'description': st.description,
+        'defaults': {'streams': st.stream > 0, 'marshes': st.marsh > 0, 'hedges': st.hedges > 0,
+                     'forests': st.forest > 0, 'hills': st.hills > 0,
+                     'villages': st.villages > 0 or st.central_village},
+    } for key, st in THEATER_STYLES.items()])
 
 
 @app.route('/api/suggest')
@@ -835,7 +865,7 @@ def api_path():
         for a, b in zip(path, path[1:]):
             h = gs.board.get_hex(*b)
             ha = gs.board.get_hex(*a)
-            along_road = bool(ha and ha.has_road and h and h.has_road)
+            along_road = gs.board.road_between(a[0], a[1], b[0], b[1])
             if h and h.terrain == 'forest' and is_vehicle and not along_road:
                 rolls.append({'q': b[0], 'r': b[1], 'reason': 'forest 4+'})
             kind = gs.board.get_edge_obstacle(a[0], a[1], b[0], b[1])
