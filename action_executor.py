@@ -611,6 +611,7 @@ class ActionExecutor:
             return True, None
 
         df_results = []
+        overrun_notes: List[str] = []
         movement_stopped = False
         stop_reason = None
         final_hex = to_hex
@@ -624,6 +625,20 @@ class ActionExecutor:
                 final_hex = step_from       # stuck in the hex before the obstacle
                 stop_reason = reason
                 break
+
+            # Overrun: "when this unit moves into a hex, you may disrupt one Soldier
+            # in that hex", once per phase. Official Q&A: the overrun happens as the
+            # unit enters, so an overrun Soldier gets no defensive fire afterwards.
+            if self._has_overrun(unit) and not unit_state.overrun_used_this_phase and i > 0:
+                enemy_owner = "player2" if unit_state.owner == "player1" else "player1"
+                for other_state in game_state.get_units_at_position(*step_from):
+                    if (other_state.owner == enemy_owner and other_state.is_alive
+                            and 'Soldier' in (other_state.unit.unit_type or '')
+                            and not other_state.is_disrupted):
+                        other_state.is_disrupted = True
+                        unit_state.overrun_used_this_phase = True
+                        overrun_notes.append(f"Overrun: {other_state.unit.name} DISRUPTED!")
+                        break
 
             df_opportunities = [
                 o for o in self.defensive_fire.check_defensive_fire_triggered(
@@ -803,23 +818,20 @@ class ActionExecutor:
                         game_state.remove_unit(obstacle.unit.id)
                         message += f" [AVRE destroyed {obstacle_name}]"
 
-            # Overrun: Once per phase, disrupt one enemy Soldier in any hex along
-            # the movement path (including the final hex)
-            if self._has_overrun(unit) and not unit_state.overrun_used_this_phase:
+            # Overrun in the hex the unit ends in (the loop above handles the hexes
+            # it passed through)
+            if self._has_overrun(unit) and not unit_state.overrun_used_this_phase and final_hex != from_hex:
                 enemy_owner = "player2" if unit_state.owner == "player1" else "player1"
-                # Check all hexes along the path for enemy soldiers
-                path_hexes = action.path if action.path else [from_hex, final_hex]
-                for path_hex in path_hexes:
-                    if unit_state.overrun_used_this_phase:
+                for other_state in game_state.get_units_at_position(*final_hex):
+                    if (other_state.owner == enemy_owner and other_state.is_alive
+                            and 'Soldier' in (other_state.unit.unit_type or '')
+                            and not other_state.is_disrupted):
+                        other_state.is_disrupted = True
+                        unit_state.overrun_used_this_phase = True
+                        overrun_notes.append(f"Overrun: {other_state.unit.name} DISRUPTED!")
                         break
-                    units_in_hex = game_state.get_units_at_position(path_hex[0], path_hex[1])
-                    for other_state in units_in_hex:
-                        if other_state.owner == enemy_owner and 'Soldier' in (other_state.unit.unit_type or ''):
-                            if not other_state.is_disrupted:
-                                other_state.is_disrupted = True
-                                unit_state.overrun_used_this_phase = True
-                                message += f"\n    💥 Overrun: {other_state.unit.name} DISRUPTED!"
-                                break  # Only one Soldier per phase
+            for note in overrun_notes:
+                message += f"\n    💥 {note}"
 
             # Minefield check: when leaving hex with Minefield
             minefield_leave_msg = self._check_minefield(game_state, from_hex, unit_state)

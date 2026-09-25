@@ -1,0 +1,23 @@
+name: an-overrun-soldier-is-disrupted-as-the-vehicle-enters-and-gets-no-defensive-fire-afterwards
+source: "Overrun: once per phase, when this unit moves into a hex, you may disrupt one Soldier in that hex. Official Q&A: '...the Tiger enters the Bazooka's hex, and the Bazooka is overrun and disrupted immediately so that it gets no defensive fire' — and only one Soldier per phase no matter how many hexes it enters"
+board: {width: 12, height: 10}
+units:
+  - {id: tiger, owner: player1, at: [2,4], facing: SE, stats: {unit_type: Vehicle Tank, defense: "6/5", speed: 4, per: [8,6,4], veh: [8,6,4], abilities: "Overrun"}}
+  - {id: bazooka, owner: player2, at: [3,4], hold_defensive_fire: true, stats: {unit_type: Soldier, defense: "4", per: [4,2,1], veh: [10,8,6]}}
+  - {id: second, owner: player2, at: [4,4], stats: {unit_type: Soldier, defense: "4", per: [4,2,1], veh: [10,8,6]}}
+phase: movement
+active_player: player1
+# the bazooka holds its fire as the tiger leaves the neighbouring hex; it is then overrun
+# (disrupted immediately) and can't fire at all. The second soldier still gets its shot.
+dice: [1,1,1,1,1,1,1,1,1,1]
+actions:
+  - {type: move, unit: tiger, to: [5,4]}
+expect:
+  units:
+    bazooka: {status: disrupted}
+    second: {status: healthy}
+    tiger: {at: [5,4]}
+  events:
+    - {type: defensive_fire, defender: second}
+  no_events:
+    - {type: defensive_fire, defender: bazooka}
