@@ -136,7 +136,6 @@ The official **Advanced Rulebook** is in `document.pdf` (local only, gitignored)
 Two official **Q&A compilations** (Sgt Fury / tsessler.weebly.com, current to 2012, gathering WotC's own answers plus the 2009/2010 errata) were worked through on 2026-09-25: `Game Mechanics Q&A` (61 pp.) and `Special Abilities Q&A` (56 pp.), plus aamcardbase.com. Rulings implemented from them are marked "official Q&A" in the scenarios' `source:` lines. Deliberate divergences:
 - **Stacking** stays at the Advanced Rulebook's 2 units per army per hex (1 vehicle). The 1/27/2009 update raised it to 3 with an over-stacking penalty; adopting it would change army/map balance, so it is a decision for the user, not a bug.
 - Expanded-rules-only systems (Enfilading Fire, Grazing Fire, Overwatch, Aircraft facing, Deadly Defensive Fire) are not implemented.
-- Blast is not applied to defensive-fire attacks (9/10/2010 errata says it should be).
 
 ## Known issues / open rules questions
 

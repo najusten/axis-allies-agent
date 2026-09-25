@@ -568,6 +568,13 @@ class DefensiveFireSystem:
             cover = Board.gives_cover(terrain, target.unit_type)
             # crude score: lower defense and no cover are better
             score = 10 - defense - (3 if cover else 0)
+            # a Blast unit hits everyone in the hex: prefer the hex with more enemies
+            # (and fewer of its own units)
+            if any('blast' in a.lower() for a in (opportunity.defender_state.unit.abilities or [])):
+                for other in game_state.get_units_at_position(*hex_):
+                    if other.unit.id == opportunity.target_id:
+                        continue
+                    score += 2 if other.owner != opportunity.defender_state.owner else -3
             if score > best_score or (score == best_score and hex_ == opportunity.from_hex):
                 best_hex, best_score = hex_, score
         return best_hex

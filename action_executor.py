@@ -690,6 +690,11 @@ class ActionExecutor:
                 )
                 df_results.append(result)
                 stopped_at = self.defensive_fire.apply_defensive_fire_result(game_state, result)
+                # 9/10/2010 errata: "A unit with [Blast] uses it even when making
+                # defensive fire attacks" — every other Soldier and Vehicle in the hex
+                # fired into (friend or foe, boarded units too) takes a separate attack
+                if self._has_blast(opportunity.defender_state.unit):
+                    df_results.extend(self._blast_defensive_fire(game_state, opportunity, fire_hex))
                 if result.movement_stopped and not has_determined_charge:
                     movement_stopped = True
                     final_hex = stopped_at if stopped_at else step_to
@@ -2544,6 +2549,25 @@ class ActionExecutor:
             base += 1
         base += mods.get('defense_bonus', 0)
         return max(1, base or 3), mods.get('superior_armor', 0)
+
+    def _blast_defensive_fire(self, game_state: GameState, opportunity, fire_hex) -> list:
+        from defensive_fire import DefensiveFireOpportunity
+        results = []
+        for other in list(game_state.get_units_at_position(*fire_hex)):
+            if other.unit.id in (opportunity.target_id, opportunity.defender_id) or not other.is_alive:
+                continue
+            if not _is_ground(other.unit):
+                continue      # Blast doesn't affect Aircraft (or Obstacles)
+            extra = DefensiveFireOpportunity(
+                defender_id=opportunity.defender_id, defender_state=opportunity.defender_state,
+                target_id=other.unit.id, target_state=other,
+                from_hex=fire_hex, to_hex=fire_hex, defender_pos=opportunity.defender_pos)
+            r = self.defensive_fire.resolve_defensive_fire(game_state, extra, attack_in_hex=fire_hex)
+            r.movement_stopped = False        # a bystander isn't moving
+            r.message = "Blast: " + r.message.replace(' Movement stopped.', '')
+            self.defensive_fire.apply_defensive_fire_result(game_state, r)
+            results.append(r)
+        return results
 
     def _apply_special_hits(self, game_state: GameState, target_state: UnitState, hits: int,
                             attacker_state: Optional[UnitState] = None) -> str:

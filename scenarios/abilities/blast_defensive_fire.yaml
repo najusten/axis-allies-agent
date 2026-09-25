@@ -1,0 +1,20 @@
+name: blast-applies-to-defensive-fire-and-hits-everything-in-the-hex
+source: "Blast errata (9/10/2010): 'A unit with this ability uses it even when making defensive fire attacks' — a separate attack against each Soldier and Vehicle in the target hex, friendly units and boarded units included"
+board: {width: 12, height: 10}
+units:
+  - {id: sig, owner: player2, at: [5,4], stats: {unit_type: "Soldier Artillery", defense: "3", per: [10,8,6], veh: [8,6,4], abilities: "Blast"}}
+  - {id: mover, owner: player1, at: [4,4], stats: {unit_type: Soldier, defense: "4", speed: 2, per: [7,5,3]}}
+  - {id: bystander, owner: player1, at: [5,3], stats: {unit_type: Soldier, defense: "4", speed: 1, per: [7,5,3]}}
+phase: movement
+active_player: player1
+# (a Soldier Blast unit: Soldiers never provoke defensive fire from Vehicles)
+# the mover moves (4,4) -> (5,3), next to the launcher; it fires into (5,3): the mover and the
+# soldier already standing there each take a separate 10-dice attack
+dice: [6,6,6,6,1,1,1,1,1,1, 6,6,6,6,1,1,1,1,1,1]
+actions:
+  - {type: move, unit: mover, to: [5,3]}
+expect:
+  dice_consumed: 20
+  units:
+    mover: {status: disrupted}
+    bystander: {status: disrupted}
