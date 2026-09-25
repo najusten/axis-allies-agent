@@ -2549,8 +2549,12 @@ class ActionGenerator:
         actions = []
         q, r = unit_state.position
 
-        # Get Strike and Fade speed
+        # Get Strike and Fade speed. Official Q&A: "Damage does reduce Strike & Fade
+        # speed by 1" (a damaged Strike and Fade 1 unit can't move at all), and
+        # "the road bonus applies during Strike & Fade movement (as does High Gear)".
         fade_speed = self._get_strike_and_fade_speed(unit)
+        if unit_state.is_damaged and 'Vehicle' in (unit.unit_type or ''):
+            fade_speed -= 1
         if fade_speed <= 0:
             return actions
 
@@ -2563,8 +2567,13 @@ class ActionGenerator:
         # Get reachable hexes at the fade speed
         reachable = self.movement_system.get_reachable_hexes(
             game_state.board, q, r, unit, max_speed=fade_speed,
-            friendly_positions=friendly_positions, is_damaged=unit_state.is_damaged
+            friendly_positions=friendly_positions
         )
+        high_gear = self.ability_system.get_movement_modifiers(unit).get('high_gear_bonus', 0)
+        if high_gear > 0:
+            reachable = reachable | self.movement_system.get_reachable_hexes(
+                game_state.board, q, r, unit, max_speed=fade_speed + high_gear,
+                road_only=True, friendly_positions=friendly_positions)
 
         unit_type = getattr(unit, 'unit_type', 'Soldier')
         # Create move actions (these are special "fade" moves)
@@ -2581,7 +2590,8 @@ class ActionGenerator:
                 to_q=dest_q,
                 to_r=dest_r,
                 path=[(q, r), (dest_q, dest_r)],
-                movement_cost=0
+                movement_cost=0,
+                max_speed=fade_speed           # the fade speed, damage already applied
             )
             # Mark this as a Strike and Fade move (for action executor)
             move_action.is_strike_and_fade = True

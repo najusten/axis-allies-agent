@@ -1,0 +1,18 @@
+name: damage-reduces-strike-and-fade-speed-and-high-gear-extends-it-along-a-road
+source: "Official Q&A: 'Damage does reduce Strike & Fade speed by 1 ... the road bonus applies during Strike & Fade movement (as does High Gear)'; 'If the unit only has Strike & Fade 1, and it gets damaged, its Strike & Fade speed drops to 0 and it can't move at all after attacking, even on a road'"
+board: {width: 14, height: 10, terrain: {road: [[3,5],[4,5],[5,5],[6,5],[7,5],[8,5]]}}
+units:
+  - {id: humber, owner: player1, at: [3,5], facing: SE, stats: {unit_type: Vehicle Armored Car, defense: "3/2", speed: 4, per: [6,4,2], veh: [4,2,1], abilities: "Strike and Fade 2, High Gear 2"}}
+  - {id: hurt, owner: player1, at: [3,3], facing: SE, damaged: true, stats: {unit_type: Vehicle Armored Car, defense: "3/2", speed: 4, per: [6,4,2], veh: [4,2,1], abilities: "Strike and Fade 1"}}
+  - {id: target, owner: player2, at: [5,3], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+  - {id: target2, owner: player2, at: [5,7], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: assault
+active_player: player1
+dice: [1,1,1,1, 1,1,1,1]
+actions:
+  - {type: attack, unit: humber, target: target2}
+  - {type: attack, unit: hurt, target: target}
+expect:
+  legal:
+    - {type: move, unit: humber, to: [8,5], allowed: true}     # fade 2 + road bonus + High Gear 2 = 5 road hexes
+    - {type: move, unit: hurt, allowed: false}                 # Strike and Fade 1 while damaged: speed 0
