@@ -1,0 +1,18 @@
+name: a-commander-riding-in-a-transport-still-projects-his-abilities
+source: "Official Q&A, Commander Special Abilities: 'He could also be the passenger in a Vehicle with the Transport SA and use his special ability before the transport moves and after it moves.' Only the Command abilities stop when he is disrupted"
+board: {width: 12, height: 10}
+units:
+  - {id: jeep, owner: player1, at: [3,3], facing: SE, stats: {unit_type: Vehicle, defense: "2/2", speed: 4, per: [0,0,0], veh: [0,0,0], abilities: "Transport"}}
+  - {id: captain, owner: player1, at: [3,3], in_transport: jeep, stats: {unit_type: "Soldier Commander", defense: "4", speed: 1, per: [5,3,1], abilities: "COMMANDER ABILITIES:2, Tally-Ho!"}}
+  - {id: rifles, owner: player1, at: [3,4], stats: {unit_type: Soldier, defense: "4", speed: 1, per: [7,5,3]}}
+  - {id: enemy, owner: player2, at: [10,3], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: movement
+active_player: player1
+dice: [3,3, 1,1]        # player1 6 + 2 from the commander riding along = 8
+actions:
+  - {type: initiative}
+expect:
+  events:
+    - {type: initiative, player1_total: 8, player1_bonus: 2}
+  legal:
+    - {type: move, unit: rifles, to: [5,4], allowed: true}    # Tally-Ho! from the jeep: speed 1 + 1

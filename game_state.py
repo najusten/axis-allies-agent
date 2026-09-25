@@ -65,6 +65,7 @@ class UnitState:
     is_aircraft_on_map: bool = False  # Aircraft: True while on the map this turn
     aircraft_was_placed: bool = False   # counts for the turn-10 points tally once placed
     aircraft_grounded_next_turn: bool = False  # Aircraft disrupted by defensive fire: the disruption survives this turn's casualty phase
+    has_ever_moved: bool = False  # Entrenched is lost for good once the unit moves
     shock_troop_used: bool = False  # Shock Troop: True after first attack this game
     armor_piercing_used: bool = False  # Armor-Piercing Rounds: once per game
     he_round_used: bool = False  # HE Round: once per game

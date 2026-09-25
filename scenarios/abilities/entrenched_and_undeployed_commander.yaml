@@ -1,0 +1,25 @@
+name: entrenched-is-lost-for-good-once-the-unit-moves-and-an-undeployed-commander-still-adds-initiative
+source: "Official Q&A: 'Once it dismounts it has moved and no longer receives the benefit of the Entrenched SA' / 'if it moves, the +1 defense is gone for good'; 'Commanders that haven't been deployed yet do count' for the initiative bonus"
+board: {width: 12, height: 10}
+units:
+  - {id: dug, owner: player1, at: [3,3], stats: {unit_type: Soldier, defense: "4", speed: 1, per: [6,4,2], abilities: "Entrenched"}}
+  - {id: para_cdr, owner: player1, at: [0,0], is_deployed: false, stats: {unit_type: "Soldier Commander", defense: "4", speed: 1, per: [5,3,1], abilities: "Paratrooper, COMMANDER ABILITIES:3"}}
+  - {id: gun, owner: player2, at: [5,3], stats: {unit_type: Soldier, defense: "4", per: [8,6,4], veh: [8,6,4]}}
+  - {id: gun2, owner: player2, at: [5,4], stats: {unit_type: Soldier, defense: "4", per: [8,6,4], veh: [8,6,4]}}
+phase: assault
+active_player: player2
+# first attack: defense 4 + 1 (Entrenched) = 5, four successes miss
+dice: [6,6,6,6,1,1, 3,3, 1,1, 6,6,6,6,1,1]
+actions:
+  - {type: attack, unit: gun, target: dug}
+  - {type: initiative}                                   # player1 6 + 3 from the undeployed paratrooper commander
+  - {type: set_phase, phase: movement, active_player: player1}
+  - {type: move, unit: dug, to: [3,2]}                   # it moves: Entrenched gone for good
+  - {type: set_phase, phase: assault, active_player: player2}
+  - {type: attack, unit: gun2, target: dug}              # now defense 4: four successes hit
+expect:
+  results:
+    0: {success: true, combat: {defense: 5, hits: 0}}
+    5: {success: true, combat: {defense: 4, hits: 1}}
+  events:
+    - {type: initiative, player1_total: 9, player1_bonus: 3}

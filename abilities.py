@@ -1156,9 +1156,14 @@ if __name__ == "__main__":
 def granted_abilities(unit_state) -> list:
     """Abilities a friendly unit currently projects onto others. Rulebook: "A
     Commander's commander abilities don't function when the Commander is
-    disrupted or destroyed"; units off the map or aboard a transport grant nothing."""
-    if unit_state is None or not unit_state.is_alive or not getattr(unit_state, 'is_deployed', True) \
-            or getattr(unit_state, 'carried_by_id', None):
+    disrupted or destroyed". Official Q&A: a Commander riding in a transport still
+    projects his abilities ("he could also be the passenger in a Vehicle with the
+    Transport SA and use his special ability"), so only units that are not on the
+    map at all grant nothing."""
+    if unit_state is None or not unit_state.is_alive or not getattr(unit_state, 'is_deployed', True):
+        return []
+    if 'Aircraft' in (getattr(unit_state.unit, 'unit_type', '') or '') \
+            and not getattr(unit_state, 'is_aircraft_on_map', False):
         return []
     unit = unit_state.unit
     abilities = getattr(unit, 'abilities', []) or []

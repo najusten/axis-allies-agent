@@ -170,8 +170,11 @@ class InitiativeSystem:
                 continue
 
             unit = unit_state.unit
-            # a disrupted Commander's commander abilities (incl. the initiative bonus) don't function
-            abilities = granted_abilities(unit_state)
+            # A disrupted Commander's commander abilities don't function. Official
+            # Q&A: "Commanders that haven't been deployed yet do count" for the
+            # initiative bonus, so an undeployed Commander still counts here.
+            abilities = granted_abilities(unit_state) if unit_state.is_deployed \
+                else ([] if unit_state.is_disrupted else (unit.abilities or []))
 
             # Handle both list and string formats
             if isinstance(abilities, str):

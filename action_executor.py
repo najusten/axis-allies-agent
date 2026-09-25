@@ -745,6 +745,8 @@ class ActionExecutor:
 
         if success:
             game_state.apply_action(action)
+            if final_hex != from_hex:
+                unit_state.has_ever_moved = True   # Entrenched is lost for good
 
             # Track movement cost for partial moves
             move_cost = action.movement_cost
@@ -1857,7 +1859,7 @@ class ActionExecutor:
         )
 
         # Entrenched: +1/+1 defense until unit moves
-        if defense_mods.get('entrenched', False) and not target_state.has_moved:
+        if defense_mods.get('entrenched', False) and not target_state.has_ever_moved:
             base_defense += 1
             result['notes'].append("Entrenched: +1/+1 defense (unit hasn't moved)")
 
@@ -2524,7 +2526,7 @@ class ActionExecutor:
         terrain = hex_.terrain if hex_ else 'open'
         mods = self.ability_system.get_defense_modifiers(
             target, terrain, is_rear, attacker, distance, game_state=game_state, unit_state=target_state)
-        if mods.get('entrenched', False) and not target_state.has_moved:
+        if mods.get('entrenched', False) and not target_state.has_ever_moved:
             base += 1
         base += mods.get('defense_bonus', 0)
         return max(1, base or 3), mods.get('superior_armor', 0)
@@ -2905,6 +2907,7 @@ class ActionExecutor:
         transport_state.carried_unit_id = None
         soldier_state.position = (action.to_q, action.to_r)
         soldier_state.has_moved = True  # Dismounting counts as movement
+        soldier_state.has_ever_moved = True   # official Q&A: dismounting loses Entrenched
 
         game_state.apply_action(action)
         return ActionResult(
