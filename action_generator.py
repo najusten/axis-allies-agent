@@ -17,7 +17,7 @@ from action import (
 from movement import MovementSystem
 from combat import CombatSystem
 from abilities import granted_abilities, transport_capacity, can_carry, AbilitySystem
-from facing import HexDirection, is_target_in_front_arc
+from facing import HexDirection, is_target_in_front_arc, arc_of
 
 
 class ActionGenerator:
@@ -2695,16 +2695,19 @@ class ActionGenerator:
                 target_is_vehicle = 'Vehicle' in enemy.unit_type
                 is_in_front = is_target_in_front_arc((q, r), (enemy_q, enemy_r), attacker_facing)
 
-                # Fixed Howitzer: all targets must be in front
-                if has_fixed_howitzer and not is_in_front:
+                # Fixed Howitzer: all targets must be in the front arc
+                if has_fixed_howitzer and arc_of((q, r), (enemy_q, enemy_r), attacker_facing) != 'front':
                     continue
 
-                # No Turret / Fixed Gun: vehicles must be in front
-                if target_is_vehicle and (has_no_turret or has_fixed_gun) and not is_in_front:
+                # No Turret / Fixed Gun: vehicles must be in the front arc
+                if target_is_vehicle and (has_no_turret or has_fixed_gun) and \
+                        arc_of((q, r), (enemy_q, enemy_r), attacker_facing) != 'front':
                     continue
 
-                # Fixed Rear Gun: vehicles must be in rear (not front)
-                if target_is_vehicle and has_fixed_rear_gun and is_in_front:
+                # Fixed Rear Gun: vehicles must be in the rear arc — a target exactly
+                # on the spine is in neither arc, so a restricted gun can't fire at it
+                if target_is_vehicle and has_fixed_rear_gun and \
+                        arc_of((q, r), (enemy_q, enemy_r), attacker_facing) != 'rear':
                     continue
 
             # Multiturreted arc restrictions:

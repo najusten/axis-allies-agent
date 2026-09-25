@@ -207,6 +207,28 @@ def _angle_in_front_arc(origin: Tuple[int, int], other: Tuple[int, int], facing:
     return abs(a) < math.pi / 2 - 1e-9
 
 
+def arc_of(origin: Tuple[int, int], other: Tuple[int, int], facing: HexDirection) -> str:
+    """'front', 'rear' or 'side' as the Set II rules update defines them: a hex is
+    in front if the line to it crosses one of the front three hex sides or the two
+    front corners, behind if it crosses a rear side or rear corner, and neither
+    ("side") if it lies exactly on the spine to the left or right — a unit with a
+    restricted firing arc can't shoot at a target on the spine. The unit's own hex
+    is neither in front of nor behind it."""
+    import math
+    if tuple(origin) == tuple(other):
+        return 'side'
+    dq = other[0] - origin[0]
+    dr = other[1] - origin[1]
+    fq, fr = DIRECTION_VECTORS[HexDirection(facing)]
+    ax, ay = 1.5 * dq, math.sqrt(3) * (dr + dq / 2)
+    fx, fy = 1.5 * fq, math.sqrt(3) * (fr + fq / 2)
+    a = math.atan2(ay, ax) - math.atan2(fy, fx)
+    a = (a + math.pi) % (2 * math.pi) - math.pi
+    if abs(abs(a) - math.pi / 2) < 1e-9:
+        return 'side'
+    return 'front' if abs(a) < math.pi / 2 else 'rear'
+
+
 def _approximate_direction(dq: int, dr: int) -> HexDirection:
     """
     Approximate the hex direction for non-adjacent positions.
