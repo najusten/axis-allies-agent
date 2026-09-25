@@ -9,6 +9,7 @@ Handles:
 """
 
 import csv
+import re
 import os
 import random
 from typing import List, Dict, Tuple, Optional, Set
@@ -158,7 +159,9 @@ def load_all_units(unit_file: str = None) -> List[Unit]:
     units = []
     with open(unit_file, 'r') as file:
         reader = csv.DictReader(file)
-        for row in reader:
+        rows = list(reader)
+    for i, row in enumerate(rows):
+        if True:
             unit = Unit(
                 name=row['Unit Name'],
                 nation=row['Nation'],
@@ -175,6 +178,15 @@ def load_all_units(unit_file: str = None) -> List[Unit]:
                 per_long=row['Per L'],
                 abilities=row['Abilities']
             )
+            # A few rows in the data file end their ability list with the *next*
+            # unit's name (one shifted column). That is not an ability: drop it,
+            # rather than give the unit a phantom one — or worse a real one named
+            # after another unit (a Pillbox acting as a Tank Obstacle).
+            abilities = [a.strip() for a in unit.abilities if a.strip() and a.strip() != '-']
+            next_name = (rows[i + 1].get('Unit Name') or '').strip() if i + 1 < len(rows) else None
+            if abilities and next_name and abilities[-1] == next_name and abilities[-1] != unit.name:
+                abilities.pop()
+            unit.abilities = abilities
             units.append(unit)
 
     return units

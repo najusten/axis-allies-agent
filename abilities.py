@@ -1167,12 +1167,18 @@ def granted_abilities(unit_state) -> list:
     return abilities
 
 
+TRANSPORT_ABILITIES = ('transport', 'exposed transport', 'gun transport',
+                       'large transport', 'heavy transport', 'light towing')
+
+
 def transport_capacity(unit) -> int:
-    """How many Soldiers a unit can carry (0 = not a transport). Large Transport carries two."""
+    """How many Soldiers a unit can carry (0 = not a transport). Large Transport and
+    Heavy Transport carry two (the state model has one passenger slot, so they
+    effectively carry one here)."""
     abilities = [a.lower() for a in (getattr(unit, 'abilities', []) or [])]
-    if 'large transport' in abilities:
+    if 'large transport' in abilities or 'heavy transport' in abilities:
         return 2
-    if any(a in ('transport', 'exposed transport', 'gun transport') for a in abilities):
+    if any(a in TRANSPORT_ABILITIES for a in abilities):
         return 1
     return 0
 
@@ -1191,6 +1197,9 @@ def can_carry(transport, soldier) -> bool:
     t_ab = [a.lower() for a in (getattr(transport, 'abilities', []) or [])]
     if 'dug in' in s_ab:
         return False
+    # Light Towing: this unit can only transport Light Artillery
+    if 'light towing' in t_ab and not any(a in TRANSPORT_ABILITIES[:5] for a in t_ab):
+        return 'light artillery' in s_ab
     if 'Motorcycle' in ut or 'Cavalry' in ut:
         return False
     if 'Artillery' in ut:
@@ -1198,7 +1207,9 @@ def can_carry(transport, soldier) -> bool:
             return True
         if 'gun transport' in t_ab and 'large' not in s_ab:
             return True
-        if 'large transport' in t_ab:
+        # Large Transport may carry one Artillery unit; Heavy Transport has no
+        # Artillery restriction at all
+        if 'large transport' in t_ab or 'heavy transport' in t_ab:
             return True
         return False
     return True

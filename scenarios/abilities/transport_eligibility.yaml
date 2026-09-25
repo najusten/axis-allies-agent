@@ -1,6 +1,6 @@
 name: transports-cannot-carry-artillery-motorcycles-or-cavalry-except-light-artillery-and-gun-transports
-source: "Advanced rulebook, Transport: transport Vehicles can't carry Soldiers with the subtypes Artillery, Motorcycle or Cavalry. Light Artillery: this unit can be carried by units with the transport ability. Gun Transport: can carry non-large Artillery"
-board: {width: 10, height: 8}
+source: "Advanced rulebook, Transport: transport Vehicles can't carry Soldiers with the subtypes Artillery, Motorcycle or Cavalry. Light Artillery: this unit can be carried by units with the transport ability. Gun Transport: can carry non-large Artillery. Light Towing: can transport units with Light Artillery. Heavy Transport: no restriction against carrying Artillery"
+board: {width: 10, height: 12}
 units:
   - {id: truck, owner: player1, at: [3,3], facing: SE, stats: {unit_type: Vehicle, defense: "2/2", speed: 3, per: [0,0,0], veh: [0,0,0], abilities: "Transport"}}
   - {id: rifles, owner: player1, at: [3,3], stats: {unit_type: Soldier, defense: "4", speed: 1, per: [7,5,3]}}
@@ -10,6 +10,11 @@ units:
   - {id: bike, owner: player1, at: [3,5], stats: {unit_type: "Soldier Motorcycle", defense: "4", speed: 3, per: [5,3,1]}}
   - {id: truck2, owner: player1, at: [5,5], facing: SE, stats: {unit_type: Vehicle, defense: "2/2", speed: 3, per: [0,0,0], veh: [0,0,0], abilities: "Transport"}}
   - {id: light, owner: player1, at: [5,5], stats: {unit_type: "Soldier Artillery", defense: "3", speed: 0, per: [6,6,6], abilities: "Light Artillery"}}
+  - {id: tow, owner: player1, at: [6,3], facing: SE, stats: {unit_type: Vehicle, defense: "1/1", speed: 4, per: [0,0,0], veh: [0,0,0], abilities: "Light Towing"}}
+  - {id: light2, owner: player1, at: [6,3], stats: {unit_type: "Soldier Artillery", defense: "3", speed: 0, per: [6,6,6], abilities: "Light Artillery"}}
+  - {id: rifles2, owner: player1, at: [6,3], stats: {unit_type: Soldier, defense: "4", speed: 1, per: [7,5,3]}}
+  - {id: boat, owner: player1, at: [6,5], facing: SE, stats: {unit_type: Vehicle Boat, defense: "3/3", speed: 2, per: [0,0,0], veh: [0,0,0], abilities: "Heavy Transport"}}
+  - {id: pak2, owner: player1, at: [6,5], stats: {unit_type: "Soldier Artillery", defense: "3", speed: 0, veh: [9,7,5], per: [4,3,2], abilities: "Large"}}
   - {id: enemy, owner: player2, at: [9,3], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
 phase: movement
 active_player: player1
@@ -21,3 +26,6 @@ expect:
     - {type: board, unit: pak, allowed: true}         # artillery on a Gun Transport
     - {type: board, unit: bike, allowed: false}       # motorcycle
     - {type: board, unit: light, allowed: true}       # Light Artillery on a plain transport
+    - {type: board, unit: light2, allowed: true}      # Light Towing carries Light Artillery
+    - {type: board, unit: rifles2, allowed: false}    # ...but nothing else
+    - {type: board, unit: pak2, allowed: true}        # Heavy Transport: no artillery restriction
