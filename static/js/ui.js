@@ -421,8 +421,12 @@ export class UI {
       <div class="row"><label>Historical</label><label style="width:auto"><input type="checkbox" id="ng-hist"> enforce historical army limits (rulebook p.27)</label></div>
       <div class="row"><label>Battlefield</label><select id="ng-theater">
         <option value="auto">Match the armies</option>
-        ${theaters.map(t => `<option value="${esc(t.id)}" title="${esc(t.description)}">${esc(t.label)}</option>`).join('')}
-        <option value="random">Random theater</option></select></div>
+        <optgroup label="Generated (new map every game)">
+        ${theaters.filter(t => t.kind !== 'map').map(t => `<option value="${esc(t.id)}" title="${esc(t.description)}">${esc(t.label)}</option>`).join('')}
+        <option value="random">Random theater</option></optgroup>
+        <optgroup label="Battlefields (fixed maps)">
+        ${theaters.filter(t => t.kind === 'map').map(t => `<option value="${esc(t.id)}" title="${esc(t.description)}">${esc(t.label)}</option>`).join('')}
+        </optgroup></select></div>
       <div class="row"><label></label><span id="ng-theater-desc" style="color:var(--muted);font-size:12px"></span></div>
       <div class="row"><label>Terrain</label><select id="ng-density">
         <option value="sparse">sparse</option><option value="normal" selected>normal</option><option value="dense">dense</option></select></div>
@@ -444,9 +448,11 @@ export class UI {
         : v === 'auto' ? 'With historical armies: a battlefield where those two armies actually fought (Pacific for Japan vs the US, the Eastern Front for the Soviets...). Otherwise a random theater, each with its own features.'
         : 'A theater is picked at random (with its own features).';
       box.querySelectorAll('[data-feat]').forEach(cb => {
-        cb.checked = t ? !!t.defaults[cb.dataset.feat] : true;
-        cb.disabled = !t;
+        const fixed = !t || !t.defaults;        // random / match-the-armies / hand-made map
+        cb.checked = fixed ? true : !!t.defaults[cb.dataset.feat];
+        cb.disabled = fixed;
       });
+      box.querySelector('#ng-density').disabled = !!(t && !t.defaults);
     };
     box.querySelector('#ng-theater').onchange = applyTheater;
     applyTheater();
@@ -468,7 +474,8 @@ export class UI {
         map: (() => {
           const theater = box.querySelector('#ng-theater').value;
           const m = { theater, density: box.querySelector('#ng-density').value };
-          if (theater !== 'random' && theater !== 'auto') box.querySelectorAll('[data-feat]').forEach(cb => { m[cb.dataset.feat] = cb.checked; });
+          if (theater !== 'random' && theater !== 'auto' && !theater.startsWith('map:'))
+            box.querySelectorAll('[data-feat]').forEach(cb => { m[cb.dataset.feat] = cb.checked; });
           return m;
         })(),
       };

@@ -1,0 +1,32 @@
+name: "Villers-Bocage (Normandy, June 1944)"
+theater: western_europe
+description: "Loosely after the ground at Villers-Bocage: a market town on the Caen road, bocage fields boxed in by hedgerows, the Seulles valley to the west and the rise of Point 213 to the east. Player 1 comes in along the road from the west; Player 2 holds the high ground."
+size: [17, 13]
+# the armies that fought here (used when armies are drawn at random)
+nations: {player1: ['UK', 'Canada'], player2: ['Germany']}
+years: [1939, 1944]
+objective: [8, 6]
+terrain:
+  town: [[7, 6], [8, 5], [8, 6], [9, 6], [9, 7], [10, 6]]
+  building: [[6, 3], [11, 9], [3, 11]]
+  hill: [[13, 2], [13, 3], [14, 2], [14, 3], [15, 3], [2, 9], [3, 9], [2, 10]]
+  forest: [[4, 2], [4, 3], [3, 2], [11, 10], [12, 9], [12, 10], [5, 10], [6, 10], [10, 1], [11, 1]]
+  marsh: [[5, 11], [5, 12]]
+roads:
+  - [[-1, 7], [7, 6], [10, 6], [13, 4], [17, 3]]    # the Caen road, climbing to Point 213
+  - [[8, -1], [8, 6]]                                # north to Tilly
+  - [[8, 6], [10, 13]]                               # south to Aunay
+streams:
+  - {rows: [0, 12], between: [[0, 5], [5, 4], [9, 5]]}   # the Seulles, west of the town
+fords: [[2, 5], [10, 5]]
+hedge_runs:
+  - [[2, 4], [4, 4]]
+  - [[11, 8], [13, 8]]
+  - [[12, 5], [14, 5]]
+  - [[6, 9], [8, 9]]
+  - [[10, 3], [12, 3]]
+  - [[1, 6], [2, 6]]
+  - [[14, 9], [15, 9]]
+hedges:
+  - [[7, 7], [7, 8]]
+  - [[11, 6], [12, 6]]

@@ -662,7 +662,22 @@ class GameSetup:
             max_units=self.config.max_units_per_side,
             require_infantry=True
         )
-        if self.config.historical and not (self.config.nations_p1 or self.config.nations_p2):
+        opts = self.config.map_options
+        if opts is not None and (getattr(opts, 'theater', '') or '').startswith('map:') \
+                and not (self.config.nations_p1 or self.config.nations_p2):
+            # a fixed battlefield brings the armies that fought there
+            import yaml
+            from maplib import MAP_DIR
+            with open(os.path.join(MAP_DIR, opts.theater.split(':', 1)[1] + '.yaml')) as fh:
+                meta = yaml.safe_load(fh) or {}
+            nations = meta.get('nations') or {}
+            if nations.get('player1'):
+                self.config.nations_p1 = set(nations['player1'])
+            if nations.get('player2'):
+                self.config.nations_p2 = set(nations['player2'])
+            if meta.get('years') and not self.config.year_range:
+                self.config.year_range = tuple(meta['years'])
+        elif self.config.historical and not (self.config.nations_p1 or self.config.nations_p2):
             self.choose_matchup()
 
         # Build player 1 army
@@ -692,6 +707,13 @@ class GameSetup:
         """
         from mapgen import MapOptions, generate_map, THEATER_STYLES
         opts = self.config.map_options or MapOptions()
+        if (opts.theater or '').startswith('map:'):
+            # a hand-authored battlefield (maps/*.yaml)
+            from maplib import load_map
+            board, objective, raw = load_map(opts.theater)
+            self.objective, self.theater = objective, opts.theater
+            self.map_report = {'map': raw.get('name')}
+            return board
         if opts.theater in ('auto', None, '') or opts.theater not in THEATER_STYLES:
             # "match the armies": the historical match-up's battlefield, else any
             matchup = getattr(self, 'matchup', None)

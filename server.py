@@ -211,6 +211,8 @@ class GameSession:
         each feature is True/False, or absent to let the theater decide."""
         from mapgen import MapOptions, THEATER_STYLES
         theater = data.get('theater') or 'auto'
+        if theater.startswith('map:'):
+            return MapOptions(theater=theater)       # a hand-made battlefield: nothing to switch
         if theater == 'random':
             theater = random.choice(sorted(THEATER_STYLES))
         elif theater not in THEATER_STYLES:
@@ -731,12 +733,15 @@ def api_new_game():
 def api_theaters():
     """Map styles for the New Game dialog, with each one's default features."""
     from mapgen import THEATER_STYLES
-    return jsonify([{
-        'id': key, 'label': st.label, 'description': st.description,
+    from maplib import list_maps
+    styles = [{
+        'id': key, 'label': st.label, 'description': st.description, 'kind': 'generated',
         'defaults': {'streams': st.stream > 0, 'marshes': st.marsh > 0, 'hedges': st.hedges > 0,
                      'forests': st.forest > 0, 'hills': st.hills > 0,
                      'villages': st.villages > 0 or st.central_village},
-    } for key, st in THEATER_STYLES.items()])
+    } for key, st in THEATER_STYLES.items()]
+    maps = [{**m, 'kind': 'map', 'defaults': None} for m in list_maps()]
+    return jsonify(styles + maps)
 
 
 @app.route('/api/suggest')
