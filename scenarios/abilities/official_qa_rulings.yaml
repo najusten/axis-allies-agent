@@ -1,0 +1,29 @@
+name: official-qa-artillery-cannot-shoot-aircraft-crack-shot-not-vs-aircraft-bridge-demolition-bridges-only
+source: "Official Q&A (11/12/2009 rules update / errata), aamcardbase.com: an Artillery unit without Antiair can't attack Aircraft; a sniper can shoot at Aircraft but can't use Crack Shot against one; Bridge Demolition destroys bridges only ('or obstacle' removed)"
+board:
+  width: 14
+  height: 10
+  terrain: {road: [[4,6],[5,6]]}
+  edge_obstacles:
+    - {a: [4,6], b: [5,6], type: stream}     # road on both sides: a bridge
+    - {a: [5,6], b: [6,6], type: stream}     # no road on (6,6): a plain stream, not a bridge
+units:
+  - {id: howitzer, owner: player1, at: [3,2], stats: {unit_type: "Soldier Artillery", defense: "3", per: [8,6,4], veh: [9,7,5]}}
+  - {id: flak, owner: player1, at: [3,3], stats: {unit_type: "Soldier Artillery", defense: "3", per: [8,6,4], veh: [9,7,5], abilities: "Antiair"}}
+  - {id: sniper, owner: player1, at: [3,4], stats: {unit_type: "Soldier Sniper", defense: "3", per: [6,6,6], abilities: "Crack Shot"}}
+  - {id: sapper, owner: player1, at: [5,6], stats: {unit_type: Soldier, defense: "4", speed: 2, per: [6,4,2], abilities: "Bridge Demolition"}}
+  - {id: plane, owner: player2, at: [5,3], stats: {unit_type: Aircraft, defense: "4/4", speed: 20, per: [5,3,1], veh: [5,3,1], abilities: "Aircraft"}, is_aircraft_on_map: true}
+  - {id: foot, owner: player2, at: [5,4], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: assault
+active_player: player1
+# sniper vs aircraft: 6 dice, no Crack Shot bonus, -1 vs Aircraft -> needs 5+
+dice: [5,5,4,4,4,4]
+actions:
+  - {type: attack, unit: sniper, target: plane}
+expect:
+  results:
+    0: {success: true, combat: {hit_threshold: 5, successes: 2}}
+  legal:
+    - {type: attack, unit: howitzer, target: plane, allowed: false}    # Artillery without Antiair
+    - {type: attack, unit: flak, target: plane, allowed: true}         # Artillery with Antiair
+    - {type: use_ability, unit: sapper, ability: bridge_demolition, allowed: true}   # the bridge, not the plain stream

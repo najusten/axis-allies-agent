@@ -1226,7 +1226,8 @@ class ActionGenerator:
                                        unit, unit_state: UnitState) -> List[UseAbilityAction]:
         """
         Generate Bridge Demolition actions for units with the ability.
-        Can destroy bridges or obstacles in the unit's hex instead of moving or attacking.
+        Can destroy a bridge next to the unit instead of moving or attacking
+        (11/12/2009 errata: bridges only, not Obstacles).
         """
         actions = []
 
@@ -1244,23 +1245,16 @@ class ActionGenerator:
 
         q, r = unit_state.position
 
-        # Find obstacles in the same hex
-        for other_state in game_state.get_units_at_position(q, r):
-            if other_state.unit.unit_type == 'Obstacle':
-                ability_action = UseAbilityAction(
-                    unit_id=unit.id,
-                    ability_name='bridge_demolition',
-                    target_id=other_state.unit.id,
-                    target_q=q,
-                    target_r=r
-                )
-                actions.append(ability_action)
-
-        # Also allow destroying edge obstacles (bridges/barbed wire) at hex edges
+        # 11/12/2009 errata: this ability destroys bridges only (the words
+        # "or obstacle" are removed from the card text). A bridge is a stream
+        # hex side that a road crosses.
         for dq, dr in [(1, 0), (1, -1), (0, -1), (-1, 0), (-1, 1), (0, 1)]:
             adj_q, adj_r = q + dq, r + dr
             edge_obstacle = game_state.board.get_edge_obstacle(q, r, adj_q, adj_r)
-            if edge_obstacle:
+            here, there = game_state.board.get_hex(q, r), game_state.board.get_hex(adj_q, adj_r)
+            is_bridge = (edge_obstacle in Board.EDGE_STREAM and here is not None and there is not None
+                         and here.has_road and there.has_road)
+            if is_bridge:
                 ability_action = UseAbilityAction(
                     unit_id=unit.id,
                     ability_name='bridge_demolition',
@@ -2652,9 +2646,13 @@ class ActionGenerator:
 
             # Rulebook: any unit may attack an Aircraft, using its anti-Soldier
             # values at -1 per die; Antiair/Ace only remove that penalty.
-            # Bombardment and Top-Mounted Rockets can't attack Aircraft at all.
+            # Official Q&A (11/12/2009 rules update): an Artillery unit without
+            # Antiair can't attack Aircraft. Bombardment and Top-Mounted Rockets
+            # can't attack Aircraft at all.
             if 'Aircraft' in (enemy.unit_type or ''):
                 if has_bombardment or self._has_top_mounted_rockets(unit):
+                    continue
+                if 'Artillery' in (unit.unit_type or '') and not has_antiair:
                     continue
 
             # Calculate distance

@@ -579,14 +579,29 @@ class TurnController:
         """Start of movement: Exert Will removes Disrupted from adjacent friendly Soldiers."""
         gs = self.game_state
         units = [u for u in gs.get_units_by_owner(player) if u.is_alive]
+        from casualty import HitCounterType
         for us in units:
             if not self._has_ability(us, 'exert will'):
                 continue
+            # Official Q&A: Exert Will removes face-down Disrupted counters as well
+            # as face-up ones, and the unit removes its own counters too.
             for friend in units:
-                if friend is us or friend.unit.unit_type != 'Soldier' or not friend.is_disrupted:
+                if 'Soldier' not in (friend.unit.unit_type or ''):
                     continue
-                if gs.board.hex_distance(*us.position, *friend.position) == 1:
+                if friend is not us and gs.board.hex_distance(*us.position, *friend.position) != 1:
+                    continue
+                cleared = False
+                if friend.is_disrupted:
                     friend.is_disrupted = False
+                    gs.face_up_disrupted.discard(friend.unit.id)
+                    cleared = True
+                pending = gs.pending_hits.get(friend.unit.id)
+                if pending is not None:
+                    before = len(pending.counters)
+                    pending.counters = [c for c in pending.counters
+                                        if c.counter_type != HitCounterType.DISRUPTED or c.face_up]
+                    cleared = cleared or len(pending.counters) != before
+                if cleared:
                     self._emit('status', unit=friend.unit.id, name=friend.unit.name,
                                change='disruption_cleared', cause='Exert Will')
 

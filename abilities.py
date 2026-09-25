@@ -523,7 +523,9 @@ class AbilitySystem:
 
         # Check for Crack Shot - "+1 on each attack die" (easier to hit)
         for ability in (unit.abilities or []):
-            if ability.lower() == 'crack shot':
+            # Official Q&A (11/12/2009 errata): a sniper can shoot at Aircraft
+            # but can't use Crack Shot against one
+            if ability.lower() == 'crack shot' and 'Aircraft' not in (target.unit_type or ''):
                 # +1 on each die = -1 to hit threshold (need 3+ instead of 4+)
                 modifiers['hit_modifier'] = modifiers.get('hit_modifier', 0) - 1
                 new_threshold = modifiers['hit_threshold'] + modifiers['hit_modifier']
