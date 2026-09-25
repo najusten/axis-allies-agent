@@ -899,6 +899,16 @@ class ActionGenerator:
                 game_state, unit, unit_state, (q, r), enemy_units
             ))
 
+            # Aircraft special attacks are made in this phase, not the assault phase
+            if self._has_bombs(unit) and not unit_state.bombs_used:
+                actions.extend(self._get_bombs_attacks(game_state, unit, unit_state, (q, r), enemy_units))
+            if self._has_rockets_8(unit) and not unit_state.rockets_8_used:
+                actions.extend(self._get_rockets_8_attacks(game_state, unit, unit_state, (q, r), enemy_units))
+            if self._has_speed_boost(unit) and not unit_state.speed_boost_used:
+                actions.extend(self._get_speed_boost_attacks(game_state, unit, unit_state, (q, r), enemy_units))
+            if unit_state.strafe_available:
+                actions.extend(self._get_strafe_attacks(game_state, unit, unit_state, (q, r), enemy_units))
+
         return actions
 
     def _get_assault_phase_actions(self, game_state: GameState,

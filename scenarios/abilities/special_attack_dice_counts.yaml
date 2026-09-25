@@ -1,0 +1,28 @@
+name: bombs-rockets-8-and-hull-mounted-cannons-roll-the-right-dice-at-the-right-targets
+source: "Bombs: once per game, instead of attacking a Soldier or Vehicle in the same hex, roll 12 dice vs a Soldier or 8 vs a Vehicle. Rockets 8: once per game, instead of attacking a unit within four hexes, roll eight dice. Additional Hull-Mounted Cannon: extra attack at 12/10/8, target must be a Vehicle in front. Extra Hull-Mounted Cannon: extra attack at 8/7/5, target a Vehicle or Soldier in front"
+board: {width: 14, height: 14}
+units:
+  - {id: bomber, owner: player1, at: [3,3], stats: {unit_type: Aircraft, defense: "4/4", speed: 20, per: [6,4,2], veh: [6,4,2], abilities: "Aircraft, Bombs"}, is_aircraft_on_map: true}
+  - {id: neb, owner: player1, at: [3,5], stats: {unit_type: Soldier, defense: "3", per: [4,4,4], veh: [2,2,2], abilities: "Rockets 8"}}
+  - {id: hull, owner: player1, at: [3,7], facing: SE, stats: {unit_type: Vehicle Tank, defense: "6/5", speed: 2, per: [6,4,2], veh: [6,4,2], abilities: "Additional Hull-Mounted Cannon"}}
+  - {id: hull2, owner: player1, at: [3,9], facing: SE, stats: {unit_type: Vehicle Tank, defense: "6/5", speed: 2, per: [6,4,2], veh: [6,4,2], abilities: "Extra Hull-Mounted Cannon"}}
+  - {id: sameHex, owner: player2, at: [3,3], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+  - {id: near, owner: player2, at: [5,5], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+  - {id: tank, owner: player2, at: [5,7], facing: NW, stats: {unit_type: Vehicle Tank, defense: "5/4", per: [5,3,1], veh: [5,3,1]}}
+  - {id: foot, owner: player2, at: [5,9], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: airstrike
+active_player: player1
+dice: [1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1, 6,6,6,6,6,6,1,1,1,1, 1,1,1,1,1,1,1]
+actions:
+  - {type: attack, unit: bomber, target: sameHex, special: bombs}          # Soldier in the same hex: 12 dice (airstrike phase)
+  - {type: set_phase, phase: assault, active_player: player1}
+  - {type: attack, unit: neb, target: near, special: rockets_8}            # within 4 hexes: 8 dice
+  - {type: attack, unit: hull, target: tank, special: additional_hull_cannon}   # medium range vs Vehicle: 10 dice
+  - {type: attack, unit: hull2, target: foot, special: extra_hull_cannon}       # medium range vs Soldier: 7 dice
+expect:
+  results:
+    0: {success: true}
+    2: {success: true}
+    3: {success: true}
+    4: {success: true}
+  dice_consumed: 37

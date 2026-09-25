@@ -1282,12 +1282,8 @@ class ActionExecutor:
             attacker_state.additional_hull_cannon_used = True
 
             # Attack values: 12 (short), 10 (medium), 8 (long)
-            if action.distance <= 2:
-                hull_dice = 12
-            elif action.distance <= 4:
-                hull_dice = 10
-            else:
-                hull_dice = 8
+            hull_dice = {'short': 12, 'medium': 10}.get(
+                MovementSystem.get_range_category(action.distance), 8)
 
             attack_mods = self.ability_system.get_attack_modifiers(
                 attacker, target, action.distance, target_terrain,
@@ -1321,12 +1317,8 @@ class ActionExecutor:
             attacker_state.extra_hull_cannon_used = True
 
             # Attack values: 8 (short), 7 (medium), 5 (long)
-            if action.distance <= 2:
-                hull_dice = 8
-            elif action.distance <= 4:
-                hull_dice = 7
-            else:
-                hull_dice = 5
+            hull_dice = {'short': 8, 'medium': 7}.get(
+                MovementSystem.get_range_category(action.distance), 5)
 
             attack_mods = self.ability_system.get_attack_modifiers(
                 attacker, target, action.distance, target_terrain,
