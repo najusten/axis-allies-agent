@@ -12,6 +12,7 @@ class Hex:
         self.q = q  # Column coordinate
         self.r = r  # Row coordinate
         self.terrain = terrain
+        self.road = False   # a road runs through this hex, whatever the base terrain
         self.unit = None  # Unit occupying this hex (if any)
     
     def __str__(self):
@@ -30,8 +31,12 @@ class Hex:
 
     @property
     def has_road(self) -> bool:
-        """Check if this hex has a road (terrain type is 'road')."""
-        return self.terrain == 'road'
+        """A road runs through this hex. Rulebook: a road doesn't replace the
+        terrain it runs through — a road through a forest is still a forest for
+        cover and line of sight, but units moving along the road ignore its
+        movement cost and entry rolls. 'road' as a terrain type is plain ground
+        with a road on it."""
+        return self.road or self.terrain == 'road'
 
 
 class Board:
@@ -112,7 +117,8 @@ class Board:
         return {
             'width': self.width,
             'height': self.height,
-            'hexes': [{'q': h.q, 'r': h.r, 'terrain': h.terrain} for h in self.hexes.values()],
+            'hexes': [{'q': h.q, 'r': h.r, 'terrain': h.terrain,
+                       **({'road': True} if h.road else {})} for h in self.hexes.values()],
             'edge_obstacles': [
                 {'a': list(sorted(key)[0]), 'b': list(sorted(key)[1]), 'type': kind,
                  'bridge': bool(kind == 'stream' and all(
@@ -127,7 +133,11 @@ class Board:
         new = Board.__new__(Board)
         new.width = self.width
         new.height = self.height
-        new.hexes = {key: Hex(h.q, h.r, h.terrain) for key, h in self.hexes.items()}
+        new.hexes = {}
+        for key, h in self.hexes.items():
+            copy = Hex(h.q, h.r, h.terrain)
+            copy.road = h.road
+            new.hexes[key] = copy
         new.edge_obstacles = dict(self.edge_obstacles)
         new._sig = getattr(self, '_sig', None)
         return new
@@ -138,7 +148,7 @@ class Board:
         sig = getattr(self, '_sig', None)
         if sig is None:
             sig = hash((self.width, self.height,
-                        tuple(sorted((k, h.terrain) for k, h in self.hexes.items())),
+                        tuple(sorted((k, h.terrain, h.road) for k, h in self.hexes.items())),
                         tuple(sorted(self.edge_obstacles.items()))))
             self._sig = sig
         return sig
@@ -151,6 +161,13 @@ class Board:
             self.hexes[(q, r)].terrain = terrain
             self._sig = None
     
+    def set_road(self, q, r, on: bool = True):
+        """Lay (or lift) a road through a hex without changing its base terrain."""
+        h = self.hexes.get((q, r))
+        if h is not None:
+            h.road = bool(on)
+            self._sig = None
+
     def place_unit(self, unit, q, r):
         """Place a unit at hex (q, r)"""
         hex_tile = self.get_hex(q, r)

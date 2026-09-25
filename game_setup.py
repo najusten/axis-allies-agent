@@ -679,8 +679,14 @@ class GameSetup:
             target_row = road_row
         for col in range(W):
             q, r = A(col, road_row)
-            if board.get_hex(q, r) and board.get_hex(q, r).terrain != 'town':
-                board.set_terrain(q, r, 'road')
+            h = board.get_hex(q, r)
+            if h is not None:
+                # the road runs through whatever is there; plain ground becomes a
+                # road hex, a town/forest/hill keeps its terrain and gains a road
+                if h.terrain == 'open':
+                    board.set_terrain(q, r, 'road')
+                else:
+                    board.set_road(q, r)
             if road_row < target_row and col < W * 2 // 3:
                 if random.random() < 0.4:
                     road_row += 1

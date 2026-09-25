@@ -641,6 +641,9 @@ def scenario_from_dict(raw: dict, name: str = 'scenario') -> Scenario:
         for pair in hexes:
             q, r = H(pair)
             board.set_terrain(q, r, terrain)
+    for pair in (board_spec.get('roads') or []):
+        q, r = H(pair)
+        board.set_road(q, r)
     for eo in (board_spec.get('edge_obstacles') or []):
         a, b = H(eo['a']), H(eo['b'])
         board.add_edge_obstacle(a[0], a[1], b[0], b[1], eo['type'])

@@ -100,12 +100,29 @@ export class BoardRenderer {
     this.setZoom(this.zoom || 1);
     this.layers.terrain.innerHTML = '';
     this.layers.labels.innerHTML = '';
+    const roadHexes = [];
     for (const h of board.hexes) {
       const p = el('polygon', { points: polygonPoints(h.q, h.r), 'data-q': h.q, 'data-r': h.r });
       this._styleHex(p, h.terrain);
       this.layers.terrain.appendChild(p);
+      if (h.road) roadHexes.push(h);
       const { x, y } = axialToPixel(h.q, h.r);
       this.layers.labels.appendChild(txt(x, y + 30, fmtHex(h.q, h.r), 'hex-label', { 'text-anchor': 'middle' }));
+    }
+    // a road running through other terrain (town, forest, hill): draw the road
+    // itself, linking the centres of neighbouring road hexes
+    const isRoad = new Set(board.hexes.filter(h => h.road || h.terrain === 'road').map(h => `${h.q},${h.r}`));
+    for (const h of roadHexes) {
+      const { x, y } = axialToPixel(h.q, h.r);
+      const g = el('g', {}, 'road-overlay');
+      for (const [dq, dr] of [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]]) {
+        if (!isRoad.has(`${h.q + dq},${h.r + dr}`)) continue;
+        const n = axialToPixel(h.q + dq, h.r + dr);
+        g.appendChild(el('line', { x1: x, y1: y, x2: (x + n.x) / 2, y2: (y + n.y) / 2,
+          stroke: TERRAIN_COLORS.road, 'stroke-width': 9, 'stroke-linecap': 'round', opacity: 0.9 }));
+      }
+      if (!g.childNodes.length) g.appendChild(el('circle', { cx: x, cy: y, r: 5, fill: TERRAIN_COLORS.road }));
+      this.layers.terrain.appendChild(g);
     }
     this.layers.labels.style.display = this.showCoords ? '' : 'none';
   }

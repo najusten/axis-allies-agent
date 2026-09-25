@@ -1,0 +1,37 @@
+name: mountaineering-trench-crossing-weak-suspension-ss-determination-dug-in-prone-to-breakdown
+source: "Mountaineering: +1 on movement rolls. Trench Crossing: cross streams without a movement roll. Weak Suspension: must make a movement roll to enter a hill hex except along a road. SS Determination: can move while disrupted. Dug In: can't move and can't be carried. Prone to Breakdown: can't move while damaged"
+board:
+  width: 14
+  height: 10
+  terrain: {forest: [[4,2]], hill: [[4,6],[4,7]]}
+  roads: [[3,7],[4,7]]        # a road running over a hill
+  edge_obstacles:
+    - {a: [3,4], b: [4,4], type: stream}
+units:
+  - {id: mtn, owner: player1, at: [3,2], facing: SE, stats: {unit_type: Vehicle Tank, defense: "5/4", speed: 3, per: [6,4,2], veh: [6,4,2], abilities: "Mountaineering"}}
+  - {id: trench, owner: player1, at: [3,4], stats: {unit_type: Soldier, defense: "4", speed: 2, per: [6,4,2], abilities: "Trench Crossing"}}
+  - {id: weak, owner: player1, at: [3,6], facing: SE, stats: {unit_type: Vehicle Tank, defense: "5/4", speed: 3, per: [6,4,2], veh: [6,4,2], abilities: "Weak Suspension"}}
+  - {id: weak2, owner: player1, at: [3,7], facing: SE, stats: {unit_type: Vehicle Tank, defense: "5/4", speed: 3, per: [6,4,2], veh: [6,4,2], abilities: "Weak Suspension"}}
+  - {id: ss, owner: player1, at: [1,1], disrupted: true, stats: {unit_type: Soldier, defense: "4", speed: 2, per: [6,4,2], abilities: "SS Determination"}}
+  - {id: dug, owner: player1, at: [1,3], stats: {unit_type: "Soldier Support", defense: "3", speed: 2, per: [6,4,2], abilities: "Dug In"}}
+  - {id: broke, owner: player1, at: [1,5], facing: SE, damaged: true, stats: {unit_type: Vehicle Tank, defense: "5/4", speed: 3, per: [6,4,2], veh: [6,4,2], abilities: "Prone to Breakdown"}}
+  - {id: enemy, owner: player2, at: [13,1], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: movement
+active_player: player1
+dice: [3, 3]      # forest roll 3 succeeds with Mountaineering (+1); the Weak Suspension hill roll 3 fails
+actions:
+  - {type: move, unit: mtn, to: [4,2]}        # forest: needs 4+, rolls 3, +1 = pass
+  - {type: move, unit: trench, to: [4,4]}     # stream: no roll at all
+  - {type: move, unit: weak, to: [4,6]}       # hill: needs a roll, 3 fails
+  - {type: move, unit: weak2, to: [4,7]}      # hill along a road: no roll
+expect:
+  dice_consumed: 2
+  units:
+    mtn: {at: [4,2]}
+    trench: {at: [4,4]}
+    weak: {at: [3,6]}
+    weak2: {at: [4,7]}
+  legal:
+    - {type: move, unit: ss, allowed: true}      # disrupted but SS Determination
+    - {type: move, unit: dug, allowed: false}
+    - {type: move, unit: broke, allowed: false}
