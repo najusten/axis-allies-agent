@@ -1,0 +1,22 @@
+name: fortifications-deploy-anywhere-except-next-to-the-objective-and-ignore-stacking
+source: "Fortification: during deployment, Fortifications are placed by each player in turn before all other units; they can be placed in any hex that isn't adjacent to the objective, and don't count against stacking limits"
+coords: offset
+board: {width: 12, height: 8}
+objective: [6,4]
+units:
+  - {id: wire, owner: player1, at: [0,0], is_deployed: false, name: "Barbed Wire"}
+  - {id: rifles, owner: player1, at: [0,0], is_deployed: false, stats: {unit_type: Soldier, defense: "4", speed: 1, per: [7,5,3]}}
+  - {id: enemy, owner: player2, at: [11,7], stats: {unit_type: Soldier, defense: "4", per: [5,3,1]}}
+phase: deployment
+active_player: player1
+actions:
+  - {type: deploy, unit: wire, to: [6,3]}     # adjacent to the objective: illegal
+  - {type: deploy, unit: wire, to: [9,6]}     # far side of the map: fine for a Fortification
+  - {type: deploy, unit: rifles, to: [9,6]}   # ...but ordinary units still deploy in their own zone
+expect:
+  results:
+    0: {success: false}
+    1: {success: true}
+    2: {success: false}
+  units:
+    wire: {at: [9,6], is_deployed: true}

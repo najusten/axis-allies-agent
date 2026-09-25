@@ -551,6 +551,9 @@ class ActionGenerator:
         elif game_state.current_phase == GamePhase.AIRSTRIKE:
             actions.extend(self._get_airstrike_phase_actions(game_state, player_units))
 
+        elif game_state.current_phase == GamePhase.DEPLOYMENT:
+            actions.extend(self.get_deployment_actions(game_state, player))
+
         # Always allow ending the phase
         actions.append(EndPhaseAction(game_state.current_phase))
         
@@ -868,6 +871,35 @@ class ActionGenerator:
                     to_r=r
                 ))
 
+        return actions
+
+    @staticmethod
+    def undeployed_units(game_state: GameState, player: str) -> List[UnitState]:
+        """Units that must be placed during setup. Paratroopers and Heroes arrive
+        later (in a movement phase); Aircraft are placed in the flight phase."""
+        out = []
+        for us in game_state.get_units_by_owner(player):
+            if not us.is_alive or us.is_deployed or 'Aircraft' in (us.unit.unit_type or ''):
+                continue
+            abilities = [a.lower() for a in (us.unit.abilities or [])]
+            if 'paratrooper' in abilities or any(a.endswith(' hero') for a in abilities):
+                continue
+            out.append(us)
+        return out
+
+    def get_deployment_actions(self, game_state: GameState, player: str) -> List[Action]:
+        """Setup deployment: each unit's own zone (Partisan edge, Gliderborne,
+        Fortification, else the owner's five columns), terrain and stacking."""
+        actions: List[Action] = []
+        for us in self.undeployed_units(game_state, player):
+            is_vehicle = 'Vehicle' in (us.unit.unit_type or '')
+            for (q, r) in game_state.deploy_zone_for(us):
+                h = game_state.board.get_hex(q, r)
+                if h is None or h.terrain in ('water', 'impassable') or (is_vehicle and h.terrain == 'marsh'):
+                    continue
+                if not game_state.can_stack_at(q, r, player, us.unit.unit_type, exclude_unit_id=us.unit.id):
+                    continue
+                actions.append(DeployAction(us.unit.id, q, r, setup=True))
         return actions
 
     def _get_airstrike_phase_actions(self, game_state: GameState,

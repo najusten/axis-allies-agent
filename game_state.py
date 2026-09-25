@@ -86,6 +86,10 @@ class UnitState:
         # Initialize health if not set
         if self.current_health is None:
             self.current_health = getattr(self.unit, 'defense_front', 3)
+        if self.current_health is None:
+            # Obstacles have no defense value on their card; they are removed by
+            # specific abilities (AVRE, Bridge Demolition), never by attrition.
+            self.current_health = 1
         
         # Initialize facing for vehicles
         if 'Vehicle' in (self.unit.unit_type or '') and self.facing is None:
@@ -94,7 +98,7 @@ class UnitState:
     @property
     def is_alive(self) -> bool:
         """Check if unit is still alive"""
-        return self.current_health > 0
+        return (self.current_health or 0) > 0
     
     def to_dict(self) -> dict:
         return {
@@ -355,6 +359,13 @@ class GameState:
         abilities = [a.lower() for a in (getattr(unit_state.unit, 'abilities', []) or [])]
         owner = unit_state.owner
         other = 'player2' if owner == 'player1' else 'player1'
+        if 'fortification' in abilities:
+            # Rulebook: "Fortifications can be placed on the battle map in any hex
+            # that isn't adjacent to the objective."
+            obj = self.objective_position
+            return [(q, r) for (q, r) in self.board.hexes
+                    if self.board.get_hex(q, r).terrain not in ('water', 'impassable')
+                    and (obj is None or self.board.hex_distance(q, r, obj[0], obj[1]) > 1)]
         if 'partisan' in abilities:
             return [(q, r) for (q, r) in self.board.hexes if self.board.is_edge(q, r)
                     and not self.get_units_at_position(q, r)]

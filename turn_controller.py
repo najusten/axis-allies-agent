@@ -531,7 +531,11 @@ class TurnController:
         import random as _r
         gs = self.game_state
         chooser = getattr(agent, 'choose_deployment', None)
-        for us in list(self._undeployed(player)):
+        # Rulebook: "During deployment, Fortifications are placed by each player in
+        # turn before all other units."
+        pending = sorted(self._undeployed(player),
+                         key=lambda u: 0 if self._has_ability(u, 'fortification') else 1)
+        for us in pending:
             legal = [a for a in self._deployment_actions(player) if a.unit_id == us.unit.id]
             if not legal:
                 us.is_deployed = True   # nowhere to put it; treat as lost (shouldn't happen)
@@ -542,9 +546,16 @@ class TurnController:
                 speed = us.unit.speed if isinstance(us.unit.speed, int) else 0
                 back = speed == 0 or any('indirect' in a.lower() or 'artillery' in (us.unit.unit_type or '').lower()
                                           for a in (us.unit.abilities or []))
+                is_fortification = self._has_ability(us, 'fortification')
+
                 def score(a):
                     col = gs.board.axial_to_offset(a.to_q, a.to_r)[0]
                     depth = col if player == 'player1' else gs.board.width - 1 - col   # 0 = own edge
+                    if is_fortification:
+                        # obstacles belong in front of your own line, blocking the approach
+                        obj = gs.objective_position
+                        d_obj = gs.board.hex_distance(a.to_q, a.to_r, obj[0], obj[1]) if obj else 0
+                        return -abs(d_obj - 3) - abs(depth - 6) + _r.random()
                     terrain = gs.board.get_hex(a.to_q, a.to_r).terrain
                     s = (-depth if back else depth) * 2.0
                     if terrain in ('forest', 'hill', 'town', 'building'):
@@ -559,24 +570,10 @@ class TurnController:
     def _undeployed(self, player: str):
         """Units that must be placed in the setup deployment (Paratroopers and
         Heroes arrive later, during movement phases)."""
-        return [us for us in self.game_state.get_units_by_owner(player)
-                if us.is_alive and not us.is_deployed and 'Aircraft' not in (us.unit.unit_type or '')
-                and not self._has_ability(us, 'paratrooper')
-                and not any(a.lower().endswith(' hero') for a in (us.unit.abilities or []))]
+        return self.generator.undeployed_units(self.game_state, player)
 
     def _deployment_actions(self, player: str) -> List[Action]:
-        gs = self.game_state
-        actions: List[Action] = []
-        for us in self._undeployed(player):
-            is_vehicle = 'Vehicle' in (us.unit.unit_type or '')
-            for (q, r) in gs.deploy_zone_for(us):
-                h = gs.board.get_hex(q, r)
-                if h.terrain in ('water', 'impassable') or (is_vehicle and h.terrain == 'marsh'):
-                    continue
-                if not gs.can_stack_at(q, r, player, us.unit.unit_type, exclude_unit_id=us.unit.id):
-                    continue
-                actions.append(DeployAction(us.unit.id, q, r, setup=True))
-        return actions
+        return self.generator.get_deployment_actions(self.game_state, player)
 
     def _apply_exert_will(self, player: str):
         """Start of movement: Exert Will removes Disrupted from adjacent friendly Soldiers."""
