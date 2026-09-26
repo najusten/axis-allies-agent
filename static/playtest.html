@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Playtest checklist</title>
+<style>
+  :root { --bg: #0f172a; --panel: #111827; --line: #334155; --text: #e5e7eb; --muted: #94a3b8; --accent: #f59e0b; --good: #22c55e; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; }
+  main { max-width: 820px; margin: 0 auto; padding: 28px 20px 60px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  .lede { color: var(--muted); margin: 0 0 18px; }
+  .how { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; }
+  .how b { color: var(--accent); }
+  section { margin: 22px 0; }
+  h2 { font-size: 16px; margin: 0 0 8px; display: flex; justify-content: space-between; align-items: baseline; }
+  h2 .count { font-size: 12px; color: var(--muted); font-weight: 400; }
+  label.item { display: grid; grid-template-columns: 22px 1fr; gap: 8px; padding: 7px 10px; border-radius: 6px; cursor: pointer; }
+  label.item:hover { background: rgba(255,255,255,.04); }
+  label.item input { margin-top: 4px; accent-color: var(--good); }
+  label.item.done span { color: var(--muted); text-decoration: line-through; text-decoration-color: rgba(148,163,184,.5); }
+  .look { display: block; color: var(--muted); font-size: 13px; }
+  label.item.done .look { text-decoration: none; }
+  .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin: 6px 0 0; }
+  .bar div { height: 100%; background: var(--good); width: 0; transition: width .2s; }
+  button { background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  code { background: rgba(255,255,255,.08); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Playtest checklist</h1>
+  <p class="lede">What changed recently and what to look for. Ticks are remembered in this browser.</p>
+  <div class="how">
+    Whenever something looks wrong, press <b>🐞 Report</b> in the game and say what you expected. It saves the exact
+    position to <code>reports/</code>; tell Claude “check the latest report” and it can replay it and turn it into a test.
+    Tip: set <b>pace</b> to <i>step through</i> to read each enemy move.
+  </div>
+  <div class="bar"><div id="progress"></div></div>
+  <div id="list"></div>
+  <p style="margin-top:28px"><button id="reset">Clear all ticks</button></p>
+</main>
+<script>
+const SECTIONS = [
+  ['Maps and terrain', [
+    ['Start a few games with different Battlefields (Western Europe, Eastern Front, North Africa, Italy, Pacific, Town fight).',
+     'Each should look like its description; roads should be continuous and only end at the map edge or in a village.'],
+    ['Check that the star (objective) sits in the middle of the map.', 'It should be equally far from both deployment edges.'],
+    ['Turn features off in New Game (e.g. no streams, no marshes).', 'None of the switched-off features should appear.'],
+    ['Open the Legend and compare it with the board.', 'Every terrain, hex side and marker on the board should be in the legend.'],
+    ['Play one of the fixed Battlefields (Villers-Bocage, Kasserine Pass).', 'The armies should fit the battle (British vs Germans, US vs Germans/Italians).'],
+  ]],
+  ['Movement', [
+    ['Drive a tank along a road into a forest.', 'No forest roll and 1 hex per step while it stays on the road.'],
+    ['Drive a tank into a forest off the road and fail the roll.', 'It stops in the hex before the forest, facing it, and cannot move again this phase.'],
+    ['Cross a stream by a bridge and at a ford.', 'Bridge and ford: no roll. Elsewhere: roll 4+.'],
+    ['Try to move a disrupted unit.', 'It should not be able to move (unless it has an ability that allows it).'],
+    ['Put 3 of your units, or 2 vehicles, in one hex.', 'Not allowed: 2 units per side per hex, at most 1 vehicle.'],
+  ]],
+  ['Defensive fire', [
+    ['Move a unit past an enemy that can shoot.', 'You (or the AI) decide which hex to fire into, or hold fire.'],
+    ['Move a Soldier past an enemy tank.', 'Soldiers never draw defensive fire from vehicles.'],
+    ['Fly an aircraft next to an enemy Antiair unit.', 'The Antiair unit may take a reaction shot.'],
+  ]],
+  ['Attacks and damage', [
+    ['Attack a tank from behind and from the front.', 'The popup should show the rear or front defense accordingly.'],
+    ['Hit a unit in a forest or town.', 'A cover roll: Soldiers save on 4+, Vehicles on 5+; a save limits the attack to disruption.'],
+    ['Watch the casualty phase after hits.', 'Two hits damage a vehicle and destroy a soldier; three hits destroy a vehicle.'],
+    ['Shoot at an aircraft with an ordinary unit.', 'Allowed, but it needs 5+ per die; Antiair units need 4+.'],
+  ]],
+  ['Flow and controls', [
+    ['Play a turn against the AI at pace “slow” and “step through”.', 'Each enemy move gets a caption; step through waits for Next (or Space).'],
+    ['Undo a single unit\'s move from its card.', 'Only that unit goes back; others stay where they are.'],
+    ['Save a game (Game ▾ → Save), start another, then load it.', 'You should be back in the same phase with the same units and counters.'],
+    ['Press 🐞 Report with a short note.', 'It says where the report was saved; tell Claude about it.'],
+  ]],
+];
+const KEY = 'aa_playtest_v1';
+let ticks = {};
+try { ticks = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { ticks = {}; }
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(ticks)); } catch (e) { /* private mode */ } };
+function render() {
+  const list = document.getElementById('list');
+  list.innerHTML = '';
+  let total = 0, done = 0;
+  SECTIONS.forEach(([title, items], si) => {
+    const sec = document.createElement('section');
+    const n = items.filter((_, i) => ticks[`${si}.${i}`]).length;
+    sec.innerHTML = `<h2>${title}<span class="count">${n} / ${items.length}</span></h2>`;
+    items.forEach(([what, look], i) => {
+      const id = `${si}.${i}`;
+      total++; if (ticks[id]) done++;
+      const lab = document.createElement('label');
+      lab.className = 'item' + (ticks[id] ? ' done' : '');
+      lab.innerHTML = `<input type="checkbox" ${ticks[id] ? 'checked' : ''}><span>${what}<span class="look">Look for: ${look}</span></span>`;
+      lab.querySelector('input').onchange = (e) => { ticks[id] = e.target.checked; save(); render(); };
+      sec.appendChild(lab);
+    });
+    list.appendChild(sec);
+  });
+  document.getElementById('progress').style.width = `${Math.round(100 * done / Math.max(1, total))}%`;
+}
+document.getElementById('reset').onclick = () => { ticks = {}; save(); render(); };
+render();
+</script>
+</body>
+</html>

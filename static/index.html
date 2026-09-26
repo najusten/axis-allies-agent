@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Axis &amp; Allies Miniatures</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="tb-left">
+      <span id="tb-turn" class="pill">Turn –</span>
+      <span id="tb-phase" class="pill">–</span>
+      <span id="tb-player" class="pill player">–</span>
+    </div>
+    <div id="tb-hint" class="tb-center"></div>
+    <div class="tb-right">
+      <button id="btn-suggest" class="btn" title="AI assist: highlight what the heuristic AI would do now (you decide)">💡 Suggest</button>
+      <button id="btn-undo" class="btn" title="Undo (only before dice are rolled)">↩ Undo</button>
+      <button id="btn-redo" class="btn">↪ Redo</button>
+      <button id="btn-end" class="btn primary">End Phase</button>
+      <button id="btn-report" class="btn" title="Something looks wrong? Save this exact moment with a note so it can be replayed and fixed">🐞 Report</button>
+      <button id="btn-game" class="btn" title="Save, load, playtest checklist">Game ▾</button>
+      <button id="btn-new" class="btn">New Game</button>
+    </div>
+  </header>
+
+  <main id="main">
+    <section id="board-wrap">
+      <div id="board-container">
+        <svg id="board" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+      <div id="board-tools">
+        <button class="btn sm" id="zoom-out">−</button>
+        <button class="btn sm" id="zoom-reset">1:1</button>
+        <button class="btn sm" id="zoom-in">+</button>
+        <label class="chk" title="column,row from the top-left"><input type="checkbox" id="chk-coords"> coords</label>
+        <label class="chk" title="Shade every hex the selected unit cannot see"><input type="checkbox" id="chk-los"> LOS</label>
+        <label class="chk" title="How fast opponent moves are shown. Step pauses after each enemy action until you press Next (or Space).">pace
+          <select id="sel-pace">
+            <option value="fast">fast</option>
+            <option value="normal" selected>normal</option>
+            <option value="slow">slow</option>
+            <option value="step">step through</option>
+          </select></label>
+        <button class="btn sm" id="btn-legend" title="What each terrain, hex side and marker means">Legend</button>
+      </div>
+      <div id="move-caption" hidden><span class="who"></span><span class="what"></span><button class="btn sm primary" id="btn-next-move">Next ▶</button></div>
+      <div id="legend" hidden></div>
+      <div id="ability-panel" hidden></div>
+      <div id="toast" hidden></div>
+    </section>
+
+    <aside id="sidebar">
+      <div class="side-section">
+        <h3 class="p1">Player 1 <span id="p1-count"></span></h3>
+        <ul id="units-p1" class="unit-list"></ul>
+      </div>
+      <div class="side-section">
+        <h3 class="p2">Player 2 <span id="p2-count"></span></h3>
+        <ul id="units-p2" class="unit-list"></ul>
+      </div>
+      <div id="unit-card" class="side-section card" hidden></div>
+    </aside>
+  </main>
+
+  <footer id="log-wrap">
+    <div id="log"></div>
+  </footer>
+
+  <!-- overlays -->
+  <div id="modal" class="modal" hidden>
+    <div class="modal-box" id="modal-box"></div>
+  </div>
+  <div id="busy" hidden><div class="spinner"></div><span id="busy-text">AI is thinking…</span></div>
+</div>
+
+<script type="module" src="/static/js/app.js"></script>
+</body>
+</html>
