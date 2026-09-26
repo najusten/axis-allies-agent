@@ -644,6 +644,8 @@ def scenario_from_dict(raw: dict, name: str = 'scenario') -> Scenario:
     for pair in (board_spec.get('roads') or []):
         q, r = H(pair)
         board.set_road(q, r)
+    for a, b in (board_spec.get('road_links') or []):          # saved games: exact road links
+        board.add_road([H(a), H(b)])
     for eo in (board_spec.get('edge_obstacles') or []):
         a, b = H(eo['a']), H(eo['b'])
         board.add_edge_obstacle(a[0], a[1], b[0], b[1], eo['type'])
@@ -674,9 +676,14 @@ def scenario_from_dict(raw: dict, name: str = 'scenario') -> Scenario:
             us.carried_by_id = spec['in_transport']
         # Any other UnitState flag can be set directly (hold_defensive_fire, is_deployed, ...)
         reserved = {'id', 'name', 'owner', 'at', 'stats', 'facing', 'health', 'disrupted', 'damaged',
-                    'has_moved', 'has_attacked', 'in_transport'}
+                    'has_moved', 'has_attacked', 'in_transport', 'pending_counters'}
         for key, value in spec.items():
             if key not in reserved and hasattr(us, key):
+                current = getattr(us, key)
+                if isinstance(current, set) and isinstance(value, list):
+                    value = set(value)
+                elif key.endswith('_hex') and isinstance(value, list):
+                    value = tuple(value)
                 setattr(us, key, value)
         game_state.add_unit(us)
         aliases[alias] = unit.id
@@ -698,6 +705,21 @@ def scenario_from_dict(raw: dict, name: str = 'scenario') -> Scenario:
     if game_state.current_phase == GamePhase.MOVEMENT:
         systems.executor.reset_defensive_fire_phase(game_state)
     game_state.rng_seed = int(raw.get('seed', 0))
+
+    # Saved-game state beyond the units' own flags
+    if raw.get('defensive_fire_used'):
+        game_state.defensive_fire_used = {aliases.get(u, u) for u in raw['defensive_fire_used']}
+    if raw.get('face_up_disrupted'):
+        game_state.face_up_disrupted = {aliases.get(u, u) for u in raw['face_up_disrupted']}
+    from casualty import HitCounterType, PendingHits
+    for spec in raw.get('units') or []:
+        counters = spec.get('pending_counters')
+        if counters:
+            uid = aliases.get(spec.get('id') or spec.get('name'), spec.get('id'))
+            ph = PendingHits(uid)
+            for c in counters:
+                ph.add_hit(HitCounterType(c))
+            game_state.pending_hits[uid] = ph
 
     actions = [_convert_coords(dict(a), H) for a in (raw.get('actions') or [])]
     expect = dict(raw.get('expect') or {})

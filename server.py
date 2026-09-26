@@ -35,7 +35,7 @@ from game_runner import AggressiveRandomAgent, GreedyAgent, RandomAgent
 from game_setup import load_all_units, GameSetup, GameSetupConfig
 from board import Board
 from game_state import GameState, GamePhase, UnitState
-from scenario import build_action, build_systems, find_legal_action, load_scenario, ABILITY_CSV, SPECIAL_FLAGS
+from scenario import build_action, build_systems, find_legal_action, load_scenario, scenario_from_dict, ABILITY_CSV, SPECIAL_FLAGS
 from turn_controller import (_unit_name, TurnController, format_event, VANGUARD_PHASE, INITIATIVE_PHASE,
                              DEPLOYMENT_PHASE, DEPLOY_ORDER_PHASE)
 
@@ -82,7 +82,8 @@ class GameSession:
                  scenario: Optional[str] = None, armies: str = 'random',
                  max_year: Optional[int] = None, historical: bool = False,
                  p1_units: Optional[list] = None, p2_units: Optional[list] = None,
-                 deploy: bool = True, map_opts: Optional[dict] = None):
+                 deploy: bool = True, map_opts: Optional[dict] = None,
+                 loaded: Optional[dict] = None):
         self.mode = mode
         self.ai_type = ai_type
         self.seed = seed if seed is not None else random.randrange(1, 10 ** 6)
@@ -91,7 +92,17 @@ class GameSession:
         self.map_options = self._map_options(map_opts or {})
         self.setup_info['map'] = {'theater': self.map_options.theater, 'density': self.map_options.density}
 
-        if scenario:
+        if loaded is not None:
+            # a saved game or a report (stateio.export_state): same position,
+            # same phase and player to act
+            meta = loaded.get('meta') or {}
+            self.setup_info = dict(meta.get('setup') or self.setup_info)
+            sc = scenario_from_dict(loaded, name=loaded.get('name') or 'saved game')
+            self.systems = sc.systems
+            game_state = sc.game_state
+            self.scenario_name = meta.get('scenario')
+            self.loaded_name = loaded.get('name')
+        elif scenario:
             sc = load_scenario(os.path.join(SCENARIO_DIR, scenario))
             self.systems = sc.systems
             game_state = sc.game_state
@@ -123,7 +134,7 @@ class GameSession:
         # Both sides deploy (rulebook setup: coin flip, then each army within five
         # hexes of its edge). Humans place units by hand, AIs use their policy.
         # Scenarios come pre-placed.
-        if not scenario and deploy:
+        if not scenario and loaded is None and deploy:
             for us in game_state.units.values():
                 if 'Aircraft' not in (us.unit.unit_type or ''):
                     h = game_state.board.get_hex(*us.position)
@@ -143,7 +154,19 @@ class GameSession:
         self._undo_stack: list = []
         self._undo_actions: list = []
         self._redo_stack: list = []
-        if mode != 'ai_vs_ai':
+        if loaded is not None and loaded.get('controller'):
+            c = loaded['controller']
+            self.controller._started = True
+            self.controller.phase_queue = [tuple(p) for p in c.get('phase_queue') or []]
+            self.controller.phase_idx = int(c.get('phase_idx') or 0)
+            self.controller.turn_order = list(c.get('turn_order') or [])
+            self.controller.initiative_winner = c.get('initiative_winner')
+            self.controller.deploy_winner = c.get('deploy_winner')
+            self.controller._vanguard_moved = set(c.get('vanguard_moved') or [])
+            self.controller.events.append({'type': 'loaded', 'message': f"Loaded: {loaded.get('name', 'saved game')}"})
+            if mode != 'ai_vs_ai':
+                self.controller.run_until_human()
+        elif mode != 'ai_vs_ai':
             self.controller.run_until_human()
         else:
             self.controller.start()
@@ -306,6 +329,14 @@ class GameSession:
         if cost is None:
             return 'That route is too long or crosses terrain this unit cannot enter'
         return None
+
+    def export(self, note: str = '', name: str = '', log_lines: int = 0) -> dict:
+        """This session as a save file / report (stateio format)."""
+        from stateio import export_state
+        meta = {'mode': self.mode, 'ai': self.ai_type, 'seed': self.seed, 'setup': self.setup_info,
+                'scenario': self.scenario_name, 'human_players': [p for p, a in self.players.items() if a is None]}
+        log = self.log_lines(log_lines) if log_lines else None
+        return export_state(self.game_state, self.controller, meta=meta, note=note, log=log, name=name)
 
     def _deployment_zone(self, player: str) -> list:
         """Hexes where this player's remaining units may still be placed (Partisans:
@@ -727,6 +758,73 @@ def api_new_game():
             return jsonify({'error': f'Could not start game: {e}'}), 400
         return jsonify({'success': True, 'state': _session.state_payload(),
                         'events': _session.controller.events})
+
+
+@app.route('/api/save', methods=['POST'])
+def api_save():
+    """Save the current game to saves/ (and return the file so the browser can
+    download a copy)."""
+    from stateio import SAVE_DIR, dump_yaml, write_file
+    data = request.get_json(force=True, silent=True) or {}
+    with _session_lock:
+        session = _get_session()
+        name = (data.get('name') or '').strip() or f"turn {session.game_state.turn_number} — {session.mode}"
+        payload = session.export(name=name)
+        path = write_file(SAVE_DIR, name, payload)
+    return jsonify({'success': True, 'file': os.path.basename(path), 'yaml': dump_yaml(payload)})
+
+
+@app.route('/api/report', methods=['POST'])
+def api_report():
+    """'Report this moment': the exact position plus the player's note and the
+    recent log, written to reports/ where it can be replayed and turned into a
+    regression scenario."""
+    from stateio import REPORT_DIR, dump_yaml, write_file
+    data = request.get_json(force=True, silent=True) or {}
+    note = (data.get('note') or '').strip()
+    with _session_lock:
+        session = _get_session()
+        payload = session.export(note=note or 'no note', name=f"report: {note[:60] or 'no note'}", log_lines=80)
+        if data.get('selected'):
+            payload['selected_unit'] = data['selected']
+        path = write_file(REPORT_DIR, note or 'report', payload)
+    return jsonify({'success': True, 'file': os.path.basename(path), 'yaml': dump_yaml(payload)})
+
+
+@app.route('/api/saves')
+def api_saves():
+    from stateio import SAVE_DIR, REPORT_DIR, list_files
+    return jsonify({'saves': list_files(SAVE_DIR), 'reports': list_files(REPORT_DIR)})
+
+
+@app.route('/api/load', methods=['POST'])
+def api_load():
+    """Load a saved game: {file, kind: 'save'|'report'} from the server folders,
+    or {content: '<yaml text>'} uploaded from the browser."""
+    global _session
+    import yaml
+    from stateio import SAVE_DIR, REPORT_DIR
+    data = request.get_json(force=True, silent=True) or {}
+    try:
+        if data.get('content'):
+            raw = yaml.safe_load(data['content'])
+        else:
+            folder = REPORT_DIR if data.get('kind') == 'report' else SAVE_DIR
+            fn = os.path.basename(data.get('file') or '')
+            with open(os.path.join(folder, fn)) as fh:
+                raw = yaml.safe_load(fh)
+        if not isinstance(raw, dict) or 'units' not in raw:
+            return jsonify({'error': 'Not a saved game'}), 400
+        meta = raw.get('meta') or {}
+        mode = data.get('mode') or meta.get('mode') or 'hotseat'
+        with _session_lock:
+            _session = GameSession(mode=mode, ai_type=meta.get('ai') or 'heuristic',
+                                   seed=meta.get('seed'), loaded=raw)
+            return jsonify({'success': True, 'state': _session.state_payload(), 'events': []})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Could not load: {e}'}), 400
 
 
 @app.route('/api/theaters')

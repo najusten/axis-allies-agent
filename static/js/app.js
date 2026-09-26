@@ -27,6 +27,7 @@ class App {
       onUndo: () => this.send({ type: 'undo' }),
       onRedo: () => this.send({ type: 'redo' }),
       onNewGame: (opts) => this.newGame(opts),
+      onLoadGame: (req) => this.loadGame(req),
       onHoverUnit: (id) => this.hoverUnit(id),
       onHoldFire: (id, hold) => this.send({ type: 'hold_fire', unit_id: id, hold }),
       onUndoUnit: (id) => this.send({ type: 'undo_unit', unit_id: id }),
@@ -46,6 +47,8 @@ class App {
       try { localStorage.setItem('aa_pace', e.target.value); } catch (err) { /* private mode */ }
     };
     $('btn-legend').onclick = () => this.ui.toggleLegend();
+    $('btn-report').onclick = () => this.ui.showReport(this.selected);
+    $('btn-game').onclick = () => this.ui.showGameMenu();
     document.addEventListener('click', (e) => {
       if (e.target.closest('#move-caption') || e.target.closest('#board-tools')) return;
       this.renderer.skipAnimation();
@@ -380,6 +383,30 @@ class App {
       this.busy = false;
       this.updateLos();
       this._afterRequest();
+    }
+  }
+
+  // Load a saved game or a report: {file, kind} from the server, or {content} uploaded
+  async loadGame(req) {
+    this.busy = true;
+    this.ui.busy(true, 'Loading…');
+    try {
+      const res = await fetch('/api/load', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req) }).then(r => r.json());
+      if (res.error) throw new Error(res.error);
+      this.selected = null;
+      this.lastHumanPlayer = null;
+      this.renderer.boardKey = null;
+      this.renderer.unitEls.forEach(g => g.remove());
+      this.renderer.unitEls.clear();
+      this.ui.busy(false);
+      this.busy = false;
+      await this.applyState(res.state, []);
+      this.ui.toast('Game loaded', 'good');
+    } catch (e) {
+      this.ui.busy(false);
+      this.busy = false;
+      this.ui.toast(String(e.message || e), 'bad', 5000);
     }
   }
 

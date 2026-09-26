@@ -381,6 +381,84 @@ export class UI {
     box.querySelector('#legend-close').onclick = () => { box.hidden = true; };
   }
 
+  _download(filename, text) {
+    const blob = new Blob([text], { type: 'text/yaml' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+
+  // 🐞 Report: the exact position + your note, written to reports/ on the server
+  showReport(selectedId) {
+    const box = this._modal(`<h2>Report this moment</h2>
+      <p style="color:var(--muted)">Saves the exact position (every unit, counter and phase) plus the recent log to
+      <code>reports/</code>, so it can be replayed and turned into a test. Say what you expected to happen.</p>
+      <textarea id="rp-note" rows="5" style="width:100%;box-sizing:border-box" placeholder="e.g. My tank was stopped in the hex before the forest, but it had moved along the road…"></textarea>
+      <div class="actions"><button class="btn" id="rp-cancel">Cancel</button><button class="btn primary" id="rp-send">Save report</button></div>`);
+    box.className = 'modal-box';
+    box.querySelector('#rp-note').focus();
+    box.querySelector('#rp-cancel').onclick = () => this.closeModal();
+    box.querySelector('#rp-send').onclick = async () => {
+      const note = box.querySelector('#rp-note').value;
+      const res = await fetch('/api/report', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note, selected: selectedId || null }) }).then(r => r.json());
+      if (res.error) { this.toast(res.error, 'bad', 5000); return; }
+      const done = this._modal(`<h2>Report saved</h2>
+        <p>Saved as <code>reports/${esc(res.file)}</code> in the project folder. Tell Claude “check the latest report”
+        (or the file name) and it can load this exact position.</p>
+        <div class="actions"><button class="btn" id="rp-dl">Download a copy</button><button class="btn primary" id="rp-ok">Back to the game</button></div>`);
+      done.className = 'modal-box';
+      done.querySelector('#rp-dl').onclick = () => this._download(res.file, res.yaml);
+      done.querySelector('#rp-ok').onclick = () => this.closeModal();
+    };
+  }
+
+  // Game ▾: save, load (server saves, reports, or a file), playtest checklist
+  async showGameMenu() {
+    let lists = { saves: [], reports: [] };
+    try { lists = await fetch('/api/saves').then(r => r.json()); } catch (e) { /* offline */ }
+    const row = (f, kind) => `<div class="load-row" data-file="${esc(f.file)}" data-kind="${kind}">
+        <b>${esc(f.name || f.file)}</b> <span style="color:var(--muted)">${esc((f.saved || '').replace('T', ' '))}${f.turn ? ' · turn ' + f.turn : ''}</span>
+        ${f.note && kind === 'report' ? `<div style="color:var(--muted);font-size:12px">${esc(f.note)}</div>` : ''}</div>`;
+    const box = this._modal(`<h2>Game</h2>
+      <div class="row"><label>Save as</label><input id="gm-name" placeholder="name (optional)"><button class="btn primary" id="gm-save">Save</button><button class="btn" id="gm-dl" title="Save and download a copy of the file">⬇</button></div>
+      <h4 style="margin:12px 0 4px">Load a saved game</h4>
+      <div class="load-list">${lists.saves.map(f => row(f, 'save')).join('') || '<span style="color:var(--muted)">No saved games yet.</span>'}</div>
+      <h4 style="margin:12px 0 4px">Load a report</h4>
+      <div class="load-list">${lists.reports.map(f => row(f, 'report')).join('') || '<span style="color:var(--muted)">No reports yet.</span>'}</div>
+      <div class="row" style="margin-top:10px"><label>From a file</label><input type="file" id="gm-file" accept=".yaml,.yml"></div>
+      <div class="row"><label>Play it as</label><select id="gm-mode"><option value="">as saved</option>
+        <option value="hotseat">Human vs Human</option><option value="vs_ai">Human vs AI</option><option value="ai_vs_ai">AI vs AI</option></select></div>
+      <p style="margin-top:12px"><a href="/static/playtest.html" target="_blank">Playtest checklist ↗</a> — what to try and what to look for.</p>
+      <div class="actions"><button class="btn" id="gm-close">Close</button></div>`);
+    box.className = 'modal-box';
+    box.style.maxWidth = '620px';
+    const mode = () => box.querySelector('#gm-mode').value || undefined;
+    box.querySelector('#gm-close').onclick = () => this.closeModal();
+    const save = async (download) => {
+      const res = await fetch('/api/save', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: box.querySelector('#gm-name').value }) }).then(r => r.json());
+      if (res.error) { this.toast(res.error, 'bad', 5000); return; }
+      this.toast(`Saved: saves/${res.file}`, 'good', 4000);
+      if (download) this._download(res.file, res.yaml);
+      this.closeModal();
+    };
+    box.querySelector('#gm-save').onclick = () => save(false);
+    box.querySelector('#gm-dl').onclick = () => save(true);
+    box.querySelectorAll('.load-row').forEach(el => {
+      el.onclick = () => { this.closeModal(); this.h.onLoadGame({ file: el.dataset.file, kind: el.dataset.kind, mode: mode() }); };
+    });
+    box.querySelector('#gm-file').onchange = async (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      const content = await f.text();
+      this.closeModal();
+      this.h.onLoadGame({ content, mode: mode() });
+    };
+  }
+
   showGameOver(result) {
     const box = this._modal(`<h2>${esc(result.winner)} wins</h2>
       <p>by ${esc(result.reason)} on turn ${result.turns}</p>

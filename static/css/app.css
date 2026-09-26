@@ -212,3 +212,13 @@ button { font: inherit; }
 #legend .row b { color: #f3f4f6; }
 #legend .row span { color: #cbd5e1; }
 #legend svg { width: 44px; height: 38px; }
+
+/* Game menu: saved games and reports */
+.load-list { max-height: 180px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; padding: 4px; }
+.load-row { padding: 6px 8px; border-radius: 4px; cursor: pointer; }
+.load-row:hover { background: rgba(255,255,255,.06); }
+
+/* keep the top bar on one line on narrower windows: the hint gives way first */
+#topbar .btn, #topbar .pill { white-space: nowrap; }
+#topbar .tb-center { min-width: 0; overflow: hidden; }
+@media (max-width: 1250px) { #topbar .tb-center { font-size: 11px; } }

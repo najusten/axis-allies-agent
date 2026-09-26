@@ -14,3 +14,7 @@ __pycache__/
 
 # Rulebook / reference documents — local only (copyright)
 *.pdf
+
+# saved games and playtest reports (local)
+saves/
+reports/
